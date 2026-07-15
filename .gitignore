@@ -5,3 +5,4 @@ manifest.json
 styles.css
 data.json
 *.log
+.rules
