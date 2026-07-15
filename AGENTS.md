@@ -1,0 +1,95 @@
+# AGENTS.md — YouGile Obsidian Plugin
+
+## План подготовки к публикации
+
+| № | Этап | Статус |
+|---|------|--------|
+| 0 | Исследование API YouGile | ✅ |
+| 1 | Настройка проекта (package.json, tsconfig, manifest, esbuild, styles) | ✅ |
+| 2 | Файловая структура (папки src/api/, src/ui/, src/types/) | ✅ |
+| 3.1 | main.ts — Plugin class, lifecycle, ribbon, registerView | ✅ |
+| 3.2 | api/client.ts — YouGileClient | ✅ |
+| 3.3 | ui/settings-tab.ts — настройки + SecretComponent | ✅ |
+| 3.4 | ui/tasks-view.ts — ItemView (список, детали, создание, чаты) | ✅ |
+| 3.5 | commands.ts — регистрация команд | ✅ |
+| 4 | Сборка, тестирование, симлинк | ✅ |
+| 5 | Авторизация через логин/пароль (POST /auth/keys) | ✅ |
+| 6 | SecretStorage для пароля и API-ключа | ✅ |
+| 7 | Получение проектов, досок, колонок, маппинг column→board→project | ✅ |
+| 8 | Локальный кэш в JSON (yougile_cache.json) | ✅ |
+| 9 | Фильтры: проекты, доски, колонки, исполнители, статус, поиск | ✅ |
+| 10 | Отображение проекта, колонки, исполнителей (имена вместо ID) | ✅ |
+| 11 | Детальный просмотр задачи (inline, не модалка) + Завершить/Возобновить | ✅ |
+| 12 | Древовидное отображение подзадач | ✅ |
+| 13 | Кликабельные подзадачи (открывают inline-детали) | ✅ |
+| 14 | Вкладка Чаты в одной панели с Задачами (переключатель в шапке) | ✅ |
+| 15 | API: group-chats, messages (чтение/отправка) | ✅ |
+| 16 | Кнопка Перейти в чат / Создать чат в деталях задачи | ✅ |
+| 17 | Подписчики чата задачи (GET /tasks/{id}/chat-subscribers) | ✅ |
+| 18 | Загрузка файлов (POST /upload-file) + ссылка в description | ✅ |
+| 19 | Добавление информации — textarea + кнопка "Добавить информацию" | ✅ |
+| 20 | Индикатор дедлайна (зелёный/оранжевый/красный) | ✅ |
+| 21 | Создание задачи в основной панели (inline, не модалка) | ✅ |
+| 22 | Офлайн-режим (очередь действий, синхронизация при подключении) | ✅ |
+| 23 | Полноэкранный режим (удалён, неактуально) | ❌ |
+| 24 | Индикатор синхронизации (✅/⚠) на странице задачи | ✅ |
+| 25 | Исполнители по email (ввод email, маппинг на ID) | ✅ |
+| 26 | Дедлайн в виде даты (input type=date) | ✅ |
+| 27 | HTML в description — очистка через stripHtml | ✅ |
+| 28 | Подзадачи: отдельные записи в кэше, загрузка через GET /tasks/{id} | ✅ |
+
+## Текущая структура файлов
+
+```
+src/
+├── api/
+│   └── client.ts           # YouGileClient: auth, CRUD, проекты, доски, колонки,
+│                           # пользователи, чаты, сообщения, файлы, подписчики
+├── database/
+│   └── db.ts               # LocalDatabase: кэш yougile_cache.json, sync, userMap,
+│                           # offlineQueue, подзадачи (CachedSubtask)
+├── types/
+│   ├── cache.ts            # CachedTask, CachedSubtask, CachedProject, CachedBoard,
+│   │                       # CachedColumn, CacheData, OfflineAction
+│   ├── settings.ts         # YouGileSettings, DEFAULT_SETTINGS
+│   └── yougile.ts          # YouGileTask, YouGileTaskFull, CreateTaskPayload,
+│                           # YouGileProject, YouGileBoard, YouGileColumn, YouGileUser,
+│                           # YouGileGroupChat, YouGileChatMessage
+├── ui/
+│   ├── settings-tab.ts     # Настройки: логин, пароль (SecretStorage), companyId
+│   └── tasks-view.ts       # Основная панель: вкладки Задачи/Чаты, фильтры,
+│                           # дерево задач, детальный просмотр (inline),
+│                           # создание задачи (inline), чаты с историей и отправкой
+├── commands.ts             # Команды: создать задачу, обновить список
+├── main.ts                 # Plugin class, lifecycle, ribbon, registerView
+```
+
+## Используемые API-эндпоинты
+
+| Метод | Endpoint | Назначение |
+|-------|----------|------------|
+| POST | /api-v2/auth/keys | Аутентификация (логин+пароль→ключ) |
+| GET | /api-v2/tasks | Список задач |
+| GET | /api-v2/tasks/{id} | Детали задачи (в т.ч. подзадачи) |
+| POST | /api-v2/tasks | Создать задачу |
+| PUT | /api-v2/tasks/{id} | Обновить задачу (статус, описание) |
+| GET | /api-v2/projects | Список проектов |
+| GET | /api-v2/boards | Список досок |
+| GET | /api-v2/columns/{id} | Детали колонки |
+| GET | /api-v2/users | Список пользователей |
+| GET | /api-v2/group-chats | Список чатов |
+| POST | /api-v2/group-chats | Создать чат |
+| GET | /api-v2/chats/{id}/messages | История сообщений |
+| POST | /api-v2/chats/{id}/messages | Отправить сообщение |
+| PUT | /api-v2/chats/{id}/messages/{mid} | Обновить сообщение |
+| GET | /api-v2/tasks/{id}/chat-subscribers | Подписчики чата задачи |
+| POST | /api-v2/upload-file | Загрузка файла |
+
+## Особенности реализации
+
+- **BASE_URL**: `https://ru.yougile.com/api-v2`
+- **Описание (description)**: приходит как HTML от API, очищается через `stripHtml()` для отображения. Дополнения к описанию оборачиваются в `<p>` с `<br>` между абзацами. Файлы добавляются как `<a href="...">Файл от {email}</a>`.
+- **Офлайн-режим**: действия (create-task, add-info, toggle-completed, upload-file) сохраняются в `offlineQueue` при сетевой ошибке. `flushOfflineQueue()` при синке отправляет их на сервер. `isNetworkError()` отличает сетевые ошибки от ошибок API.
+- **Подзадачи**: маппятся в `CachedSubtask[]` (id + title). При синке для каждого ID подзадачи вызывается `GET /tasks/{id}`, создаётся полноценная запись в кэше. Дерево задач строится рекурсивно.
+- **Фильтры**: проекты, доски, колонки (группировка по названию, A-Z), исполнители, статус, текстовый поиск. Колонки поддерживают несколько ID через запятую для одинаковых названий в разных досках.
+- **Создание задачи**: inline-форма с выбором проекта → доски → колонки, вводом email исполнителей (маппинг на ID из кэша), дедлайном через input type=date.
