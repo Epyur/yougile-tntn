@@ -69,6 +69,37 @@ export class YouGileSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
+      .setHeading()
+      .setName('Расписание мероприятий');
+
+    const calendarProjectSetting = new Setting(containerEl)
+      .setName('Проект')
+      .setDesc('Проект для мероприятий');
+    const calendarProjectSelect = calendarProjectSetting.descEl.parentElement!.createEl('select');
+    calendarProjectSelect.addClass('dropdown');
+    calendarProjectSelect.style.maxWidth = '100%';
+    calendarProjectSelect.style.marginTop = '4px';
+    this.populateProjectDropdown(calendarProjectSelect, this.plugin.settings.calendarProjectId);
+    calendarProjectSelect.addEventListener('change', async () => {
+      this.plugin.settings.calendarProjectId = calendarProjectSelect.value;
+      await this.plugin.saveSettings();
+      this.populateBoardDropdown(calendarBoardSelect, this.plugin.settings.calendarProjectId, this.plugin.settings.calendarBoardId);
+    });
+
+    const calendarBoardSetting = new Setting(containerEl)
+      .setName('Доска')
+      .setDesc('Доска для мероприятий');
+    const calendarBoardSelect = calendarBoardSetting.descEl.parentElement!.createEl('select');
+    calendarBoardSelect.addClass('dropdown');
+    calendarBoardSelect.style.maxWidth = '100%';
+    calendarBoardSelect.style.marginTop = '4px';
+    this.populateBoardDropdown(calendarBoardSelect, this.plugin.settings.calendarProjectId, this.plugin.settings.calendarBoardId);
+    calendarBoardSelect.addEventListener('change', async () => {
+      this.plugin.settings.calendarBoardId = calendarBoardSelect.value;
+      await this.plugin.saveSettings();
+    });
+
+    new Setting(containerEl)
       .setName('Статус API ключа')
       .setDesc(this.plugin.settings.apiKeySecret ? 'Ключ получен и сохранён защищённо' : 'Ключ не получен')
       .addButton(btn => btn
@@ -86,4 +117,26 @@ export class YouGileSettingTab extends PluginSettingTab {
           }
         }));
   }
+
+  private populateProjectDropdown(select: HTMLSelectElement, selectedId: string): void {
+    select.empty();
+    select.createEl('option', { value: '', text: '— не выбран —' });
+    const projects = this.plugin.db.getProjects();
+    for (const p of projects) {
+      select.createEl('option', { value: p.id, text: p.title });
+    }
+    if (selectedId) select.value = selectedId;
+  }
+
+  private populateBoardDropdown(select: HTMLSelectElement, projectId: string, selectedId: string): void {
+    select.empty();
+    select.createEl('option', { value: '', text: '— не выбрана —' });
+    let boards = this.plugin.db.getBoards();
+    if (projectId) boards = boards.filter(b => b.projectId === projectId);
+    for (const b of boards) {
+      select.createEl('option', { value: b.id, text: b.title });
+    }
+    if (selectedId) select.value = selectedId;
+  }
+
 }

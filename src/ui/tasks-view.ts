@@ -32,6 +32,7 @@ export class TasksView extends ItemView {
   private detailTaskId = '';
   private createViewActive = false;
   private searchInput!: HTMLInputElement;
+  private filterMode: 'all' | 'events' = 'all';
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -92,6 +93,15 @@ export class TasksView extends ItemView {
     this.selectStatus.createEl('option', { value: 'completed', text: 'Только завершённые' });
     this.selectStatus.value = 'active';
     this.selectStatus.addEventListener('change', () => this.renderFromCache());
+
+    const filterToggle = filtersEl.createEl('select');
+    filterToggle.addClass('dropdown');
+    filterToggle.createEl('option', { value: 'all', text: 'Все задачи' });
+    filterToggle.createEl('option', { value: 'events', text: 'Мероприятия' });
+    filterToggle.addEventListener('change', () => {
+      this.filterMode = filterToggle.value as 'all' | 'events';
+      this.renderFromCache();
+    });
 
     const createBtn = headerEl.createEl('button', { text: '➕ Новая задача', cls: 'mailer-yougile-refresh-btn' });
     createBtn.addEventListener('click', () => this.showCreateForm());
@@ -295,6 +305,14 @@ export class TasksView extends ItemView {
     if (assigneeId) tasks = tasks.filter(t => t.assigned.indexOf(assigneeId) !== -1);
     if (statusFilter === 'active') tasks = tasks.filter(t => !t.completed);
     if (statusFilter === 'completed') tasks = tasks.filter(t => t.completed);
+
+    if (this.filterMode === 'events') {
+      const eventProjectId = this.plugin.settings.calendarProjectId;
+      const eventBoardId = this.plugin.settings.calendarBoardId;
+      if (eventProjectId) tasks = tasks.filter(t => t.projectId === eventProjectId);
+      if (eventBoardId) tasks = tasks.filter(t => t.boardId === eventBoardId);
+      tasks = tasks.filter(t => !!t.deadline);
+    }
 
     const query = this.searchInput?.value?.toLowerCase().trim() || '';
     if (query) {

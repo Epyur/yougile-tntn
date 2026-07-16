@@ -3,6 +3,7 @@ import { YouGileSettings, DEFAULT_SETTINGS } from './types/settings';
 import { YouGileClient } from './api/client';
 import { YouGileSettingTab } from './ui/settings-tab';
 import { TASKS_VIEW_TYPE, TasksView } from './ui/tasks-view';
+import { SCHEDULE_VIEW_TYPE, ScheduleView } from './ui/schedule-view';
 import { registerCommands } from './commands';
 import { LocalDatabase } from './database/db';
 
@@ -29,9 +30,14 @@ export default class YouGilePlugin extends Plugin {
     this.addSettingTab(new YouGileSettingTab(this.app, this));
 
     this.registerView(TASKS_VIEW_TYPE, (leaf) => new TasksView(leaf, this));
+    this.registerView(SCHEDULE_VIEW_TYPE, (leaf) => new ScheduleView(leaf, this));
 
     this.addRibbonIcon('list-todo', 'YouGile', () => {
       this.activateView();
+    });
+
+    this.addRibbonIcon('calendar', 'Расписание мероприятий', () => {
+      this.activateScheduleView();
     });
 
     registerCommands(this);
@@ -39,6 +45,7 @@ export default class YouGilePlugin extends Plugin {
 
   onunload(): void {
     this.app.workspace.detachLeavesOfType(TASKS_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(SCHEDULE_VIEW_TYPE);
   }
 
   async loadSettings(): Promise<void> {
@@ -104,6 +111,20 @@ export default class YouGilePlugin extends Plugin {
       leaf = workspace.getRightLeaf(false) ?? undefined;
       if (leaf) {
         await leaf.setViewState({ type: TASKS_VIEW_TYPE, active: true });
+      }
+    }
+    if (leaf) {
+      workspace.revealLeaf(leaf);
+    }
+  }
+
+  async activateScheduleView(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(SCHEDULE_VIEW_TYPE).first();
+    if (!leaf) {
+      leaf = workspace.getRightLeaf(false) ?? undefined;
+      if (leaf) {
+        await leaf.setViewState({ type: SCHEDULE_VIEW_TYPE, active: true });
       }
     }
     if (leaf) {

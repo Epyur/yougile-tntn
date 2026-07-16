@@ -4,6 +4,8 @@ export interface YouGileSettings {
   apiKeySecret: string;
   defaultBoardId: string;
   selectedProjectId: string;
+  calendarProjectId: string;
+  calendarBoardId: string;
 }
 
 export const DEFAULT_SETTINGS: YouGileSettings = {
@@ -12,4 +14,6 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   apiKeySecret: '',
   defaultBoardId: '',
   selectedProjectId: '',
+  calendarProjectId: '',
+  calendarBoardId: '',
 };
