@@ -6,6 +6,7 @@ export interface YouGileSettings {
   selectedProjectId: string;
   calendarProjectId: string;
   calendarBoardId: string;
+  calendarSelectedColumnIds: string;
 }
 
 export const DEFAULT_SETTINGS: YouGileSettings = {
@@ -16,4 +17,5 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   selectedProjectId: '',
   calendarProjectId: '',
   calendarBoardId: '',
+  calendarSelectedColumnIds: '',
 };

@@ -29,6 +29,8 @@ interface CalendarEvent {
   deadline: number;
   descriptionRaw: string;
   completed: boolean;
+  columnId: string;
+  additionalInfo: string;
 }
 
 function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
@@ -40,6 +42,7 @@ function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
   let targetAudience = '';
   let startTime = '';
   let endTime = '';
+  let additionalInfo = '';
   let descriptionRaw = task.description;
 
   if (task.description) {
@@ -52,6 +55,7 @@ function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
           targetAudience = parsed.targetAudience || '';
           startTime = parsed.startTime || '';
           endTime = parsed.endTime || '';
+          additionalInfo = parsed.additionalInfo || '';
           descriptionRaw = JSON.stringify(parsed, null, 2);
         }
       } catch {
@@ -83,6 +87,8 @@ function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
     deadline: task.deadline,
     descriptionRaw,
     completed: task.completed,
+    columnId: task.columnId,
+    additionalInfo: additionalInfo,
   };
 }
 
@@ -101,13 +107,14 @@ function parseDescriptionToMd(event: CalendarEvent): string {
   return lines.join('\n');
 }
 
-function buildEventDescription(title: string, place: string, targetAudience: string, startTime: string, endTime: string): string {
+function buildEventDescription(title: string, place: string, targetAudience: string, startTime: string, endTime: string, additionalInfo: string): string {
   const data: Record<string, string> = {};
   data.title = title;
   data.place = place;
   data.targetAudience = targetAudience;
   data.startTime = startTime;
   data.endTime = endTime;
+  data.additionalInfo = additionalInfo;
   return JSON.stringify(data, null, 2);
 }
 
@@ -120,6 +127,7 @@ export class ScheduleView extends ItemView {
   private createViewActive = false;
   private dayViewActive = false;
   private filterMode: 'all' | 'events' = 'events';
+  private selectedColumnIds: Set<string> = new Set();
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -146,6 +154,7 @@ export class ScheduleView extends ItemView {
     container.addClass('mailer-yougile-container');
 
     this.containerElContent = container.createDiv();
+    this.selectedColumnIds = new Set(this.plugin.settings.calendarSelectedColumnIds.split(',').filter(Boolean));
     this.renderCalendar();
   }
 
@@ -170,12 +179,51 @@ export class ScheduleView extends ItemView {
     filterToggle.style.marginBottom = '8px';
     filterToggle.style.width = 'auto';
     filterToggle.createEl('option', { value: 'all', text: 'Все задачи с дедлайном' });
-    filterToggle.createEl('option', { value: 'events', text: 'Только мероприятия' });
+    filterToggle.createEl('option', { value: 'events', text: 'Расписание мероприятий' });
     filterToggle.value = this.filterMode;
+    const columnFilterContainer = container.createDiv();
+    columnFilterContainer.style.marginBottom = '8px';
+
     filterToggle.addEventListener('change', () => {
       this.filterMode = filterToggle.value as 'all' | 'events';
       this.renderCalendar();
     });
+
+    if (this.filterMode === 'events' && this.plugin.settings.calendarBoardId) {
+      const boardId = this.plugin.settings.calendarBoardId;
+      const columns = this.plugin.db.getColumns().filter(c => c.boardId === boardId);
+      columns.sort((a, b) => a.title.localeCompare(b.title));
+      columnFilterContainer.createDiv({ text: 'Колонки:', cls: 'mailer-yougile-task-meta' });
+      for (const col of columns) {
+        const wrapper = columnFilterContainer.createEl('label');
+        wrapper.style.display = 'inline-flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.marginRight = '12px';
+        wrapper.style.marginTop = '4px';
+        wrapper.style.fontSize = 'var(--font-smaller)';
+        wrapper.style.cursor = 'pointer';
+        wrapper.style.whiteSpace = 'nowrap';
+        const cb = wrapper.createEl('input', { attr: { type: 'checkbox' } });
+        cb.style.width = '16px';
+        cb.style.height = '16px';
+        cb.style.margin = '0 4px 0 0';
+        cb.style.flexShrink = '0';
+        cb.checked = this.selectedColumnIds.size === 0 || this.selectedColumnIds.has(col.id);
+        if (cb.checked) this.selectedColumnIds.add(col.id);
+        const span = wrapper.createEl('span');
+        span.setText(col.title);
+        cb.addEventListener('change', () => {
+          if (cb.checked) {
+            this.selectedColumnIds.add(col.id);
+          } else {
+            this.selectedColumnIds.delete(col.id);
+          }
+          this.plugin.settings.calendarSelectedColumnIds = Array.from(this.selectedColumnIds).join(',');
+          this.plugin.saveSettings();
+          this.renderCalendar();
+        });
+      }
+    }
 
     const navRight = headerEl.createDiv({ cls: 'mailer-yougile-header' });
     const createBtn = navRight.createEl('button', { text: '➕ Создать мероприятие', cls: 'mailer-yougile-refresh-btn' });
@@ -285,6 +333,9 @@ export class ScheduleView extends ItemView {
     if (this.filterMode === 'events') {
       if (projectId) filtered = filtered.filter(t => t.projectId === projectId);
       if (boardId) filtered = filtered.filter(t => t.boardId === boardId);
+      if (this.selectedColumnIds.size > 0) {
+        filtered = filtered.filter(t => this.selectedColumnIds.has(t.columnId));
+      }
     }
     filtered = filtered.filter(t => !!t.deadline);
 
@@ -378,8 +429,20 @@ export class ScheduleView extends ItemView {
       metaEl.createDiv({ text: line });
     }
 
+    if (ev.additionalInfo) {
+      const infoDiv = container.createDiv({ cls: 'mailer-yougile-task-meta' });
+      infoDiv.style.marginTop = '12px';
+      infoDiv.style.borderTop = '1px solid var(--background-modifier-border)';
+      infoDiv.style.paddingTop = '8px';
+      infoDiv.createDiv({ text: 'Дополнительная информация:' });
+      infoDiv.createDiv({ text: ev.additionalInfo });
+    }
+
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
     btnRow.style.marginTop = '12px';
+
+    const editBtn = btnRow.createEl('button', { text: '✏️ Редактировать', cls: 'mailer-yougile-refresh-btn' });
+    editBtn.addEventListener('click', () => this.renderEventEditForm(ev));
 
     if (ev.completed) {
       const reopenBtn = btnRow.createEl('button', { text: '🔄 Возобновить', cls: 'mailer-yougile-refresh-btn' });
@@ -433,6 +496,19 @@ export class ScheduleView extends ItemView {
     const bTitle = this.plugin.db.getBoards().find(b => b.id === this.plugin.settings.calendarBoardId)?.title || '—';
     columnsInfo.setText(`Проект: ${pTitle} · Доска: ${bTitle}`);
 
+    const columnLabel = container.createEl('label', { text: 'Направление мероприятия' });
+    const columnSelect = container.createEl('select');
+    columnSelect.style.width = '100%';
+    columnSelect.style.boxSizing = 'border-box';
+    columnSelect.style.marginBottom = '8px';
+    const boardId = this.plugin.settings.calendarBoardId;
+    let boardColumns = this.plugin.db.getColumns();
+    if (boardId) boardColumns = boardColumns.filter(c => c.boardId === boardId);
+    boardColumns.sort((a, b) => a.title.localeCompare(b.title));
+    for (const col of boardColumns) {
+      columnSelect.createEl('option', { value: col.id, text: col.title });
+    }
+
     const fields: Array<{ label: string; key: string; type: string; placeholder?: string }> = [
       { label: 'Название мероприятия', key: 'title', type: 'text', placeholder: 'Введите название' },
       { label: 'Место проведения', key: 'place', type: 'text', placeholder: 'Адрес или место' },
@@ -459,6 +535,13 @@ export class ScheduleView extends ItemView {
       }
     }
 
+    const additionalLabel = container.createEl('label', { text: 'Дополнительная информация и описание' });
+    const additionalTextarea = container.createEl('textarea');
+    additionalTextarea.style.width = '100%';
+    additionalTextarea.style.boxSizing = 'border-box';
+    additionalTextarea.style.minHeight = '60px';
+    additionalTextarea.placeholder = 'Любая дополнительная информация о мероприятии';
+
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
     btnRow.style.marginTop = '12px';
 
@@ -482,12 +565,13 @@ export class ScheduleView extends ItemView {
       const dateVal = inputs.date.value;
       const startTime = inputs.startTime.value;
       const endTime = inputs.endTime.value;
+      const additionalInfo = additionalTextarea.value.trim();
       if (!dateVal) { new Notice('Дата проведения обязательна'); return; }
 
       submitBtn.setText('⏳');
       submitBtn.setAttr('disabled', 'true');
 
-      const description = buildEventDescription(title, place, targetAudience, startTime, endTime);
+      const description = buildEventDescription(title, place, targetAudience, startTime, endTime, additionalInfo);
 
       let assignedIds: string[] = [];
       if (responsibleEmail) {
@@ -499,10 +583,13 @@ export class ScheduleView extends ItemView {
 
       const deadlineMs = new Date(`${dateVal}T${endTime || '23:59'}`).getTime();
 
+      const selectedColumnId = columnSelect.value;
+
       try {
         const payload: Record<string, unknown> = {
           title,
           description,
+          columnId: selectedColumnId || undefined,
           assigned: assignedIds.length > 0 ? assignedIds : undefined,
           deadline: { deadline: deadlineMs, withTime: true },
         };
@@ -516,6 +603,7 @@ export class ScheduleView extends ItemView {
             payload: {
               title,
               description,
+              columnId: selectedColumnId || undefined,
               assigned: assignedIds.length > 0 ? assignedIds : undefined,
               deadline: { deadline: deadlineMs, withTime: true },
             },
@@ -526,6 +614,138 @@ export class ScheduleView extends ItemView {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText('Создать');
           submitBtn.removeAttribute('disabled');
+        }
+      }
+    });
+  }
+
+  private renderEventEditForm(ev: CalendarEvent): void {
+    const container = this.containerElContent;
+    container.empty();
+
+    this.createViewActive = true;
+    this.dayViewActive = false;
+
+    const backBtn = container.createEl('button', { text: '← Назад', cls: 'mailer-yougile-refresh-btn' });
+    backBtn.addEventListener('click', () => this.renderEventDetail(ev));
+
+    container.createEl('h3', { text: `Редактирование: ${ev.title}` });
+
+    const fields: Array<{ label: string; key: string; type: string; placeholder?: string }> = [
+      { label: 'Название мероприятия', key: 'title', type: 'text', placeholder: 'Введите название' },
+      { label: 'Место проведения', key: 'place', type: 'text', placeholder: 'Адрес или место' },
+      { label: 'Целевая аудитория', key: 'targetAudience', type: 'text', placeholder: 'Кому предназначено' },
+      { label: 'Ответственный (email)', key: 'responsible', type: 'text', placeholder: 'user@example.com' },
+      { label: 'Дата проведения', key: 'date', type: 'date' },
+      { label: 'Время начала', key: 'startTime', type: 'time' },
+      { label: 'Время окончания', key: 'endTime', type: 'time' },
+    ];
+
+    const inputs: Record<string, HTMLInputElement> = {};
+    const prefillValues: Record<string, string> = {
+      title: ev.title,
+      place: ev.place,
+      targetAudience: ev.targetAudience,
+      responsible: ev.responsibleName,
+      date: ev.date,
+      startTime: ev.startTime,
+      endTime: ev.endTime,
+    };
+
+    for (const f of fields) {
+      const label = container.createEl('label', { text: f.label });
+      const input = container.createEl('input', { attr: { type: f.type, placeholder: f.placeholder || '' } });
+      input.style.width = '100%';
+      input.style.boxSizing = 'border-box';
+      input.value = prefillValues[f.key] || '';
+      inputs[f.key] = input;
+    }
+
+    const columnLabel = container.createEl('label', { text: 'Направление мероприятия' });
+    const columnSelect = container.createEl('select');
+    columnSelect.style.width = '100%';
+    columnSelect.style.boxSizing = 'border-box';
+    columnSelect.style.marginBottom = '8px';
+    const boardId = this.plugin.settings.calendarBoardId;
+    let boardColumns = this.plugin.db.getColumns();
+    if (boardId) boardColumns = boardColumns.filter(c => c.boardId === boardId);
+    boardColumns.sort((a, b) => a.title.localeCompare(b.title));
+    for (const col of boardColumns) {
+      const opt = columnSelect.createEl('option', { value: col.id, text: col.title });
+      if (col.id === ev.columnId) opt.selected = true;
+    }
+
+    const additionalLabel = container.createEl('label', { text: 'Дополнительная информация и описание' });
+    const additionalTextarea = container.createEl('textarea');
+    additionalTextarea.style.width = '100%';
+    additionalTextarea.style.boxSizing = 'border-box';
+    additionalTextarea.style.minHeight = '60px';
+    additionalTextarea.value = ev.additionalInfo;
+
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
+    btnRow.style.marginTop = '12px';
+
+    const saveBtn = btnRow.createEl('button', { text: '💾 Сохранить', cls: 'mailer-yougile-refresh-btn' });
+    const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
+    cancelBtn.addEventListener('click', () => this.renderEventDetail(ev));
+
+    saveBtn.addEventListener('click', async () => {
+      const title = inputs.title.value.trim();
+      if (!title) { new Notice('Название мероприятия обязательно'); return; }
+      const place = inputs.place.value.trim();
+      const targetAudience = inputs.targetAudience.value.trim();
+      const responsibleEmail = inputs.responsible.value.trim();
+      const dateVal = inputs.date.value;
+      const startTime = inputs.startTime.value;
+      const endTime = inputs.endTime.value;
+      const additionalInfo = additionalTextarea.value.trim();
+      if (!dateVal) { new Notice('Дата проведения обязательна'); return; }
+
+      saveBtn.setText('⏳');
+      saveBtn.setAttr('disabled', 'true');
+
+      const description = buildEventDescription(title, place, targetAudience, startTime, endTime, additionalInfo);
+
+      let assignedIds: string[] = [];
+      if (responsibleEmail) {
+        const users = this.plugin.db.getUsers();
+        const emailToId = new Map(users.map(u => [u.email || u.name || u.id, u.id]));
+        const uid = emailToId.get(responsibleEmail);
+        if (uid) assignedIds = [uid];
+      }
+
+      const deadlineMs = new Date(`${dateVal}T${endTime || '23:59'}`).getTime();
+      const selectedColumnId = columnSelect.value;
+
+      try {
+        await this.plugin.client.updateTask(ev.taskId, {
+          title,
+          description,
+          columnId: selectedColumnId || undefined,
+          assigned: assignedIds.length > 0 ? assignedIds : undefined,
+          deadline: { deadline: deadlineMs, withTime: true },
+        });
+        new Notice('Мероприятие обновлено');
+        this.syncAndRender();
+      } catch (e) {
+        if (isNetworkError(e)) {
+          this.plugin.db.addToOfflineQueue({
+            type: 'update-task',
+            payload: {
+              id: ev.taskId,
+              title,
+              description,
+              columnId: selectedColumnId || undefined,
+              assigned: assignedIds.length > 0 ? assignedIds : undefined,
+              deadline: { deadline: deadlineMs, withTime: true },
+            },
+          });
+          new Notice('Нет соединения. Изменения будут сохранены позже.');
+          this.syncAndRender();
+        } else {
+          new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
+          saveBtn.setText('💾 Сохранить');
+          saveBtn.removeAttribute('disabled');
         }
       }
     });

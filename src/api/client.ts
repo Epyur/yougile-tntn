@@ -114,6 +114,11 @@ export class YouGileClient {
     return result.content ?? [];
   }
 
+  async getColumns(): Promise<YouGileColumn[]> {
+    const result = await this.request<{ content: YouGileColumn[] }>('GET', '/columns');
+    return result.content ?? [];
+  }
+
   async getColumnById(columnId: string): Promise<YouGileColumn> {
     return this.request<YouGileColumn>('GET', `/columns/${encodeURIComponent(columnId)}`);
   }
