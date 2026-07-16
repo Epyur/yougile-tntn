@@ -100,6 +100,133 @@ export class YouGileSettingTab extends PluginSettingTab {
     });
 
     new Setting(containerEl)
+      .setHeading()
+      .setName('Управление документами');
+
+    const docsProjectSetting = new Setting(containerEl)
+      .setName('Проект')
+      .setDesc('Проект для документов');
+    const docsProjectSelect = docsProjectSetting.descEl.parentElement!.createEl('select');
+    docsProjectSelect.addClass('dropdown');
+    docsProjectSelect.style.maxWidth = '100%';
+    docsProjectSelect.style.marginTop = '4px';
+    this.populateProjectDropdown(docsProjectSelect, this.plugin.settings.docsProjectId);
+    docsProjectSelect.addEventListener('change', async () => {
+      this.plugin.settings.docsProjectId = docsProjectSelect.value;
+      await this.plugin.saveSettings();
+      this.populateBoardDropdown(docsBoardSelect, this.plugin.settings.docsProjectId, this.plugin.settings.docsBoardId);
+    });
+
+    const docsBoardSetting = new Setting(containerEl)
+      .setName('Доска')
+      .setDesc('Доска для документов');
+    const docsBoardSelect = docsBoardSetting.descEl.parentElement!.createEl('select');
+    docsBoardSelect.addClass('dropdown');
+    docsBoardSelect.style.maxWidth = '100%';
+    docsBoardSelect.style.marginTop = '4px';
+    this.populateBoardDropdown(docsBoardSelect, this.plugin.settings.docsProjectId, this.plugin.settings.docsBoardId);
+    docsBoardSelect.addEventListener('change', async () => {
+      this.plugin.settings.docsBoardId = docsBoardSelect.value;
+      await this.plugin.saveSettings();
+    });
+
+    new Setting(containerEl)
+      .setHeading()
+      .setName('Письма');
+
+    const emailProjectSetting = new Setting(containerEl)
+      .setName('Проект')
+      .setDesc('Проект для писем');
+    const emailProjectSelect = emailProjectSetting.descEl.parentElement!.createEl('select');
+    emailProjectSelect.addClass('dropdown');
+    emailProjectSelect.style.maxWidth = '100%';
+    emailProjectSelect.style.marginTop = '4px';
+    this.populateProjectDropdown(emailProjectSelect, this.plugin.settings.emailProjectId);
+    emailProjectSelect.addEventListener('change', async () => {
+      this.plugin.settings.emailProjectId = emailProjectSelect.value;
+      await this.plugin.saveSettings();
+      this.populateBoardDropdown(emailBoardSelect, this.plugin.settings.emailProjectId, this.plugin.settings.emailBoardId);
+    });
+
+    const emailBoardSetting = new Setting(containerEl)
+      .setName('Доска')
+      .setDesc('Доска для писем');
+    const emailBoardSelect = emailBoardSetting.descEl.parentElement!.createEl('select');
+    emailBoardSelect.addClass('dropdown');
+    emailBoardSelect.style.maxWidth = '100%';
+    emailBoardSelect.style.marginTop = '4px';
+    this.populateBoardDropdown(emailBoardSelect, this.plugin.settings.emailProjectId, this.plugin.settings.emailBoardId);
+    emailBoardSelect.addEventListener('change', async () => {
+      this.plugin.settings.emailBoardId = emailBoardSelect.value;
+      await this.plugin.saveSettings();
+    });
+
+    new Setting(containerEl)
+      .setName('Путь к БД писем')
+      .setDesc('Путь к файлу mailer_data.json относительно хранилища Obsidian')
+      .addText(text => text
+        .setPlaceholder('mailer_data.json')
+        .setValue(this.plugin.settings.emailDbPath)
+        .onChange(async (value) => {
+          this.plugin.settings.emailDbPath = value || 'mailer_data.json';
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setHeading()
+      .setName('AI помощник (LLM)');
+
+    new Setting(containerEl)
+      .setName('API ключ LLM')
+      .setDesc('API ключ для OpenAI-совместимого API')
+      .addText(text => {
+        text.inputEl.type = 'password';
+        text
+          .setPlaceholder('sk-...')
+          .setValue('')
+          .onChange((value) => {
+            const secretName = `yougile-llm-${Date.now()}`;
+            this.plugin.saveSecret(secretName, value);
+            this.plugin.settings.llmApiKeySecret = secretName;
+            this.plugin.saveSettings();
+          });
+        return text;
+      });
+
+    new Setting(containerEl)
+      .setName('URL API')
+      .setDesc('URL эндпоинта LLM (OpenAI-совместимый)')
+      .addText(text => text
+        .setPlaceholder('https://ask.chadgpt.ru/api/v1/chat/completions')
+        .setValue(this.plugin.settings.llmApiUrl)
+        .onChange(async (value) => {
+          this.plugin.settings.llmApiUrl = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('Модель')
+      .setDesc('Название модели LLM')
+      .addText(text => text
+        .setPlaceholder('deepseek-v4-pro')
+        .setValue(this.plugin.settings.llmModel)
+        .onChange(async (value) => {
+          this.plugin.settings.llmModel = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('Системный промпт')
+      .setDesc('Системный промпт для LLM')
+      .addTextArea(text => text
+        .setPlaceholder('Ты — эксперт...')
+        .setValue(this.plugin.settings.llmSystemPrompt)
+        .onChange(async (value) => {
+          this.plugin.settings.llmSystemPrompt = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
       .setName('Статус API ключа')
       .setDesc(this.plugin.settings.apiKeySecret ? 'Ключ получен и сохранён защищённо' : 'Ключ не получен')
       .addButton(btn => btn

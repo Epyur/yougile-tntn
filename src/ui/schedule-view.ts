@@ -31,6 +31,7 @@ interface CalendarEvent {
   completed: boolean;
   columnId: string;
   additionalInfo: string;
+  reportHtml: string;
 }
 
 function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
@@ -43,13 +44,19 @@ function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
   let startTime = '';
   let endTime = '';
   let additionalInfo = '';
+  let reportHtml = '';
   let descriptionRaw = task.description;
 
   if (task.description) {
-    const desc = task.description.trim();
-    if (desc.startsWith('{') || desc.startsWith('[')) {
+    const reportIdx = task.description.indexOf('<!--REPORT-->');
+    const jsonPart = reportIdx !== -1 ? task.description.substring(0, reportIdx).trim() : task.description.trim();
+    if (reportIdx !== -1) {
+      reportHtml = task.description.substring(reportIdx + '<!--REPORT-->'.length).trim();
+    }
+
+    if (jsonPart.startsWith('{') || jsonPart.startsWith('[')) {
       try {
-        const parsed = JSON.parse(desc);
+        const parsed = JSON.parse(jsonPart);
         if (parsed && typeof parsed === 'object') {
           place = parsed.place || '';
           targetAudience = parsed.targetAudience || '';
@@ -59,7 +66,7 @@ function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
           descriptionRaw = JSON.stringify(parsed, null, 2);
         }
       } catch {
-        const mdMatch = desc.match(/^---\n([\s\S]*?)\n---/);
+        const mdMatch = jsonPart.match(/^---\n([\s\S]*?)\n---/);
         if (mdMatch) {
           const mdBody = mdMatch[1];
           for (const line of mdBody.split('\n')) {
@@ -88,7 +95,8 @@ function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
     descriptionRaw,
     completed: task.completed,
     columnId: task.columnId,
-    additionalInfo: additionalInfo,
+    additionalInfo,
+    reportHtml,
   };
 }
 
@@ -126,7 +134,7 @@ export class ScheduleView extends ItemView {
   private selectedDate: string | null = null;
   private createViewActive = false;
   private dayViewActive = false;
-  private filterMode: 'all' | 'events' = 'events';
+  private filterMode: 'all' | 'events' | 'docs' = 'events';
   private selectedColumnIds: Set<string> = new Set();
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
@@ -154,7 +162,10 @@ export class ScheduleView extends ItemView {
     container.addClass('mailer-yougile-container');
 
     this.containerElContent = container.createDiv();
-    this.selectedColumnIds = new Set(this.plugin.settings.calendarSelectedColumnIds.split(',').filter(Boolean));
+    const ids = this.filterMode === 'docs'
+      ? this.plugin.settings.docsSelectedColumnIds
+      : this.plugin.settings.calendarSelectedColumnIds;
+    this.selectedColumnIds = new Set(ids.split(',').filter(Boolean));
     this.renderCalendar();
   }
 
@@ -180,53 +191,29 @@ export class ScheduleView extends ItemView {
     filterToggle.style.width = 'auto';
     filterToggle.createEl('option', { value: 'all', text: 'Все задачи с дедлайном' });
     filterToggle.createEl('option', { value: 'events', text: 'Расписание мероприятий' });
+    filterToggle.createEl('option', { value: 'docs', text: 'Документы' });
     filterToggle.value = this.filterMode;
     const columnFilterContainer = container.createDiv();
     columnFilterContainer.style.marginBottom = '8px';
 
     filterToggle.addEventListener('change', () => {
-      this.filterMode = filterToggle.value as 'all' | 'events';
+      this.filterMode = filterToggle.value as 'all' | 'events' | 'docs';
+      const ids = this.filterMode === 'docs'
+        ? this.plugin.settings.docsSelectedColumnIds
+        : this.plugin.settings.calendarSelectedColumnIds;
+      this.selectedColumnIds = new Set(ids.split(',').filter(Boolean));
       this.renderCalendar();
     });
 
     if (this.filterMode === 'events' && this.plugin.settings.calendarBoardId) {
-      const boardId = this.plugin.settings.calendarBoardId;
-      const columns = this.plugin.db.getColumns().filter(c => c.boardId === boardId);
-      columns.sort((a, b) => a.title.localeCompare(b.title));
-      columnFilterContainer.createDiv({ text: 'Колонки:', cls: 'mailer-yougile-task-meta' });
-      for (const col of columns) {
-        const wrapper = columnFilterContainer.createEl('label');
-        wrapper.style.display = 'inline-flex';
-        wrapper.style.alignItems = 'center';
-        wrapper.style.marginRight = '12px';
-        wrapper.style.marginTop = '4px';
-        wrapper.style.fontSize = 'var(--font-smaller)';
-        wrapper.style.cursor = 'pointer';
-        wrapper.style.whiteSpace = 'nowrap';
-        const cb = wrapper.createEl('input', { attr: { type: 'checkbox' } });
-        cb.style.width = '16px';
-        cb.style.height = '16px';
-        cb.style.margin = '0 4px 0 0';
-        cb.style.flexShrink = '0';
-        cb.checked = this.selectedColumnIds.size === 0 || this.selectedColumnIds.has(col.id);
-        if (cb.checked) this.selectedColumnIds.add(col.id);
-        const span = wrapper.createEl('span');
-        span.setText(col.title);
-        cb.addEventListener('change', () => {
-          if (cb.checked) {
-            this.selectedColumnIds.add(col.id);
-          } else {
-            this.selectedColumnIds.delete(col.id);
-          }
-          this.plugin.settings.calendarSelectedColumnIds = Array.from(this.selectedColumnIds).join(',');
-          this.plugin.saveSettings();
-          this.renderCalendar();
-        });
-      }
+      this.renderColumnCheckboxes(columnFilterContainer, this.plugin.settings.calendarBoardId, 'calendarSelectedColumnIds');
+    } else if (this.filterMode === 'docs' && this.plugin.settings.docsBoardId) {
+      this.renderColumnCheckboxes(columnFilterContainer, this.plugin.settings.docsBoardId, 'docsSelectedColumnIds');
     }
 
     const navRight = headerEl.createDiv({ cls: 'mailer-yougile-header' });
-    const createBtn = navRight.createEl('button', { text: '➕ Создать мероприятие', cls: 'mailer-yougile-refresh-btn' });
+    const createBtnText = this.filterMode === 'docs' ? '➕ Создать документ' : '➕ Создать мероприятие';
+    const createBtn = navRight.createEl('button', { text: createBtnText, cls: 'mailer-yougile-refresh-btn' });
     const syncBtn = navRight.createEl('button', { text: 'Обновить', cls: 'mailer-yougile-refresh-btn' });
 
     prevBtn.addEventListener('click', () => {
@@ -241,7 +228,13 @@ export class ScheduleView extends ItemView {
       this.renderCalendar();
     });
 
-    createBtn.addEventListener('click', () => this.showCreateForm());
+    createBtn.addEventListener('click', () => {
+      if (this.filterMode === 'docs') {
+        this.plugin.activateDocumentsView();
+      } else {
+        this.showCreateForm();
+      }
+    });
 
     syncBtn.addEventListener('click', () => this.syncAndRender());
 
@@ -324,17 +317,67 @@ export class ScheduleView extends ItemView {
     return `${months[this.currentMonth]} ${this.currentYear}`;
   }
 
+  private isDocumentTask(task: { description: string }): boolean {
+    if (!task.description) return false;
+    const desc = task.description.trim();
+    if (!desc.startsWith('{')) return false;
+    try {
+      const parsed = JSON.parse(desc);
+      return !!(parsed && typeof parsed === 'object' && parsed.type === 'document');
+    } catch {
+      return false;
+    }
+  }
+
+  private renderColumnCheckboxes(container: HTMLElement, boardId: string, settingKey: 'calendarSelectedColumnIds' | 'docsSelectedColumnIds'): void {
+    const columns = this.plugin.db.getColumns().filter(c => c.boardId === boardId);
+    columns.sort((a, b) => a.title.localeCompare(b.title));
+    container.createDiv({ text: 'Колонки:', cls: 'mailer-yougile-task-meta' });
+    for (const col of columns) {
+      const wrapper = container.createEl('label');
+      wrapper.style.display = 'inline-flex';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.marginRight = '12px';
+      wrapper.style.marginTop = '4px';
+      wrapper.style.fontSize = 'var(--font-smaller)';
+      wrapper.style.cursor = 'pointer';
+      wrapper.style.whiteSpace = 'nowrap';
+      const cb = wrapper.createEl('input', { attr: { type: 'checkbox' } });
+      cb.style.width = '16px';
+      cb.style.height = '16px';
+      cb.style.margin = '0 4px 0 0';
+      cb.style.flexShrink = '0';
+      cb.checked = this.selectedColumnIds.size === 0 || this.selectedColumnIds.has(col.id);
+      if (cb.checked) this.selectedColumnIds.add(col.id);
+      const span = wrapper.createEl('span');
+      span.setText(col.title);
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          this.selectedColumnIds.add(col.id);
+        } else {
+          this.selectedColumnIds.delete(col.id);
+        }
+        this.plugin.settings[settingKey] = Array.from(this.selectedColumnIds).join(',');
+        this.plugin.saveSettings();
+        this.renderCalendar();
+      });
+    }
+  }
+
   private getCalendarEvents(): CalendarEvent[] {
     const tasks = this.plugin.db.getTasks();
-    const projectId = this.plugin.settings.calendarProjectId;
-    const boardId = this.plugin.settings.calendarBoardId;
+    const projectId = this.filterMode === 'docs' ? this.plugin.settings.docsProjectId : this.plugin.settings.calendarProjectId;
+    const boardId = this.filterMode === 'docs' ? this.plugin.settings.docsBoardId : this.plugin.settings.calendarBoardId;
 
     let filtered = tasks;
-    if (this.filterMode === 'events') {
+    if (this.filterMode === 'events' || this.filterMode === 'docs') {
       if (projectId) filtered = filtered.filter(t => t.projectId === projectId);
       if (boardId) filtered = filtered.filter(t => t.boardId === boardId);
       if (this.selectedColumnIds.size > 0) {
         filtered = filtered.filter(t => this.selectedColumnIds.has(t.columnId));
+      }
+      if (this.filterMode === 'docs') {
+        filtered = filtered.filter(t => this.isDocumentTask(t));
       }
     }
     filtered = filtered.filter(t => !!t.deadline);
@@ -438,6 +481,14 @@ export class ScheduleView extends ItemView {
       infoDiv.createDiv({ text: ev.additionalInfo });
     }
 
+    if (ev.reportHtml) {
+      const reportDiv = container.createDiv({ cls: 'mailer-yougile-task-meta' });
+      reportDiv.style.marginTop = '12px';
+      reportDiv.style.borderTop = '1px solid var(--background-modifier-border)';
+      reportDiv.style.paddingTop = '8px';
+      reportDiv.innerHTML = ev.reportHtml;
+    }
+
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
     btnRow.style.marginTop = '12px';
 
@@ -457,15 +508,7 @@ export class ScheduleView extends ItemView {
       });
     } else {
       const completeBtn = btnRow.createEl('button', { text: 'Завершить', cls: 'mailer-yougile-refresh-btn' });
-      completeBtn.addEventListener('click', async () => {
-        try {
-          await this.plugin.client.updateTask(ev.taskId, { completed: true });
-          new Notice('Мероприятие завершено');
-          this.syncAndRender();
-        } catch (e) {
-          new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      });
+      completeBtn.addEventListener('click', () => this.renderReportForm(ev));
     }
   }
 
@@ -746,6 +789,144 @@ export class ScheduleView extends ItemView {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           saveBtn.setText('💾 Сохранить');
           saveBtn.removeAttribute('disabled');
+        }
+      }
+    });
+  }
+
+  private getJsonFromTask(taskId: string): string | null {
+    const task = this.plugin.db.getTasks().find(t => t.id === taskId);
+    if (!task || !task.description) return null;
+    const reportIdx = task.description.indexOf('<!--REPORT-->');
+    const jsonPart = reportIdx !== -1 ? task.description.substring(0, reportIdx).trim() : task.description.trim();
+    if (!jsonPart.startsWith('{')) return null;
+    try {
+      JSON.parse(jsonPart);
+      return jsonPart;
+    } catch {
+      return null;
+    }
+  }
+
+  private renderReportForm(ev: CalendarEvent): void {
+    const container = this.containerElContent;
+    container.empty();
+
+    this.createViewActive = true;
+    this.dayViewActive = false;
+
+    const backBtn = container.createEl('button', { text: '← Назад', cls: 'mailer-yougile-refresh-btn' });
+    backBtn.addEventListener('click', () => this.renderEventDetail(ev));
+
+    container.createEl('h3', { text: `Отчёт по мероприятию: ${ev.title}` });
+
+    const textLabel = container.createEl('label', { text: 'Опишите результаты' });
+    const resultTextarea = container.createEl('textarea');
+    resultTextarea.style.width = '100%';
+    resultTextarea.style.boxSizing = 'border-box';
+    resultTextarea.style.minHeight = '80px';
+    resultTextarea.placeholder = 'Опишите результаты мероприятия...';
+
+    const fileLabel = container.createEl('label', { text: 'Прикрепить файлы (изображения, документы)' });
+    fileLabel.style.marginTop = '12px';
+    fileLabel.style.display = 'block';
+    const fileInput = container.createEl('input', { attr: { type: 'file', multiple: 'true' } });
+    fileInput.style.marginTop = '4px';
+
+    const fileListDiv = container.createDiv();
+    fileListDiv.style.marginTop = '8px';
+    fileListDiv.style.fontSize = 'var(--font-smaller)';
+
+    fileInput.addEventListener('change', () => {
+      fileListDiv.empty();
+      if (fileInput.files) {
+        for (let i = 0; i < fileInput.files.length; i++) {
+          fileListDiv.createDiv({ text: `📎 ${fileInput.files[i].name}` });
+        }
+      }
+    });
+
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
+    btnRow.style.marginTop = '12px';
+
+    const submitBtn = btnRow.createEl('button', { text: '✅ Завершить', cls: 'mailer-yougile-refresh-btn' });
+    const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
+    cancelBtn.addEventListener('click', () => this.renderEventDetail(ev));
+
+    submitBtn.addEventListener('click', async () => {
+      const results = resultTextarea.value.trim();
+      if (!results && (!fileInput.files || fileInput.files.length === 0)) {
+        new Notice('Добавьте описание результатов или прикрепите файлы');
+        return;
+      }
+
+      submitBtn.setText('⏳');
+      submitBtn.setAttr('disabled', 'true');
+      cancelBtn.setAttr('disabled', 'true');
+
+      const reportParts: string[] = [];
+      reportParts.push('<hr>');
+      reportParts.push('<h3>📋 Отчёт о мероприятии</h3>');
+
+      if (results) {
+        reportParts.push(`<p>${results.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</p>`);
+      }
+
+      const files = fileInput.files;
+      const uploadedUrls: Array<{ name: string; url: string }> = [];
+
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          try {
+            const buffer = await file.arrayBuffer();
+            const result = await this.plugin.client.uploadFile(buffer, file.name);
+            uploadedUrls.push({ name: file.name, url: result.fullUrl });
+          } catch (e) {
+            if (!isNetworkError(e)) {
+              new Notice(`Ошибка загрузки ${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+          }
+        }
+        for (const u of uploadedUrls) {
+          const ext = u.name.toLowerCase().split('.').pop() || '';
+          const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+          if (isImage) {
+            reportParts.push(`<p><a href="${u.url}"><img src="${u.url}" alt="${u.name}" style="max-width:100%;max-height:300px"></a></p>`);
+          } else {
+            reportParts.push(`<p><a href="${u.url}">📄 ${u.name}</a></p>`);
+          }
+        }
+      }
+
+      const reportHtml = reportParts.join('\n');
+
+      const existingJson = this.getJsonFromTask(ev.taskId) || ev.descriptionRaw;
+
+      try {
+        await this.plugin.client.updateTask(ev.taskId, {
+          description: `${existingJson}\n<!--REPORT-->${reportHtml}`,
+          completed: true,
+        });
+        new Notice('Мероприятие завершено');
+        this.syncAndRender();
+      } catch (e) {
+        if (isNetworkError(e)) {
+          this.plugin.db.addToOfflineQueue({
+            type: 'update-task',
+            payload: {
+              id: ev.taskId,
+              description: `${existingJson}\n<!--REPORT-->${reportHtml}`,
+              completed: true,
+            },
+          });
+          new Notice('Нет соединения. Отчёт будет сохранён позже.');
+          this.syncAndRender();
+        } else {
+          new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
+          submitBtn.setText('✅ Завершить');
+          submitBtn.removeAttribute('disabled');
+          cancelBtn.removeAttribute('disabled');
         }
       }
     });

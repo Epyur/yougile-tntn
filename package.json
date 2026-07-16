@@ -20,5 +20,9 @@
     "esbuild": "^0.28.1",
     "obsidian": "^1.8.6",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "docx": "^9.7.1",
+    "jszip": "^3.10.1"
   }
 }

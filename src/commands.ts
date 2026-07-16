@@ -2,6 +2,8 @@ import { Notice } from 'obsidian';
 import type YouGilePlugin from './main';
 import { TASKS_VIEW_TYPE, TasksView } from './ui/tasks-view';
 import { SCHEDULE_VIEW_TYPE } from './ui/schedule-view';
+import { DOCUMENTS_VIEW_TYPE } from './ui/documents-view';
+import { EMAILS_VIEW_TYPE } from './ui/emails-view';
 
 export function registerCommands(plugin: YouGilePlugin): void {
   plugin.addCommand({
@@ -44,6 +46,26 @@ export function registerCommands(plugin: YouGilePlugin): void {
     name: 'Открыть расписание мероприятий',
     callback: () => {
       plugin.activateScheduleView();
+    },
+  });
+
+  plugin.addCommand({
+    id: 'open-documents',
+    name: 'Открыть документы',
+    callback: () => {
+      if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
+        new Notice('YouGile: Сначала настройте API ключ в настройках плагина');
+        return;
+      }
+      plugin.activateDocumentsView();
+    },
+  });
+
+  plugin.addCommand({
+    id: 'open-emails',
+    name: 'Открыть письма',
+    callback: () => {
+      plugin.activateEmailsView();
     },
   });
 }

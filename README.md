@@ -14,6 +14,9 @@
 | - **Исполнители по email**: ввод email, автоматический маппинг на ID пользователя. | - **Assignees by email**: enter email, automatic mapping to user ID. |
 | - **Офлайн-режим**: очередь действий при отсутствии сети, автоматическая синхронизация при подключении (создание задач, добавление информации, завершение, загрузка файлов). | - **Offline mode**: action queue when offline, automatic sync when connection is restored (create task, add info, complete, upload file). |
 | - **Индикатор синхронизации**: иконка ✅/⚠ на странице задачи. | - **Sync indicator**: ✅/⚠ icon on the task page. |
+| - **Модуль Документы**: задачи типа "документ" с колонками, таблицей, детальным просмотром, созданием, файлами и связанными документами. | - **Documents module**: "document" type tasks with columns, table, detail view, creation, files, and related documents. |
+| - **Замечания к документам**: форма добавления (поля + файл), таблица с № п/п и автором (email), экспорт в CSV (разделитель `;`). | - **Document remarks**: add form (fields + file), table with sequential number and author (email), CSV export (`;` separator). |
+| - **Фильтр "Документы" в календаре**: отображение задач-документов на месяц с чекбоксами колонок. | - **"Documents" filter in calendar**: display document-tasks on a monthly view with column checkboxes. |
 | - **Кэширование**: локальный JSON-кэш (yougile_cache.json) для проектов, досок, колонок, пользователей, задач. | - **Caching**: local JSON cache (yougile_cache.json) for projects, boards, columns, users, tasks. |
 | **Установка** | **Installation** |
 | 1. Скопируйте папку плагина в `<хранилище Obsidian>/.obsidian/plugins/yougile-tntn/` | 1. Copy the plugin folder to `<vault>/.obsidian/plugins/yougile-tntn/` |
@@ -47,6 +50,8 @@
 | `src/types/` — TypeScript-типы | `src/types/` — TypeScript types |
 | `src/ui/settings-tab.ts` — вкладка настроек | `src/ui/settings-tab.ts` — settings tab |
 | `src/ui/tasks-view.ts` — основная панель | `src/ui/tasks-view.ts` — main view panel |
+| `src/ui/documents-view.ts` — модуль Документы | `src/ui/documents-view.ts` — Documents module |
+| `src/ui/schedule-view.ts` — календарь мероприятий | `src/ui/schedule-view.ts` — schedule/calendar view |
 | `src/commands.ts` — команды плагина | `src/commands.ts` — plugin commands |
 | `src/main.ts` — точка входа плагина | `src/main.ts` — plugin entry point |
 | **Сборка** | **Build** |

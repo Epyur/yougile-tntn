@@ -240,9 +240,13 @@ export class TasksView extends ItemView {
       }
       try {
         switch (action.type) {
-          case 'create-task':
-            await this.plugin.client.createTask(action.payload as any);
+          case 'create-task': {
+            const created = await this.plugin.client.createTask(action.payload as any);
+            if (action.payload.completed) {
+              await this.plugin.client.updateTask(created.id, { completed: true });
+            }
             break;
+          }
           case 'add-info':
           case 'toggle-completed':
             await this.plugin.client.updateTask(action.payload.taskId as string, action.payload);
