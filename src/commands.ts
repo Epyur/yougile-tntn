@@ -4,6 +4,7 @@ import { TASKS_VIEW_TYPE, TasksView } from './ui/tasks-view';
 import { SCHEDULE_VIEW_TYPE } from './ui/schedule-view';
 import { DOCUMENTS_VIEW_TYPE } from './ui/documents-view';
 import { EMAILS_VIEW_TYPE } from './ui/emails-view';
+import { DASHBOARD_VIEW_TYPE } from './ui/dashboard-view';
 
 export function registerCommands(plugin: YouGilePlugin): void {
   plugin.addCommand({
@@ -44,7 +45,9 @@ export function registerCommands(plugin: YouGilePlugin): void {
   plugin.addCommand({
     id: 'open-schedule',
     name: 'Открыть расписание мероприятий',
-    callback: () => {
+    checkCallback: (checking: boolean) => {
+      if (!plugin.settings.moduleCalendarEnabled) return false;
+      if (checking) return true;
       plugin.activateScheduleView();
     },
   });
@@ -52,11 +55,13 @@ export function registerCommands(plugin: YouGilePlugin): void {
   plugin.addCommand({
     id: 'open-documents',
     name: 'Открыть документы',
-    callback: () => {
+    checkCallback: (checking: boolean) => {
+      if (!plugin.settings.moduleDocumentsEnabled) return false;
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
         new Notice('YouGile: Сначала настройте API ключ в настройках плагина');
-        return;
+        return false;
       }
+      if (checking) return true;
       plugin.activateDocumentsView();
     },
   });
@@ -64,8 +69,20 @@ export function registerCommands(plugin: YouGilePlugin): void {
   plugin.addCommand({
     id: 'open-emails',
     name: 'Открыть письма',
-    callback: () => {
+    checkCallback: (checking: boolean) => {
+      if (!plugin.settings.moduleEmailsEnabled) return false;
+      if (checking) return true;
       plugin.activateEmailsView();
+    },
+  });
+
+  plugin.addCommand({
+    id: 'open-dashboard',
+    name: 'Открыть дашборд',
+    checkCallback: (checking: boolean) => {
+      if (!plugin.settings.moduleDashboardEnabled) return false;
+      if (checking) return true;
+      plugin.activateDashboardView();
     },
   });
 }

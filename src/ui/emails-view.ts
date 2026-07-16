@@ -18,6 +18,9 @@ export class EmailsView extends ItemView {
   private createViewActive = false;
   private searchQuery = '';
   private searchTimeout: number | null = null;
+  private filterDateFrom = '';
+  private filterDateTo = '';
+  private filterAuthor = '';
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -42,6 +45,14 @@ export class EmailsView extends ItemView {
     this.containerElContent = container.createDiv();
     this.selectedColumnIds = new Set(this.plugin.settings.emailSelectedColumnIds.split(',').filter(Boolean));
     this.renderView();
+  }
+
+  private getAssignedUserId(): string[] {
+    const login = this.plugin.settings.login;
+    if (!login) return [];
+    const users = this.plugin.db.getUsers();
+    const user = users.find(u => u.email === login || u.name === login);
+    return user ? [user.id] : [];
   }
 
   private getBoardColumns(): Array<{ id: string; title: string }> {
@@ -74,6 +85,8 @@ export class EmailsView extends ItemView {
       const modal = new ChatAIEmailModal(this.plugin);
       modal.open();
     });
+    const exportBtn = header.createEl('button', { text: '📄 Экспорт HTML', cls: 'mailer-yougile-refresh-btn' });
+    exportBtn.addEventListener('click', () => this.exportHtml());
 
     if (!this.plugin.settings.emailProjectId || !this.plugin.settings.emailBoardId) {
       container.createDiv({ text: 'Настройте проект и доску для писем в настройках плагина', cls: 'mailer-yougile-empty' });
@@ -90,7 +103,7 @@ export class EmailsView extends ItemView {
       if (this.searchTimeout) clearTimeout(this.searchTimeout);
       this.searchTimeout = window.setTimeout(() => {
         this.renderView();
-      }, 300);
+      }, 3000);
     });
 
     const columns = this.getBoardColumns();
@@ -129,6 +142,48 @@ export class EmailsView extends ItemView {
       }
     }
 
+    const filterRow = container.createDiv();
+    filterRow.style.display = 'flex';
+    filterRow.style.alignItems = 'center';
+    filterRow.style.gap = '8px';
+    filterRow.style.marginBottom = '8px';
+    filterRow.style.flexWrap = 'wrap';
+
+    let dateFilterTimeout: number | null = null;
+
+    filterRow.createSpan({ text: 'Дата:' });
+    const dateFromInput = filterRow.createEl('input', { attr: { type: 'date' } });
+    dateFromInput.style.width = '140px';
+    dateFromInput.value = this.filterDateFrom;
+    dateFromInput.addEventListener('input', () => {
+      this.filterDateFrom = dateFromInput.value;
+      if (dateFilterTimeout) clearTimeout(dateFilterTimeout);
+      dateFilterTimeout = window.setTimeout(() => this.renderView(), 1000);
+    });
+    filterRow.createSpan({ text: '—' });
+    const dateToInput = filterRow.createEl('input', { attr: { type: 'date' } });
+    dateToInput.style.width = '140px';
+    dateToInput.value = this.filterDateTo;
+    dateToInput.addEventListener('input', () => {
+      this.filterDateTo = dateToInput.value;
+      if (dateFilterTimeout) clearTimeout(dateFilterTimeout);
+      dateFilterTimeout = window.setTimeout(() => this.renderView(), 1000);
+    });
+
+    filterRow.createSpan({ text: 'Автор:' });
+    const authorSelect = filterRow.createEl('select');
+    authorSelect.style.width = '160px';
+    const allAuthors = [...new Set(this.plugin.emailDb.getAllEmails().map(e => e.author).filter(Boolean))].sort();
+    authorSelect.createEl('option', { value: '', text: '— все —' });
+    for (const a of allAuthors) {
+      authorSelect.createEl('option', { value: a, text: a });
+    }
+    authorSelect.value = this.filterAuthor;
+    authorSelect.addEventListener('change', () => {
+      this.filterAuthor = authorSelect.value;
+      this.renderView();
+    });
+
     const emails = this.plugin.emailDb.getAllEmails();
     const q = this.searchQuery.trim().toLowerCase();
     let filtered = emails;
@@ -151,32 +206,82 @@ export class EmailsView extends ItemView {
         });
       });
     }
+    if (this.filterDateFrom) {
+      const from = new Date(this.filterDateFrom);
+      from.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(e => new Date(e.date) >= from);
+    }
+    if (this.filterDateTo) {
+      const to = new Date(this.filterDateTo);
+      to.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(e => new Date(e.date) <= to);
+    }
+    if (this.filterAuthor) {
+      filtered = filtered.filter(e => e.author === this.filterAuthor);
+    }
 
     filtered.sort((a, b) => b.id - a.id);
 
+    const table = container.createEl('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+    table.style.fontSize = 'var(--font-smaller)';
+
+    const thead = table.createEl('thead');
+    const headerRow = thead.createEl('tr');
+    const headers = ['№ п/п', 'Номер письма', 'Дата письма', 'Тема письма', 'Автор'];
+    for (const h of headers) {
+      const th = headerRow.createEl('th');
+      th.setText(h);
+      th.style.textAlign = 'left';
+      th.style.padding = '6px 8px';
+      th.style.borderBottom = '2px solid var(--background-modifier-border)';
+      th.style.fontWeight = 'bold';
+      th.style.whiteSpace = 'nowrap';
+    }
+
+    const tbody = table.createEl('tbody');
+
     if (filtered.length === 0) {
-      container.createDiv({ text: 'Нет писем', cls: 'mailer-yougile-empty' });
+      const emptyRow = tbody.createEl('tr');
+      const td = emptyRow.createEl('td');
+      td.setAttr('colspan', '5');
+      td.setText('Нет писем');
+      td.style.textAlign = 'center';
+      td.style.padding = '24px';
+      td.style.color = 'var(--text-muted)';
       return;
     }
 
-    const listDiv = container.createDiv();
-    for (const email of filtered) {
-      const item = listDiv.createDiv({ cls: 'mailer-yougile-task-item' });
-      item.addEventListener('click', () => this.renderEmailDetail(email));
+    for (let i = 0; i < filtered.length; i++) {
+      const email = filtered[i];
+      const row = tbody.createEl('tr');
+      row.style.cursor = 'pointer';
+      row.style.borderBottom = '1px solid var(--background-modifier-border)';
+      row.addEventListener('mouseenter', () => { row.style.backgroundColor = 'var(--background-modifier-hover)'; });
+      row.addEventListener('mouseleave', () => { row.style.backgroundColor = ''; });
+      row.addEventListener('click', () => this.renderEmailDetail(email));
 
-      const body = item.createDiv({ cls: 'mailer-yougile-task-body' });
+      const numCell = row.createEl('td');
+      numCell.style.padding = '6px 8px';
+      numCell.setText(String(i + 1));
 
-      const titleDiv = body.createDiv({ cls: 'mailer-yougile-task-title' });
-      titleDiv.setText(`${email.number} — ${email.subject}`);
+      const numberCell = row.createEl('td');
+      numberCell.style.padding = '6px 8px';
+      numberCell.setText(email.number);
 
-      const metaDiv = body.createDiv({ cls: 'mailer-yougile-task-meta' });
-      const dirName = this.plugin.emailDb.getDirectionName(email.direction_id);
-      metaDiv.setText(`${email.author} | ${dirName} | ${new Date(email.date).toLocaleDateString()}`);
+      const dateCell = row.createEl('td');
+      dateCell.style.padding = '6px 8px';
+      dateCell.style.whiteSpace = 'nowrap';
+      dateCell.setText(new Date(email.date).toLocaleDateString());
 
-      if (email.text) {
-        const preview = body.createDiv({ cls: 'mailer-yougile-task-meta' });
-        preview.setText(email.text.slice(0, 100) + (email.text.length > 100 ? '...' : ''));
-      }
+      const subjectCell = row.createEl('td');
+      subjectCell.style.padding = '6px 8px';
+      subjectCell.setText(email.subject);
+
+      const authorCell = row.createEl('td');
+      authorCell.style.padding = '6px 8px';
+      authorCell.setText(email.author);
     }
   }
 
@@ -216,18 +321,51 @@ export class EmailsView extends ItemView {
     const editBtn = btnRow.createEl('button', { text: '✏️ Редактировать', cls: 'mailer-yougile-refresh-btn' });
     editBtn.addEventListener('click', () => this.showEditForm(email));
 
+    const exportBtn = btnRow.createEl('button', { text: '📥 Экспорт в Word', cls: 'mailer-yougile-refresh-btn' });
+    exportBtn.addEventListener('click', async () => {
+      exportBtn.setText('⏳');
+      exportBtn.setAttr('disabled', 'true');
+      try {
+        const svc = new DocumentService(this.plugin.app);
+        await svc.exportToDocx(
+          {
+            number: email.number,
+            subject: email.subject,
+            text: email.text,
+            date: email.date,
+            author: email.author,
+            images: email.images,
+          },
+          this.plugin.settings.docxTemplatePath,
+          this.plugin.settings.docxExportFolder,
+        );
+      } catch {
+        // error handled in service
+      } finally {
+        exportBtn.setText('📥 Экспорт в Word');
+        exportBtn.removeAttribute('disabled');
+      }
+    });
+
     if (email.images && email.images.length > 0) {
-      const imgLabel = container.createEl('h4', { text: 'Изображения' });
-      for (const imgPath of email.images) {
-        try {
-          const img = container.createEl('img', { attr: { src: imgPath } });
-          img.style.maxWidth = '100%';
-          img.style.maxHeight = '300px';
-          img.style.marginTop = '8px';
-        } catch {
-          const link = container.createEl('a', { href: imgPath });
-          link.setText(imgPath);
-          container.createEl('br');
+      const filesLabel = container.createEl('h4', { text: 'Прикреплённые файлы' });
+      for (const url of email.images) {
+        const name = url.split('/').pop() || url;
+        const tag = container.createEl('span');
+        tag.style.display = 'inline-block';
+        tag.style.marginRight = '8px';
+        tag.style.marginBottom = '4px';
+        tag.style.padding = '2px 6px';
+        tag.style.backgroundColor = 'var(--background-modifier-hover)';
+        tag.style.borderRadius = '4px';
+        tag.style.fontSize = 'var(--font-smaller)';
+        tag.style.cursor = url.startsWith('http') ? 'pointer' : 'default';
+        tag.style.textDecoration = url.startsWith('http') ? 'underline' : 'none';
+        tag.setText(`📎 ${name}`);
+        if (url.startsWith('http')) {
+          tag.addEventListener('click', () => {
+            window.open(url, '_blank');
+          });
         }
       }
     }
@@ -261,6 +399,48 @@ export class EmailsView extends ItemView {
     textInput.style.width = '100%';
     textInput.style.boxSizing = 'border-box';
     textInput.style.minHeight = '150px';
+
+    const filesLabel = container.createEl('label', { text: 'Прикреплённые файлы' });
+    const filesDiv = container.createDiv();
+    filesDiv.style.marginBottom = '8px';
+
+    const fileInput = container.createEl('input', { attr: { type: 'file', multiple: 'true' } });
+    fileInput.style.display = 'none';
+    const attachBtn = filesDiv.createEl('button', { text: '📎 Прикрепить файл', cls: 'mailer-yougile-refresh-btn' });
+    attachBtn.addEventListener('click', () => fileInput.click());
+
+    const attachedFiles: { name: string; url: string }[] = (email.images || []).map(url => ({ name: url.split('/').pop() || url, url }));
+    const fileListDiv = filesDiv.createDiv();
+    fileListDiv.style.marginTop = '4px';
+    fileListDiv.style.fontSize = 'var(--font-smaller)';
+    const renderFiles = () => {
+      this.renderAttachedFiles(fileListDiv, attachedFiles, (url) => {
+        const idx = attachedFiles.findIndex(f => f.url === url);
+        if (idx !== -1) attachedFiles.splice(idx, 1);
+        renderFiles();
+      });
+    };
+    renderFiles();
+
+    fileInput.addEventListener('change', async (e) => {
+      const files = (e.target as HTMLInputElement).files;
+      if (!files) return;
+      for (const file of Array.from(files)) {
+        try {
+          const buffer = await file.arrayBuffer();
+          const result = await this.plugin.client.uploadFile(buffer, file.name);
+          const url = result.url || '';
+          attachedFiles.push({ name: file.name, url });
+          renderFiles();
+          new Notice(`✅ Файл прикреплён: ${file.name}`);
+        } catch {
+          attachedFiles.push({ name: file.name, url: file.name });
+          renderFiles();
+          new Notice(`📎 Файл добавлен локально: ${file.name}`);
+        }
+      }
+      fileInput.value = '';
+    });
 
     const dirLabel = container.createEl('label', { text: 'Направление' });
     const dirSelect = container.createEl('select');
@@ -331,12 +511,14 @@ export class EmailsView extends ItemView {
             title: `[Письмо] ${number} — ${subject}`,
             description: descriptionJSON,
             columnId: selectedColumnId,
+            assigned: this.getAssignedUserId(),
           });
         } else {
           const task = await this.plugin.client.createTask({
             title: `[Письмо] ${number} — ${subject}`,
             description: descriptionJSON,
             columnId: selectedColumnId,
+            assigned: this.getAssignedUserId(),
           });
           await this.plugin.client.updateTask(task.id, { completed: true });
           email.taskId = task.id;
@@ -345,6 +527,7 @@ export class EmailsView extends ItemView {
         email.subject = subject;
         email.text = text;
         email.direction_id = directionId;
+        email.images = attachedFiles.map(f => f.url);
         email.lastSyncTime = now;
         email.sync_status = 'synced';
         this.plugin.emailDb.addEmail(email);
@@ -362,6 +545,7 @@ export class EmailsView extends ItemView {
             description: descriptionJSON,
             columnId: selectedColumnId,
             completed: true,
+            assigned: this.getAssignedUserId(),
             _emailId: email.id,
           };
           if (email.taskId) {
@@ -415,6 +599,49 @@ export class EmailsView extends ItemView {
     textInput.style.boxSizing = 'border-box';
     textInput.style.minHeight = '100px';
 
+    const filesLabel = container.createEl('label', { text: 'Прикреплённые файлы' });
+    const filesDiv = container.createDiv();
+    filesDiv.style.marginBottom = '8px';
+
+    const fileInput = container.createEl('input', { attr: { type: 'file', multiple: 'true' } });
+    fileInput.style.display = 'none';
+    const attachBtn = filesDiv.createEl('button', { text: '📎 Прикрепить файл', cls: 'mailer-yougile-refresh-btn' });
+    attachBtn.addEventListener('click', () => fileInput.click());
+
+    const attachedFiles: { name: string; url: string }[] = [];
+
+    const fileListDiv = filesDiv.createDiv();
+    fileListDiv.style.marginTop = '4px';
+    fileListDiv.style.fontSize = 'var(--font-smaller)';
+    const renderFiles = () => {
+      this.renderAttachedFiles(fileListDiv, attachedFiles, (url) => {
+        const idx = attachedFiles.findIndex(f => f.url === url);
+        if (idx !== -1) attachedFiles.splice(idx, 1);
+        renderFiles();
+      });
+    };
+    renderFiles();
+
+    fileInput.addEventListener('change', async (e) => {
+      const files = (e.target as HTMLInputElement).files;
+      if (!files) return;
+      for (const file of Array.from(files)) {
+        try {
+          const buffer = await file.arrayBuffer();
+          const result = await this.plugin.client.uploadFile(buffer, file.name);
+          const url = result.url || '';
+          attachedFiles.push({ name: file.name, url });
+          this.renderAttachedFiles(fileListDiv, attachedFiles);
+          new Notice(`✅ Файл прикреплён: ${file.name}`);
+        } catch {
+          attachedFiles.push({ name: file.name, url: file.name });
+          this.renderAttachedFiles(fileListDiv, attachedFiles);
+          new Notice(`📎 Файл добавлен локально: ${file.name}`);
+        }
+      }
+      fileInput.value = '';
+    });
+
     const dirLabel = container.createEl('label', { text: 'Направление' });
     const dirSelect = container.createEl('select');
     dirSelect.style.width = '100%';
@@ -452,7 +679,7 @@ export class EmailsView extends ItemView {
 
       const now = new Date();
       const emailId = Date.now() + Math.floor(Math.random() * 1000);
-      const author = this.plugin.settings.login || 'Неизвестно';
+      const author = this.plugin.settings.emailDefaultAuthor || 'Кравченко А.А.';
 
       const mapping = mappings.find(m => m.columnId === selectedColumnId);
       const dirName = mapping ? mapping.directionName : (this.plugin.db.getColumns().find(c => c.id === selectedColumnId)?.title || selectedColumnId);
@@ -478,7 +705,7 @@ export class EmailsView extends ItemView {
         author,
         date: now.toISOString(),
         direction_id: directionId,
-        images: [],
+        images: attachedFiles.map(f => f.url),
         mdFilePath: '',
         mdFileHash: '',
         lastSyncTime: now.toISOString(),
@@ -503,6 +730,7 @@ export class EmailsView extends ItemView {
           title: `[Письмо] ${number} — ${subject}`,
           description: descriptionJSON,
           columnId: selectedColumnId,
+          assigned: this.getAssignedUserId(),
         });
         await this.plugin.client.updateTask(task.id, { completed: true });
         emailItem.taskId = task.id;
@@ -521,6 +749,7 @@ export class EmailsView extends ItemView {
               description: descriptionJSON,
               columnId: selectedColumnId,
               completed: true,
+              assigned: this.getAssignedUserId(),
               _emailId: emailId,
             },
           });
@@ -534,6 +763,99 @@ export class EmailsView extends ItemView {
         }
       }
     });
+  }
+
+  private renderAttachedFiles(container: HTMLElement, files: { name: string; url: string }[], onRemove?: (index: number) => void): void {
+    container.empty();
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const tag = container.createEl('span');
+      tag.style.display = 'inline-flex';
+      tag.style.alignItems = 'center';
+      tag.style.marginRight = '8px';
+      tag.style.marginBottom = '4px';
+      tag.style.padding = '2px 6px';
+      tag.style.backgroundColor = 'var(--background-modifier-hover)';
+      tag.style.borderRadius = '4px';
+      tag.style.fontSize = 'var(--font-smaller)';
+      tag.setText(`📎 ${f.name}`);
+      if (onRemove) {
+        const removeBtn = tag.createEl('span');
+        removeBtn.setText(' ×');
+        removeBtn.style.cursor = 'pointer';
+        removeBtn.style.marginLeft = '4px';
+        removeBtn.style.fontWeight = 'bold';
+        removeBtn.style.color = 'var(--text-error)';
+        removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onRemove(i);
+        });
+      }
+    }
+  }
+
+  private async exportHtml(): Promise<void> {
+    const emails = this.plugin.emailDb.getAllEmails();
+    const q = this.searchQuery.trim().toLowerCase();
+    let filtered = emails;
+    if (q) {
+      filtered = emails.filter(e =>
+        e.number.toLowerCase().includes(q) ||
+        e.subject.toLowerCase().includes(q) ||
+        e.text.toLowerCase().includes(q) ||
+        e.author.toLowerCase().includes(q)
+      );
+    }
+    if (this.selectedColumnIds.size > 0) {
+      const selectedColIds = [...this.selectedColumnIds];
+      filtered = filtered.filter(e => {
+        const dir = this.plugin.emailDb.getDirectionName(e.direction_id);
+        if (!dir) return false;
+        return selectedColIds.some(colId => {
+          const dirName = this.getDirectionName(colId);
+          return dir === dirName;
+        });
+      });
+    }
+    if (this.filterDateFrom) {
+      const from = new Date(this.filterDateFrom);
+      from.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(e => new Date(e.date) >= from);
+    }
+    if (this.filterDateTo) {
+      const to = new Date(this.filterDateTo);
+      to.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(e => new Date(e.date) <= to);
+    }
+    if (this.filterAuthor) {
+      filtered = filtered.filter(e => e.author === this.filterAuthor);
+    }
+    filtered.sort((a, b) => b.id - a.id);
+
+    let html = '';
+    for (const e of filtered) {
+      const d = new Date(e.date);
+      const dateStr = d.toLocaleDateString('ru-RU');
+      const numDate = `${e.number} от ${dateStr}`;
+      const attachments = (e.images || []).map(url => url.split('/').pop() || url).join('; ');
+      html += `<tr>
+<td style="text-align: center;">${this.escapeHtml(numDate)}</td>
+<td style="text-align: center;">${this.escapeHtml(attachments)}</td>
+<td style="text-align: center;"><h1 style="font-weight: normal; font-size: 12pt;">${this.escapeHtml(e.subject)}</h1></td>
+<td style="text-align: center;"></td>
+</tr>\n`;
+    }
+
+    try {
+      await navigator.clipboard.writeText(html);
+      new Notice(`✅ Скопировано ${filtered.length} строк в буфер обмена`);
+    } catch {
+      new Notice('❌ Не удалось скопировать в буфер');
+    }
+  }
+
+  private escapeHtml(text: string): string {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   async syncAndRender(): Promise<void> {

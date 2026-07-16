@@ -6,6 +6,7 @@ import { TASKS_VIEW_TYPE, TasksView } from './ui/tasks-view';
 import { SCHEDULE_VIEW_TYPE, ScheduleView } from './ui/schedule-view';
 import { DOCUMENTS_VIEW_TYPE, DocumentsView } from './ui/documents-view';
 import { EMAILS_VIEW_TYPE, EmailsView } from './ui/emails-view';
+import { DASHBOARD_VIEW_TYPE, DashboardView } from './ui/dashboard-view';
 import { registerCommands } from './commands';
 import { LocalDatabase } from './database/db';
 import { EmailDatabase } from './database/email-db';
@@ -41,25 +42,46 @@ export default class YouGilePlugin extends Plugin {
     this.addSettingTab(new YouGileSettingTab(this.app, this));
 
     this.registerView(TASKS_VIEW_TYPE, (leaf) => new TasksView(leaf, this));
-    this.registerView(SCHEDULE_VIEW_TYPE, (leaf) => new ScheduleView(leaf, this));
-    this.registerView(DOCUMENTS_VIEW_TYPE, (leaf) => new DocumentsView(leaf, this));
-    this.registerView(EMAILS_VIEW_TYPE, (leaf) => new EmailsView(leaf, this));
+    if (this.settings.moduleCalendarEnabled) {
+      this.registerView(SCHEDULE_VIEW_TYPE, (leaf) => new ScheduleView(leaf, this));
+    }
+    if (this.settings.moduleDocumentsEnabled) {
+      this.registerView(DOCUMENTS_VIEW_TYPE, (leaf) => new DocumentsView(leaf, this));
+    }
+    if (this.settings.moduleEmailsEnabled) {
+      this.registerView(EMAILS_VIEW_TYPE, (leaf) => new EmailsView(leaf, this));
+    }
+    if (this.settings.moduleDashboardEnabled) {
+      this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
+    }
 
     this.addRibbonIcon('list-todo', 'YouGile', () => {
       this.activateView();
     });
 
-    this.addRibbonIcon('calendar', 'Расписание мероприятий', () => {
-      this.activateScheduleView();
-    });
+    if (this.settings.moduleCalendarEnabled) {
+      this.addRibbonIcon('calendar', 'Расписание мероприятий', () => {
+        this.activateScheduleView();
+      });
+    }
 
-    this.addRibbonIcon('file-text', 'Документы', () => {
-      this.activateDocumentsView();
-    });
+    if (this.settings.moduleDocumentsEnabled) {
+      this.addRibbonIcon('file-text', 'Документы', () => {
+        this.activateDocumentsView();
+      });
+    }
 
-    this.addRibbonIcon('mail', 'Письма', () => {
-      this.activateEmailsView();
-    });
+    if (this.settings.moduleEmailsEnabled) {
+      this.addRibbonIcon('mail', 'Письма', () => {
+        this.activateEmailsView();
+      });
+    }
+
+    if (this.settings.moduleDashboardEnabled) {
+      this.addRibbonIcon('bar-chart', 'Дашборд', () => {
+        this.activateDashboardView();
+      });
+    }
 
     registerCommands(this);
   }
@@ -69,6 +91,7 @@ export default class YouGilePlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(SCHEDULE_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(DOCUMENTS_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(EMAILS_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(DASHBOARD_VIEW_TYPE);
   }
 
   async loadSettings(): Promise<void> {
@@ -179,6 +202,20 @@ export default class YouGilePlugin extends Plugin {
       leaf = workspace.getRightLeaf(false) ?? undefined;
       if (leaf) {
         await leaf.setViewState({ type: EMAILS_VIEW_TYPE, active: true });
+      }
+    }
+    if (leaf) {
+      workspace.revealLeaf(leaf);
+    }
+  }
+
+  async activateDashboardView(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(DASHBOARD_VIEW_TYPE).first();
+    if (!leaf) {
+      leaf = workspace.getRightLeaf(false) ?? undefined;
+      if (leaf) {
+        await leaf.setViewState({ type: DASHBOARD_VIEW_TYPE, active: true });
       }
     }
     if (leaf) {

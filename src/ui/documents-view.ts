@@ -176,9 +176,13 @@ export class DocumentsView extends ItemView {
 
     const createBtn = actionRow.createEl('button', { text: '➕ Добавить документ', cls: 'mailer-yougile-refresh-btn' });
     const syncBtn = actionRow.createEl('button', { text: 'Обновить', cls: 'mailer-yougile-refresh-btn' });
+    const exportHtmlBtn = actionRow.createEl('button', { text: '📄 Экспорт HTML', cls: 'mailer-yougile-refresh-btn' });
+    const exportCsvBtn = actionRow.createEl('button', { text: '📊 Экспорт CSV', cls: 'mailer-yougile-refresh-btn' });
 
     createBtn.addEventListener('click', () => this.showCreateForm());
     syncBtn.addEventListener('click', () => this.syncAndRender());
+    exportHtmlBtn.addEventListener('click', () => this.exportHtml());
+    exportCsvBtn.addEventListener('click', () => this.exportCsv());
 
     const syncStatus = container.createDiv({ cls: 'mailer-yougile-task-meta', text: this.plugin.db.hasUnsynchronizedActions() ? '⚠ Не синхронизировано' : '✅ Синхронизировано' });
 
@@ -1036,6 +1040,109 @@ export class DocumentsView extends ItemView {
     } catch (e) {
       new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  private async exportHtml(): Promise<void> {
+    const docs = this.getFilteredDocuments();
+    let html = `<table style="width: 724px; border-collapse: collapse;" border="1" cellpadding="5">
+<colgroup>
+<col style="width: 40px;">
+<col style="width: 180px;">
+<col style="width: 120px;">
+<col style="width: 100px;">
+<col style="width: 100px;">
+<col style="width: 100px;">
+<col style="width: 84px;">
+</colgroup>
+<tbody>
+<tr style="background-color: rgb(248, 202, 198);">
+<td style="text-align: center;">№ п/п</td>
+<td style="text-align: center;">Название документа</td>
+<td style="text-align: center;">Тип документа</td>
+<td style="text-align: center;">Срок действия</td>
+<td style="text-align: center;">Куратор</td>
+<td style="text-align: center;">Ссылка на документ</td>
+<td style="text-align: center;">Ссылка на связанные документы</td>
+</tr>\n`;
+    let idx = 0;
+    for (const doc of docs) {
+      idx++;
+      const deadlineStr = doc.deadline ? new Date(doc.deadline).toLocaleDateString() : '';
+      const linkDoc = doc.linkUrl ? `<a href="${doc.linkUrl}">${doc.linkFileName || 'Ссылка'}</a>` : '';
+      const related = this.getRelatedDocuments(doc.taskId);
+      const relatedLinks = related.map(r => r.linkUrl ? `<a href="${r.linkUrl}">${r.linkFileName || 'Ссылка'}</a>` : '').filter(Boolean).join('<br>');
+      html += `<tr>
+<td style="text-align: center;">${idx}</td>
+<td>${this.escapeHtmlCsv(doc.title)}</td>
+<td>${this.escapeHtmlCsv(doc.docType)}</td>
+<td style="text-align: center;">${deadlineStr}</td>
+<td>${this.escapeHtmlCsv(doc.curatorName)}</td>
+<td style="text-align: center;">${linkDoc}</td>
+<td style="text-align: center;">${relatedLinks}</td>
+</tr>\n`;
+    }
+    html += '</tbody></table>';
+    try {
+      await navigator.clipboard.writeText(html);
+      new Notice(`✅ Скопировано ${docs.length} строк в буфер обмена`);
+    } catch {
+      new Notice('❌ Не удалось скопировать в буфер');
+    }
+  }
+
+  private async exportCsv(): Promise<void> {
+    const docs = this.getFilteredDocuments();
+    const sep = ';';
+    const csvEsc = (s: string | undefined | null): string => {
+      if (!s) return '';
+      const str = String(s);
+      if (str.includes(sep) || str.includes('"') || str.includes('\n')) {
+        return '"' + str.replace(/"/g, '""') + '"';
+      }
+      return str;
+    };
+    const headers = ['№ п/п', 'Название документа', 'Тип документа', 'Срок действия', 'Куратор', 'Ссылка на документ', 'Ссылка на связанные документы'];
+    const csvRows: string[] = [headers.join(sep)];
+    let idx = 0;
+    for (const doc of docs) {
+      idx++;
+      const deadlineStr = doc.deadline ? new Date(doc.deadline).toLocaleDateString() : '';
+      const related = this.getRelatedDocuments(doc.taskId);
+      const relatedLinks = related.map(r => r.linkUrl || r.title).join('; ');
+      csvRows.push([
+        String(idx),
+        csvEsc(doc.title),
+        csvEsc(doc.docType),
+        csvEsc(deadlineStr),
+        csvEsc(doc.curatorName),
+        csvEsc(doc.linkUrl || ''),
+        csvEsc(relatedLinks),
+      ].join(sep));
+    }
+    const safeName = 'Документы_' + new Date().toISOString().slice(0, 10);
+    const fileName = `${safeName}.csv`;
+    const folderPath = 'Экспорт';
+    const adapter = this.plugin.app.vault.adapter;
+    if (!await adapter.exists(folderPath)) {
+      await this.plugin.app.vault.createFolder(folderPath);
+    }
+    let filePath = `${folderPath}/${fileName}`;
+    let counter = 1;
+    while (await adapter.exists(filePath)) {
+      filePath = `${folderPath}/${safeName}_${counter}.csv`;
+      counter++;
+    }
+    const data = new TextEncoder().encode('\uFEFF' + csvRows.join('\r\n'));
+    await adapter.writeBinary(filePath, data.buffer as ArrayBuffer);
+    new Notice(`✅ CSV экспорт: ${filePath}`);
+    const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+    if (file) {
+      await this.plugin.app.workspace.getLeaf().openFile(file);
+    }
+  }
+
+  private escapeHtmlCsv(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   async syncAndRender(): Promise<void> {

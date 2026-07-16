@@ -1,85 +1,56 @@
 # AGENTS.md — YouGile Obsidian Plugin
 
-## План подготовки к публикации
+## Статус модулей
 
-| № | Этап | Статус |
-|---|------|--------|
-| 0 | Исследование API YouGile | ✅ |
-| 1 | Настройка проекта (package.json, tsconfig, manifest, esbuild, styles) | ✅ |
-| 2 | Файловая структура (папки src/api/, src/ui/, src/types/) | ✅ |
-| 3.1 | main.ts — Plugin class, lifecycle, ribbon, registerView | ✅ |
-| 3.2 | api/client.ts — YouGileClient | ✅ |
-| 3.3 | ui/settings-tab.ts — настройки + SecretComponent | ✅ |
-| 3.4 | ui/tasks-view.ts — ItemView (список, детали, создание, чаты) | ✅ |
-| 3.5 | commands.ts — регистрация команд | ✅ |
-| 4 | Сборка, тестирование, симлинк | ✅ |
-| 5 | Авторизация через логин/пароль (POST /auth/keys) | ✅ |
-| 6 | SecretStorage для пароля и API-ключа | ✅ |
-| 7 | Получение проектов, досок, колонок, маппинг column→board→project | ✅ |
-| 8 | Локальный кэш в JSON (yougile_cache.json) | ✅ |
-| 9 | Фильтры: проекты, доски, колонки, исполнители, статус, поиск | ✅ |
-| 10 | Отображение проекта, колонки, исполнителей (имена вместо ID) | ✅ |
-| 11 | Детальный просмотр задачи (inline, не модалка) + Завершить/Возобновить | ✅ |
-| 12 | Древовидное отображение подзадач | ✅ |
-| 13 | Кликабельные подзадачи (открывают inline-детали) | ✅ |
-| 14 | Вкладка Чаты в одной панели с Задачами (переключатель в шапке) | ✅ |
-| 15 | API: group-chats, messages (чтение/отправка) | ✅ |
-| 16 | Кнопка Перейти в чат / Создать чат в деталях задачи | ✅ |
-| 17 | Подписчики чата задачи (GET /tasks/{id}/chat-subscribers) | ✅ |
-| 18 | Загрузка файлов (POST /upload-file) + ссылка в description | ✅ |
-| 19 | Добавление информации — textarea + кнопка "Добавить информацию" | ✅ |
-| 20 | Индикатор дедлайна (зелёный/оранжевый/красный) | ✅ |
-| 21 | Создание задачи в основной панели (inline, не модалка) | ✅ |
-| 22 | Офлайн-режим (очередь действий, синхронизация при подключении) | ✅ |
-| 23 | Полноэкранный режим (удалён, неактуально) | ❌ |
-| 24 | Индикатор синхронизации (✅/⚠) на странице задачи | ✅ |
-| 25 | Исполнители по email (ввод email, маппинг на ID) | ✅ |
-| 26 | Дедлайн в виде даты (input type=date) | ✅ |
-| 27 | HTML в description — очистка через stripHtml | ✅ |
-| 28 | Подзадачи: отдельные записи в кэше, загрузка через GET /tasks/{id} | ✅ |
-| 29 | Модуль Документы (src/ui/documents-view.ts) — колонки, таблица, детали, создание, файлы, связанные документы | ✅ |
-| 30 | Фильтр "Документы" в календаре (schedule-view.ts) с чекбоксами колонок | ✅ |
-| 31 | Замечания к документам — форма (поля + файл), таблица с № п/п, автор (email), экспорт в CSV (;) | ✅ |
-| 32 | Поиск по названию документа с debounce 300ms | ✅ |
+| № | Модуль | Статус | Файлы |
+|---|--------|--------|-------|
+| 1 | **Ядро**: авторизация, кэш, API-клиент | ✅ | `main.ts`, `api/client.ts`, `database/db.ts` |
+| 2 | **Задачи**: список, фильтры, дерево, чаты, inline-создание | ✅ | `ui/tasks-view.ts` |
+| 3 | **Документы**: таблица, детали, создание, замечания, CSV-экспорт, связанные документы, файлы | ✅ | `ui/documents-view.ts` |
+| 4 | **Письма**: таблица, детали, создание, редактирование, файлы, фильтры (дата, автор, колонки, поиск 3s), экспорт HTML (буфер), экспорт CSV | ✅ | `ui/emails-view.ts`, `database/email-db.ts`, `types/emails.ts` |
+| 5 | **AI-чат**: RAG по письмам, загрузка файлов, "Создать письмо" из ответа | ✅ | `ui/emails-view.ts` (ChatAIEmailModal), `services/llm-service.ts` |
+| 6 | **DOCX-экспорт**: шаблон с плейсхолдерами, fallback-генерация, изображения | ✅ | `services/document-service.ts` |
+| 7 | **Дашборд**: метрики, 4 графика ApexCharts, фильтры (проект, колонка, исполнитель, даты), экспорт JPG | ✅ | `ui/dashboard-view.ts` |
+| 8 | **Календарь мероприятий** + фильтр Документы | ✅ | `ui/schedule-view.ts` |
+| 9 | **Настройки**: логин/пароль, проекты/доски для каждого модуля, LLM, DOCX, автор по умолчанию | ✅ | `ui/settings-tab.ts`, `types/settings.ts` |
 
-## Текущая структура файлов
+## Структура файлов
 
 ```
 src/
 ├── api/
-│   └── client.ts           # YouGileClient: auth, CRUD, проекты, доски, колонки,
-│                           # пользователи, чаты, сообщения, файлы, подписчики
+│   └── client.ts
 ├── database/
-│   └── db.ts               # LocalDatabase: кэш yougile_cache.json, sync, userMap,
-│                           # offlineQueue, подзадачи (CachedSubtask)
+│   ├── db.ts                  # LocalDatabase (yougile_cache.json)
+│   └── email-db.ts            # EmailDatabase (mailer_data.json)
+├── services/
+│   ├── document-service.ts    # DOCX генерация (jszip + docx)
+│   └── llm-service.ts         # AI-чат с RAG
 ├── types/
-│   ├── cache.ts            # CachedTask, CachedSubtask, CachedProject, CachedBoard,
-│   │                       # CachedColumn, CacheData, OfflineAction
-│   ├── settings.ts         # YouGileSettings, DEFAULT_SETTINGS
-│   └── yougile.ts          # YouGileTask, YouGileTaskFull, CreateTaskPayload,
-│                           # YouGileProject, YouGileBoard, YouGileColumn, YouGileUser,
-│                           # YouGileGroupChat, YouGileChatMessage
+│   ├── cache.ts               # CachedTask, OfflineAction, …
+│   ├── emails.ts              # MailItem, MailDirection, EmailDbData
+│   ├── settings.ts            # YouGileSettings + DEFAULT_SETTINGS
+│   └── yougile.ts             # YouGileTask, CreateTaskPayload, …
 ├── ui/
-│   ├── settings-tab.ts     # Настройки: логин, пароль (SecretStorage), companyId
-│   ├── tasks-view.ts       # Основная панель: вкладки Задачи/Чаты, фильтры,
-│   │                       # дерево задач, детальный просмотр (inline),
-│   │                       # создание задачи (inline), чаты с историей и отправкой
-│   ├── documents-view.ts   # Модуль Документы: колонки, таблица, детали,
-│   │                       # создание, файлы, связанные документы, замечания, CSV-экспорт
-│   └── schedule-view.ts    # Календарь мероприятий + фильтр Документы
-├── commands.ts             # Команды: создать задачу, обновить список, открыть документы
-├── main.ts                 # Plugin class, lifecycle, ribbon, registerView
+│   ├── dashboard-view.ts      # Дашборд (ApexCharts, метрики, фильтры, JPG-экспорт)
+│   ├── documents-view.ts      # Документы (таблица, детали, замечания, CSV, HTML-экспорт)
+│   ├── emails-view.ts         # Письма (таблица, create/edit, файлы, AI-чат, HTML-экспорт)
+│   ├── schedule-view.ts       # Календарь мероприятий
+│   ├── settings-tab.ts        # Все настройки
+│   └── tasks-view.ts          # Задачи (список, дерево, чаты)
+├── commands.ts
+└── main.ts
 ```
 
-## Используемые API-эндпоинты
+## API-эндпоинты
 
 | Метод | Endpoint | Назначение |
 |-------|----------|------------|
-| POST | /api-v2/auth/keys | Аутентификация (логин+пароль→ключ) |
+| POST | /api-v2/auth/keys | Аутентификация |
 | GET | /api-v2/tasks | Список задач |
-| GET | /api-v2/tasks/{id} | Детали задачи (в т.ч. подзадачи) |
+| GET | /api-v2/tasks/{id} | Детали задачи |
 | POST | /api-v2/tasks | Создать задачу |
-| PUT | /api-v2/tasks/{id} | Обновить задачу (статус, описание) |
+| PUT | /api-v2/tasks/{id} | Обновить задачу |
 | GET | /api-v2/projects | Список проектов |
 | GET | /api-v2/boards | Список досок |
 | GET | /api-v2/columns/{id} | Детали колонки |
@@ -92,13 +63,13 @@ src/
 | GET | /api-v2/tasks/{id}/chat-subscribers | Подписчики чата задачи |
 | POST | /api-v2/upload-file | Загрузка файла |
 
-## Особенности реализации
+## Ключевые решения
 
-- **BASE_URL**: `https://ru.yougile.com/api-v2`
-- **Описание (description)**: приходит как HTML от API, очищается через `stripHtml()` для отображения. Дополнения к описанию оборачиваются в `<p>` с `<br>` между абзацами. Файлы добавляются как `<a href="...">Файл от {email}</a>`.
-- **Офлайн-режим**: действия (create-task, add-info, toggle-completed, upload-file) сохраняются в `offlineQueue` при сетевой ошибке. `flushOfflineQueue()` при синке отправляет их на сервер. `isNetworkError()` отличает сетевые ошибки от ошибок API.
-- **Подзадачи**: маппятся в `CachedSubtask[]` (id + title). При синке для каждого ID подзадачи вызывается `GET /tasks/{id}`, создаётся полноценная запись в кэше. Дерево задач строится рекурсивно.
-- **Фильтры**: проекты, доски, колонки (группировка по названию, A-Z), исполнители, статус, текстовый поиск. Колонки поддерживают несколько ID через запятую для одинаковых названий в разных досках.
-- **Создание задачи**: inline-форма с выбором проекта → доски → колонки, вводом email исполнителей (маппинг на ID из кэша), дедлайном через input type=date.
-- **Документы**: задачи с JSON-description (`type: "document"`). Парсятся через `parseDocument()`. Поддерживают связанные документы (`parentId`). Отображаются в отдельном view с поиском (debounce 300ms), чекбоксами колонок, детальным просмотром, созданием/редактированием. Замечания хранятся в том же JSON в массиве `remarks[]`, экспортируются в CSV с разделителем `;`.
-- **Календарь (schedule-view.ts)**: отдельная вкладка с отображением событий на месяц. Фильтр "Документы" показывает задачи-документы с чекбоксами колонок.
+- **Письма хранятся локально** в `mailer_data.json` + дублируются в YouGile как задачи (`type: "email"` в description JSON)
+- **Assigned** в задачах писем — UUID пользователя, найденный по `settings.login` через `db.getUsers()`
+- **Файлы** загружаются на YouGile через `POST /upload-file`, URL хранится в `email.images[]`
+- **Офлайн-очередь** для create/update email + upload file; при синке taskId сохраняется в локальную БД
+- **DOCX**: поддержка шаблонов (замена `{{Номер}}`, `{{Текст}}` и т.д.) и fallback-генерация через `docx` lib
+- **Дашборд**: ApexCharts (donut, bar, area), фильтры (проект, колонка, исполнитель, даты), экспорт JPG (scale 2x)
+- **Экспорт HTML**: копирование полной таблицы в буфер обмена (письма — `№исх/дата|Приложение|Тема|Содержание`, документы — `№ п/п|Название|Тип|Срок|Куратор|Ссылки`)
+- **Экспорт CSV**: BOM + `;` разделитель, файл в папку `Экспорт`
