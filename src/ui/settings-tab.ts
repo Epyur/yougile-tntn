@@ -63,6 +63,7 @@ export class YouGileSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.login = value;
             await this.plugin.saveSettings();
+            this.tryAutoAuth();
           }));
 
       new Setting(body)
@@ -73,7 +74,10 @@ export class YouGileSettingTab extends PluginSettingTab {
           text
             .setPlaceholder('••••••••')
             .setValue('')
-            .onChange((value) => { this.plugin.savePassword(value); });
+            .onChange((value) => {
+              this.plugin.savePassword(value);
+              this.tryAutoAuth();
+            });
           return text;
         });
 
@@ -451,6 +455,15 @@ export class YouGileSettingTab extends PluginSettingTab {
     return map[blockTitle] || '';
   }
 
+  private tryAutoAuth(): void {
+    const login = this.plugin.settings.login;
+    const password = this.plugin.getPassword();
+    const companyId = this.plugin.settings.companyId;
+    if (!login || !password || !companyId) return;
+    if (this.plugin.settings.apiKeySecret && this.plugin.getSecretValue(this.plugin.settings.apiKeySecret)) return;
+    this.plugin.authenticate().catch(() => {});
+  }
+
   private populateProjectDropdown(select: HTMLSelectElement, selectedId: string): void {
     select.empty();
     select.createEl('option', { value: '', text: '— не выбран —' });
@@ -458,7 +471,15 @@ export class YouGileSettingTab extends PluginSettingTab {
     for (const p of projects) {
       select.createEl('option', { value: p.id, text: p.title });
     }
-    if (selectedId) select.value = selectedId;
+    if (selectedId) {
+      if (Array.from(select.options).some(o => o.value === selectedId)) {
+        select.value = selectedId;
+      } else {
+        // fallback: try to match by title
+        const byTitle = projects.find(p => p.title === selectedId);
+        if (byTitle) select.value = byTitle.id;
+      }
+    }
   }
 
   private populateBoardDropdown(select: HTMLSelectElement, projectId: string, selectedId: string): void {
@@ -469,6 +490,14 @@ export class YouGileSettingTab extends PluginSettingTab {
     for (const b of boards) {
       select.createEl('option', { value: b.id, text: b.title });
     }
-    if (selectedId) select.value = selectedId;
+    if (selectedId) {
+      if (Array.from(select.options).some(o => o.value === selectedId)) {
+        select.value = selectedId;
+      } else {
+        // fallback: try to match by title
+        const byTitle = boards.find(b => b.title === selectedId);
+        if (byTitle) select.value = byTitle.id;
+      }
+    }
   }
 }

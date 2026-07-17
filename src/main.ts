@@ -37,6 +37,7 @@ export default class YouGilePlugin extends Plugin {
     this.db = new LocalDatabase(this.app, this);
     await this.db.init();
     await this.db.sync();
+    this.normalizeProjectBoardSettings();
 
     this.emailDb = new EmailDatabase(this.app, this.settings.emailDbPath);
     await this.emailDb.init();
@@ -120,6 +121,7 @@ export default class YouGilePlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
+    this.normalizeProjectBoardSettings();
     await this.saveData(this.settings);
     const apiKey = this.getSecretValue(this.settings.apiKeySecret);
     if (apiKey) {
@@ -127,6 +129,29 @@ export default class YouGilePlugin extends Plugin {
     }
     if (this.emailDb) {
       this.emailDb.setDbPath(this.settings.emailDbPath);
+    }
+  }
+
+  private normalizeProjectBoardSettings(): void {
+    const pairs: Array<{ projectKey: keyof YouGileSettings; boardKey: keyof YouGileSettings }> = [
+      { projectKey: 'calendarProjectId', boardKey: 'calendarBoardId' },
+      { projectKey: 'docsProjectId', boardKey: 'docsBoardId' },
+      { projectKey: 'emailProjectId', boardKey: 'emailBoardId' },
+      { projectKey: 'contactProjectId', boardKey: 'contactBoardId' },
+    ];
+    const projects = this.db.getProjects();
+    const boards = this.db.getBoards();
+    for (const pair of pairs) {
+      const pVal = this.settings[pair.projectKey] as string;
+      const bVal = this.settings[pair.boardKey] as string;
+      if (pVal && !projects.some(p => p.id === pVal)) {
+        const byTitle = projects.find(p => p.title === pVal);
+        if (byTitle) (this.settings[pair.projectKey] as string) = byTitle.id;
+      }
+      if (bVal && !boards.some(b => b.id === bVal)) {
+        const byTitle = boards.find(b => b.title === bVal);
+        if (byTitle) (this.settings[pair.boardKey] as string) = byTitle.id;
+      }
     }
   }
 

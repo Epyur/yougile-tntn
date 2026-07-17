@@ -13,31 +13,39 @@
 | 7 | **Дашборд**: метрики, 4 графика ApexCharts, фильтры (проект, колонка, исполнитель, даты, подзадачи, дедлайны), экспорт JPG/CSV | ✅ | `ui/dashboard-view.ts` |
 | 8 | **Календарь мероприятий**: месяц, день, фильтр Документы, создание/редактирование, отчёт, материнская задача + автозавершение, проверка дедлайна | ✅ | `ui/schedule-view.ts` |
 | 9 | **Настройки**: складные блоки с toggle, проекты/доски через dropdown, LLM, DOCX, автор | ✅ | `ui/settings-tab.ts`, `types/settings.ts` |
+| 10 | **Предложения**: таблица, создание, детали, редактирование, завершение, офлайн-очередь | ✅ | `ui/suggestions-view.ts` |
+| 11 | **Контакты**: таблица, создание, редактирование, детали, QR-код (vCard, красный, 250×250), локальная JSON БД, синхронизация с YouGile | ✅ | `ui/contacts-view.ts`, `database/contact-db.ts`, `types/contacts.ts` |
+| 12 | **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы + email) | ✅ | `ui/assignee-selector.ts` |
 
 ## Структура файлов
 
 ```
 src/
 ├── api/
-│   └── client.ts
+│   └── client.ts                  # YouGileClient — все API-запросы
 ├── database/
-│   ├── db.ts                  # LocalDatabase (yougile_cache.json)
-│   └── email-db.ts            # EmailDatabase (mailer_data.json)
+│   ├── db.ts                      # LocalDatabase (yougile_cache.json)
+│   ├── email-db.ts                # EmailDatabase (mailer_data.json)
+│   └── contact-db.ts              # ContactDatabase (contacts_data.json)
 ├── services/
-│   ├── document-service.ts    # DOCX генерация (jszip + docx)
-│   └── llm-service.ts         # AI-чат с RAG
+│   ├── document-service.ts        # DOCX генерация (jszip + docx)
+│   └── llm-service.ts             # AI-чат с RAG
 ├── types/
-│   ├── cache.ts               # CachedTask, OfflineAction, …
-│   ├── emails.ts              # MailItem, MailDirection, EmailDbData
-│   ├── settings.ts            # YouGileSettings + DEFAULT_SETTINGS
-│   └── yougile.ts             # YouGileTask, CreateTaskPayload, …
+│   ├── cache.ts                   # CachedTask, OfflineAction, …
+│   ├── contacts.ts                # ContactItem, ContactDbData
+│   ├── emails.ts                  # MailItem, MailDirection, EmailDbData
+│   ├── settings.ts                # YouGileSettings + DEFAULT_SETTINGS
+│   └── yougile.ts                 # YouGileTask, CreateTaskPayload, …
 ├── ui/
-│   ├── dashboard-view.ts      # Дашборд (ApexCharts, метрики, фильтры, JPG/CSV-экспорт)
-│   ├── documents-view.ts      # Документы (таблица, детали, замечания, CSV, HTML-экспорт)
-│   ├── emails-view.ts         # Письма (таблица, create/edit, файлы, AI-чат, HTML-экспорт)
-│   ├── schedule-view.ts       # Календарь мероприятий
-│   ├── settings-tab.ts        # Настройки: 5 складных блоков + toggle модулей
-│   └── tasks-view.ts          # Задачи (список, дерево, чаты)
+│   ├── assignee-selector.ts       # Переиспользуемый компонент выбора пользователей
+│   ├── contacts-view.ts           # Контакты (таблица, create/edit, детали, QR-код)
+│   ├── dashboard-view.ts          # Дашборд (ApexCharts, метрики, фильтры, JPG/CSV)
+│   ├── documents-view.ts          # Документы (таблица, детали, замечания, CSV, HTML)
+│   ├── emails-view.ts             # Письма (таблица, create/edit, файлы, AI-чат, HTML)
+│   ├── schedule-view.ts           # Календарь мероприятий
+│   ├── settings-tab.ts            # Настройки: 6 складных блоков + toggle модулей
+│   ├── suggestions-view.ts        # Предложения (таблица, create/edit, детали, завершение)
+│   └── tasks-view.ts              # Задачи (список, дерево, чаты)
 ├── commands.ts
 └── main.ts
 ```
@@ -47,12 +55,13 @@ src/
 | Метод | Endpoint | Назначение |
 |-------|----------|------------|
 | POST | /api-v2/auth/keys | Аутентификация |
-| GET | /api-v2/tasks | Список задач |
+| GET | /api-v2/tasks | Список задач (с пагинацией) |
 | GET | /api-v2/tasks/{id} | Детали задачи |
 | POST | /api-v2/tasks | Создать задачу |
 | PUT | /api-v2/tasks/{id} | Обновить задачу |
 | GET | /api-v2/projects | Список проектов |
 | GET | /api-v2/boards | Список досок |
+| GET | /api-v2/columns | Список колонок (с пагинацией, опциональный `board`) |
 | GET | /api-v2/columns/{id} | Детали колонки |
 | GET | /api-v2/users | Список пользователей |
 | GET | /api-v2/group-chats | Список чатов |
@@ -66,21 +75,26 @@ src/
 ## Ключевые решения
 
 - **Письма хранятся локально** в `mailer_data.json` + дублируются в YouGile как задачи (`type: "email"` в description JSON)
-- **Assigned** в задачах писем — UUID пользователя, найденный по `settings.login` через `db.getUsers()`
+- **Контакты хранятся локально** в `contacts_data.json` + дублируются как задачи (`type: "contact"`, `completed: true`)
+- **Assigned** в задачах — UUID пользователя, найденный по `settings.login` через `db.getUsers()`
 - **Файлы** загружаются на YouGile через `POST /upload-file`, URL хранится в `email.images[]`
-- **Офлайн-очередь** для create/update email + upload file; при синке taskId сохраняется в локальную БД
+- **Офлайн-очередь** для create/update email + upload file; при синке `taskId` сохраняется в локальную БД
 - **DOCX**: поддержка шаблонов (замена `{{Номер}}`, `{{Текст}}` и т.д.) и fallback-генерация через `docx` lib
 - **Дашборд**: ApexCharts (donut, bar, area), фильтры (проект, колонка, исполнитель, даты), чекбоксы "Учитывать подзадачи" и "Показать дедлайны", экспорт JPG (scale 2x) и CSV
 - **Динамика озадачивания**: график с двумя сериями ("Поступило задач" / "Задач решено"), отсечки дедлайнов, даты от первой задачи до сегодня
-- **Экспорт HTML**: копирование полной таблицы в буфер обмена (письма — `№исх/дата|Приложение|Тема|Содержание`, документы — `№ п/п|Название|Тип|Срок|Куратор|Ссылки`)
+- **Экспорт HTML**: копирование полной таблицы в буфер обмена (письма, документы)
 - **Экспорт CSV**: BOM + `;` разделитель, файл в папку `Экспорт`
-- **Модули настраиваются**: каждый модуль (Календарь, Документы, Письма, Дашборд) можно включить/отключить в настройках; отключённый модуль скрывает вьюху, ribbon-иконку и команды
+- **Модули настраиваются**: каждый модуль (Календарь, Документы, Письма, Дашборд, Контакты) можно включить/отключить в настройках; отключённый модуль скрывает вьюху, ribbon-иконку и команды
+- **Предложения** — всегда включены (без toggle), используют жёстко заданные проект="Развитие плагина", board="Предложения", columns=["Предложения", "Ошибки"]
 - **Стабильность дашборда**: отмена предыдущего таймаута рендера, защита от `destroy()` на null, предотвращение race condition при быстрой смене фильтров
 - **Материнская задача в календаре**: при создании мероприятия можно выбрать родительскую задачу (поиск по всем проектам), опционально включить автозавершение родителя при завершении мероприятия; проверка дедлайна родителя с предупреждением
+- **QR-код контакта**: генерируется через библиотеку `qrcode`, vCard, красный цвет (#FF0000), 250×250px
+- **Приоритет предложений**: выбор из фиксированного набора (Критичный, Высокий, Средний, Просто идея), по умолчанию Средний
+- **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы со списком + ручной ввод email)
 
 ## Настройки плагина
 
-Настройки разделены на 5 складных блоков. У блоков «Календарь», «Документы», «Письма» и «Дашборд» есть toggle — чекбокс включения/отключения модуля.
+Настройки разделены на 6 складных блоков. У блоков «Календарь», «Документы», «Письма», «Дашборд» и «Контакты» есть toggle — чекбокс включения/отключения модуля.
 
 | Блок | Поля | Toggle |
 |------|------|--------|
@@ -88,4 +102,5 @@ src/
 | Календарь | проект, доска (dropdown) | `moduleCalendarEnabled` |
 | Документы | проект, доска (dropdown) | `moduleDocumentsEnabled` |
 | Письма | проект, доска, путь к БД, автор, AI-ключ, URL, модель, системный промпт, DOCX-шаблон/папка | `moduleEmailsEnabled` |
+| Контакты | проект, доска, путь к БД | `moduleContactsEnabled` |
 | Дашборд | без настроек | `moduleDashboardEnabled` |

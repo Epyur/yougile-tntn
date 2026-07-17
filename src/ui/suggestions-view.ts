@@ -151,7 +151,7 @@ export class SuggestionsView extends ItemView {
     for (const item of items) {
       const row = tbody.createEl('tr');
       row.style.cssText = 'cursor:pointer';
-      row.addEventListener('click', () => this.showEditForm(item));
+      row.addEventListener('click', () => this.showDetailView(item));
       const cells = [
         item.columnTitle,
         item.title,
@@ -217,8 +217,6 @@ export class SuggestionsView extends ItemView {
       if (opt === 'Средний') optEl.selected = true;
     }
 
-    const assigneeSelector = new AssigneeSelector(container, 'Автор', () => this.plugin.db.getUsers());
-
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
     btnRow.style.marginTop = '12px';
     const submitBtn = btnRow.createEl('button', { text: '✅ Создать', cls: 'mailer-yougile-refresh-btn' });
@@ -233,7 +231,8 @@ export class SuggestionsView extends ItemView {
       submitBtn.setAttr('disabled', 'true');
       cancelBtn.setAttr('disabled', 'true');
 
-      const assignedIds = assigneeSelector.getSelectedIds();
+      const loginUser = this.plugin.db.getUsers().find(u => u.email === this.plugin.settings.login || u.name === this.plugin.settings.login);
+      const assignedIds = loginUser ? [loginUser.id] : [];
       const description = JSON.stringify({
         type: 'suggestion',
         title,
@@ -270,6 +269,77 @@ export class SuggestionsView extends ItemView {
           submitBtn.setText('✅ Создать');
           submitBtn.removeAttribute('disabled');
           cancelBtn.removeAttribute('disabled');
+        }
+      }
+    });
+  }
+
+  private showDetailView(item: SuggestionItem): void {
+    const container = this.containerElContent;
+    container.empty();
+    this.createViewActive = false;
+    this.editViewActive = false;
+    this.editingItem = item;
+
+    const backBtn = container.createEl('button', { text: '← Назад к списку', cls: 'mailer-yougile-refresh-btn' });
+    backBtn.addEventListener('click', () => this.renderView());
+
+    container.createEl('h3', { text: `💡 ${item.title}` });
+
+    const detailContainer = container.createDiv();
+    detailContainer.style.cssText = 'font-size:var(--font-smaller);line-height:1.6';
+
+    const fields: Array<{ label: string; value: string }> = [
+      { label: 'Колонка', value: item.columnTitle },
+      { label: 'Суть предложения', value: item.title },
+      { label: 'Проблема (Зачем?)', value: item.problem },
+      { label: 'Ожидаемый эффект', value: item.expectedEffect },
+      { label: 'Приоритет', value: item.priority },
+      { label: 'Автор', value: item.assigneeName },
+      { label: 'Статус', value: item.completed ? '✅ Завершено' : '🔄 В работе' },
+    ];
+    for (const f of fields) {
+      if (!f.value) continue;
+      const row = detailContainer.createDiv();
+      row.style.cssText = 'padding:2px 0';
+      row.createEl('strong', { text: `${f.label}: ` });
+      row.createSpan({ text: f.value });
+    }
+
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
+    btnRow.style.marginTop = '16px';
+
+    const editBtn = btnRow.createEl('button', { text: '✏️ Редактировать', cls: 'mailer-yougile-refresh-btn' });
+    editBtn.addEventListener('click', () => this.showEditForm(item));
+
+    const completeBtn = btnRow.createEl('button', {
+      text: item.completed ? '🔄 Открыть заново' : '✅ Завершить',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    completeBtn.style.marginLeft = '8px';
+    completeBtn.addEventListener('click', async () => {
+      completeBtn.setText('⏳');
+      completeBtn.setAttr('disabled', 'true');
+      editBtn.setAttr('disabled', 'true');
+      try {
+        await this.plugin.client.updateTaskRaw(item.taskId, {
+          completed: !item.completed,
+        });
+        new Notice(item.completed ? 'Предложение открыто заново' : 'Предложение завершено');
+        this.syncAndRender();
+      } catch (e) {
+        if (isNetworkError(e)) {
+          this.plugin.db.addToOfflineQueue({
+            type: 'toggle-completed',
+            payload: { id: item.taskId, completed: !item.completed },
+          });
+          new Notice('Нет соединения. Изменения будут сохранены позже.');
+          this.syncAndRender();
+        } else {
+          new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
+          completeBtn.setText(item.completed ? '🔄 Открыть заново' : '✅ Завершить');
+          completeBtn.removeAttribute('disabled');
+          editBtn.removeAttribute('disabled');
         }
       }
     });
@@ -356,7 +426,7 @@ export class SuggestionsView extends ItemView {
         title,
         problem: (inputs.problem as HTMLTextAreaElement).value.trim(),
         expectedEffect: (inputs.expectedEffect as HTMLTextAreaElement).value.trim(),
-        priority: (inputs.priority as HTMLInputElement).value.trim(),
+        priority: prioritySelect.value,
       }, null, 2);
 
       try {
