@@ -67579,7 +67579,9 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
     if (this.settings.shownVersion !== currentVersion && CHANGELOG[currentVersion]) {
       this.settings.shownVersion = currentVersion;
       await this.saveSettings();
-      new ChangelogModal(this.app, currentVersion, CHANGELOG[currentVersion]).open();
+      this.app.workspace.onLayoutReady(() => {
+        new ChangelogModal(this.app, currentVersion, CHANGELOG[currentVersion]).open();
+      });
     }
     this.emailDb = new EmailDatabase(this.app, this.settings.emailDbPath);
     await this.emailDb.init();
