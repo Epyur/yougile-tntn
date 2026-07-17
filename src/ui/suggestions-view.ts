@@ -1,5 +1,6 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
+import type { CreateTaskPayload } from '../types/yougile';
 import { AssigneeSelector } from './assignee-selector';
 
 function isNetworkError(e: unknown): boolean {
@@ -136,7 +137,7 @@ export class SuggestionsView extends ItemView {
     }
 
     const table = container.createEl('table');
-    table.style.cssText = 'width:100%;border-collapse:collapse;font-size:var(--font-smaller)';
+    table.addClass('mailer-table');
 
     const thead = table.createEl('thead');
     const headRow = thead.createEl('tr');
@@ -144,13 +145,13 @@ export class SuggestionsView extends ItemView {
     for (const h of headers) {
       const th = headRow.createEl('th');
       th.setText(h);
-      th.style.cssText = 'text-align:left;padding:4px 8px;border-bottom:2px solid var(--background-modifier-border);white-space:nowrap';
+      th.addClass('mailer-th-sm');
     }
 
     const tbody = table.createEl('tbody');
     for (const item of items) {
       const row = tbody.createEl('tr');
-      row.style.cssText = 'cursor:pointer';
+      row.addClass('mailer-clickable');
       row.addEventListener('click', () => this.showDetailView(item));
       const cells = [
         item.columnTitle,
@@ -164,7 +165,7 @@ export class SuggestionsView extends ItemView {
       for (const c of cells) {
         const td = row.createEl('td');
         td.setText(c);
-        td.style.cssText = 'padding:4px 8px;border-bottom:1px solid var(--background-modifier-border)';
+        td.addClass('mailer-td-sm');
       }
     }
   }
@@ -182,7 +183,7 @@ export class SuggestionsView extends ItemView {
     const columnIds = this.getColumnIds();
     const colLabel = container.createEl('label', { text: 'Колонка' });
     const colSelect = container.createEl('select');
-    colSelect.style.cssText = 'width:100%;box-sizing:border-box;margin-bottom:8px';
+    colSelect.addClass('mailer-select');
     for (const cid of columnIds) {
       const title = this.getColumnTitle(cid);
       colSelect.createEl('option', { value: cid, text: title });
@@ -199,18 +200,18 @@ export class SuggestionsView extends ItemView {
       const label = container.createEl('label', { text: f.label });
       if (f.multiline) {
         const ta = container.createEl('textarea');
-        ta.style.cssText = 'width:100%;box-sizing:border-box;min-height:60px';
+        ta.addClass('mailer-textarea');
         inputs[f.key] = ta;
       } else {
         const inp = container.createEl('input', { attr: { type: 'text' } });
-        inp.style.cssText = 'width:100%;box-sizing:border-box';
+        inp.addClass('mailer-input');
         inputs[f.key] = inp;
       }
     }
 
     const priorityLabel = container.createEl('label', { text: 'Приоритет' });
     const prioritySelect = container.createEl('select');
-    prioritySelect.style.cssText = 'width:100%;box-sizing:border-box;margin-bottom:8px';
+    prioritySelect.addClass('mailer-select');
     const priorityOptions = ['Критичный', 'Высокий', 'Средний', 'Просто идея'];
     for (const opt of priorityOptions) {
       const optEl = prioritySelect.createEl('option', { value: opt, text: opt });
@@ -218,7 +219,7 @@ export class SuggestionsView extends ItemView {
     }
 
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    btnRow.addClass('mailer-mt-12');
     const submitBtn = btnRow.createEl('button', { text: '✅ Создать', cls: 'mailer-yougile-refresh-btn' });
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
     cancelBtn.addEventListener('click', () => this.renderView());
@@ -242,16 +243,16 @@ export class SuggestionsView extends ItemView {
       }, null, 2);
 
       try {
-        const payload: Record<string, unknown> = {
+        const payload: CreateTaskPayload = {
           title,
           description,
           columnId: colSelect.value || undefined,
           assigned: assignedIds.length > 0 ? assignedIds : undefined,
         };
-        await this.plugin.client.createTask(payload as any);
+        await this.plugin.client.createTask(payload);
         new Notice('Предложение создано');
         this.syncAndRender();
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
             type: 'create-task',
@@ -287,7 +288,7 @@ export class SuggestionsView extends ItemView {
     container.createEl('h3', { text: `💡 ${item.title}` });
 
     const detailContainer = container.createDiv();
-    detailContainer.style.cssText = 'font-size:var(--font-smaller);line-height:1.6';
+    detailContainer.addClass('mailer-detail-text');
 
     const fields: Array<{ label: string; value: string }> = [
       { label: 'Колонка', value: item.columnTitle },
@@ -301,13 +302,13 @@ export class SuggestionsView extends ItemView {
     for (const f of fields) {
       if (!f.value) continue;
       const row = detailContainer.createDiv();
-      row.style.cssText = 'padding:2px 0';
+      row.addClass('mailer-detail-row');
       row.createEl('strong', { text: `${f.label}: ` });
       row.createSpan({ text: f.value });
     }
 
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '16px';
+    btnRow.addClass('mailer-mt-12');
 
     const editBtn = btnRow.createEl('button', { text: '✏️ Редактировать', cls: 'mailer-yougile-refresh-btn' });
     editBtn.addEventListener('click', () => this.showEditForm(item));
@@ -316,7 +317,7 @@ export class SuggestionsView extends ItemView {
       text: item.completed ? '🔄 Открыть заново' : '✅ Завершить',
       cls: 'mailer-yougile-refresh-btn',
     });
-    completeBtn.style.marginLeft = '8px';
+    completeBtn.addClass('mailer-btn-ml-8');
     completeBtn.addEventListener('click', async () => {
       completeBtn.setText('⏳');
       completeBtn.setAttr('disabled', 'true');
@@ -327,7 +328,7 @@ export class SuggestionsView extends ItemView {
         });
         new Notice(item.completed ? 'Предложение открыто заново' : 'Предложение завершено');
         this.syncAndRender();
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
             type: 'toggle-completed',
@@ -359,7 +360,7 @@ export class SuggestionsView extends ItemView {
     const columnIds = this.getColumnIds();
     const colLabel = container.createEl('label', { text: 'Колонка' });
     const colSelect = container.createEl('select');
-    colSelect.style.cssText = 'width:100%;box-sizing:border-box;margin-bottom:8px';
+    colSelect.addClass('mailer-select');
     for (const cid of columnIds) {
       const title = this.getColumnTitle(cid);
       const opt = colSelect.createEl('option', { value: cid, text: title });
@@ -384,11 +385,11 @@ export class SuggestionsView extends ItemView {
       let el: HTMLInputElement | HTMLTextAreaElement;
       if (f.multiline) {
         const ta = container.createEl('textarea');
-        ta.style.cssText = 'width:100%;box-sizing:border-box;min-height:60px';
+        ta.addClass('mailer-textarea');
         el = ta;
       } else {
         const inp = container.createEl('input', { attr: { type: 'text' } });
-        inp.style.cssText = 'width:100%;box-sizing:border-box';
+        inp.addClass('mailer-input');
         el = inp;
       }
       el.value = prefill[f.key] || '';
@@ -397,7 +398,7 @@ export class SuggestionsView extends ItemView {
 
     const priorityLabel = container.createEl('label', { text: 'Приоритет' });
     const prioritySelect = container.createEl('select');
-    prioritySelect.style.cssText = 'width:100%;box-sizing:border-box;margin-bottom:8px';
+    prioritySelect.addClass('mailer-select');
     const priorityOptions = ['Критичный', 'Высокий', 'Средний', 'Просто идея'];
     for (const opt of priorityOptions) {
       const optEl = prioritySelect.createEl('option', { value: opt, text: opt });
@@ -407,7 +408,7 @@ export class SuggestionsView extends ItemView {
     const assigneeSelector = new AssigneeSelector(container, 'Автор', () => this.plugin.db.getUsers(), item.assigneeName);
 
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    btnRow.addClass('mailer-mt-12');
     const saveBtn = btnRow.createEl('button', { text: '💾 Сохранить', cls: 'mailer-yougile-refresh-btn' });
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
     cancelBtn.addEventListener('click', () => this.renderView());
@@ -440,7 +441,7 @@ export class SuggestionsView extends ItemView {
         const responseStr = typeof response === 'string' ? response : JSON.stringify(response);
         new Notice(`Ответ сервера: ${responseStr}`);
         this.syncAndRender();
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
             type: 'update-task',

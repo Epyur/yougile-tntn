@@ -142,3 +142,257 @@
   background-color: var(--interactive-accent);
   color: var(--text-on-accent);
 }
+
+/* ===== Utility classes ===== */
+
+.mailer-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-smaller);
+}
+
+.mailer-th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 2px solid var(--background-modifier-border);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.mailer-td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.mailer-td-sm {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.mailer-th-sm {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.mailer-input,
+.mailer-textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mailer-textarea {
+  min-height: 60px;
+}
+
+.mailer-select {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+.mailer-flex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mailer-mt-8 {
+  margin-top: 8px;
+}
+
+.mailer-mt-12 {
+  margin-top: 12px;
+}
+
+.mailer-mb-8 {
+  margin-bottom: 8px;
+}
+
+.mailer-ml-18 {
+  margin-left: 18px;
+}
+
+.mailer-border-top {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 8px;
+}
+
+.mailer-clickable {
+  cursor: pointer;
+}
+
+.mailer-yougile-container .mailer-cb-wrapper,
+.mailer-cb-wrapper {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 12px;
+  margin-top: 4px;
+  font-size: var(--font-smaller);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mailer-cb {
+  width: 16px;
+  height: 16px;
+  margin: 0 4px 0 0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.mailer-detail-text {
+  font-size: var(--font-smaller);
+  line-height: 1.6;
+}
+
+.mailer-detail-row {
+  padding: 2px 0;
+}
+
+.mailer-card {
+  background: var(--background-primary-alt);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.mailer-card-value {
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.mailer-card-label {
+  font-size: var(--font-smaller);
+  margin-top: 4px;
+  color: var(--text-muted);
+}
+
+.mailer-chart-box {
+  background: var(--background-primary-alt);
+  border-radius: 8px;
+  padding: 12px;
+  position: relative;
+}
+
+.mailer-chart-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.mailer-chart-title {
+  font-weight: bold;
+  font-size: var(--font-ui-small);
+}
+
+.mailer-dl-btn {
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.mailer-chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.mailer-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.mailer-calendar-today {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.mailer-section-divider {
+  margin-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 8px;
+}
+
+.mailer-row-hover:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.mailer-text-center {
+  text-align: center;
+}
+
+.mailer-p-24 {
+  padding: 24px;
+  color: var(--text-muted);
+}
+
+.mailer-word-break {
+  word-break: break-all;
+}
+
+.mailer-btn-ml-8 {
+  margin-left: 8px;
+}
+
+.mailer-cb-flex {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: var(--font-smaller);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mailer-flex-space-between { justify-content: space-between; }
+.mailer-bold { font-weight: bold; }
+.mailer-mx-8 { margin-left: 8px; margin-right: 8px; }
+.mailer-w-auto { width: auto; }
+.mailer-mb-2 { margin-bottom: 2px; }
+.mailer-mb-12 { margin-bottom: 12px; }
+.mailer-mt-4 { margin-top: 4px; }
+.mailer-report-textarea { min-height: 80px; }
+
+.mailer-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+  user-select: none;
+}
+.mailer-arrow {
+  font-size: 10px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.mailer-title-medium {
+  font-weight: bold;
+  font-size: var(--font-ui-medium);
+  flex: 1;
+}
+.mailer-subheading {
+  font-weight: 600;
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  padding: 8px 0 4px;
+  border-bottom: 1px dashed var(--background-modifier-border);
+  margin-top: 8px;
+}
+
+.mailer-status-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+.mailer-flex-wrap { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.mailer-img-preview { max-width: 100%; max-height: 150px; margin-top: 4px; border-radius: 4px; }
+.mailer-img-full { max-width: 100%; max-height: 300px; margin-top: 8px; border-radius: 4px; }
+.mailer-indicator { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
+.mailer-filter-label { font-size: var(--font-smaller); margin-right: 4px; white-space: nowrap; }
+.mailer-hidden {
+  display: none;
+}

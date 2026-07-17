@@ -1,6 +1,7 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { ContactItem } from '../types/contacts';
+import type { CreateTaskPayload } from '../types/yougile';
 import QRCode from 'qrcode';
 
 function isNetworkError(e: unknown): boolean {
@@ -22,6 +23,9 @@ export class ContactsView extends ItemView {
   private createViewActive = false;
   private detailViewActive = false;
   private viewingContact: ContactItem | null = null;
+  private searchQuery = '';
+  private searchTimeout: number | null = null;
+  private selectedColumnIds: Set<string> = new Set();
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -36,6 +40,7 @@ export class ContactsView extends ItemView {
     const container = this.contentEl;
     container.addClass('mailer-yougile-container');
     this.containerElContent = container.createDiv();
+    this.selectedColumnIds = new Set(this.plugin.settings.contactSelectedColumnIds.split(',').filter(Boolean));
     await this.syncAndRender();
   }
 
@@ -43,8 +48,28 @@ export class ContactsView extends ItemView {
     // no-op
   }
 
-  private getContacts(): ContactItem[] {
-    return this.plugin.contactDb.getAllContacts();
+  private getColumnTitle(columnId: string): string {
+    const col = this.plugin.db.getColumns().find(c => c.id === columnId);
+    return col ? col.title : columnId;
+  }
+
+  private getContacts(filter?: boolean): ContactItem[] {
+    let contacts = this.plugin.contactDb.getAllContacts();
+    if (filter) {
+      if (this.searchQuery) {
+        const q = this.searchQuery.toLowerCase();
+        contacts = contacts.filter(c =>
+          c.name.toLowerCase().includes(q) ||
+          c.phone.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q) ||
+          c.organization.toLowerCase().includes(q)
+        );
+      }
+      if (this.selectedColumnIds.size > 0) {
+        contacts = contacts.filter(c => this.selectedColumnIds.has(c.orgType));
+      }
+    }
+    return contacts;
   }
 
   private renderView(): void {
@@ -61,34 +86,82 @@ export class ContactsView extends ItemView {
     const createBtn = header.createEl('button', { text: '➕ Новый контакт', cls: 'mailer-yougile-refresh-btn' });
     createBtn.addEventListener('click', () => this.showCreateForm());
 
-    const contacts = this.getContacts();
+    const syncStatus = container.createDiv({ cls: 'mailer-yougile-task-meta', text: this.plugin.db.hasUnsynchronizedActions() ? '⚠ Не синхронизировано' : '✅ Синхронизировано' });
+
+    const searchInput = container.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск по имени, телефону, email...' } });
+    searchInput.addClass('mailer-input');
+    searchInput.addClass('mailer-mb-8');
+    searchInput.value = this.searchQuery;
+    searchInput.addEventListener('input', () => {
+      this.searchQuery = searchInput.value;
+      if (this.searchTimeout) clearTimeout(this.searchTimeout);
+      this.searchTimeout = window.setTimeout(() => this.renderView(), 300);
+    });
+
+    const contactBoardId = this.plugin.settings.contactBoardId;
+    const columns = this.plugin.db.getColumns().filter(c => !contactBoardId || c.boardId === contactBoardId);
+    if (columns.length > 0) {
+      const filterDiv = container.createDiv({ cls: 'mailer-mb-8' });
+      filterDiv.createDiv({ text: 'Тип организации:', cls: 'mailer-yougile-task-meta' });
+      for (const col of columns) {
+        const wrapper = filterDiv.createEl('label');
+        wrapper.style.display = 'inline-flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.marginRight = '12px';
+        wrapper.style.marginTop = '4px';
+        wrapper.style.fontSize = 'var(--font-smaller)';
+        wrapper.style.cursor = 'pointer';
+        wrapper.style.whiteSpace = 'nowrap';
+        const cb = wrapper.createEl('input', { attr: { type: 'checkbox' } });
+        cb.style.width = '16px';
+        cb.style.height = '16px';
+        cb.style.margin = '0 4px 0 0';
+        cb.style.flexShrink = '0';
+        cb.checked = this.selectedColumnIds.size === 0 || this.selectedColumnIds.has(col.id);
+        if (cb.checked) this.selectedColumnIds.add(col.id);
+        const span = wrapper.createEl('span');
+        span.setText(col.title);
+        cb.addEventListener('change', () => {
+          if (cb.checked) {
+            this.selectedColumnIds.add(col.id);
+          } else {
+            this.selectedColumnIds.delete(col.id);
+          }
+          this.plugin.settings.contactSelectedColumnIds = Array.from(this.selectedColumnIds).join(',');
+          this.plugin.saveSettings();
+          this.renderView();
+        });
+      }
+    }
+
+    let contacts = this.getContacts(true);
     if (contacts.length === 0) {
       container.createDiv({ text: 'Нет контактов', cls: 'mailer-yougile-empty' });
       return;
     }
 
     const table = container.createEl('table');
-    table.style.cssText = 'width:100%;border-collapse:collapse;font-size:var(--font-smaller)';
+    table.addClass('mailer-table');
 
     const thead = table.createEl('thead');
     const headRow = thead.createEl('tr');
-    const headers = ['Имя', 'Телефон', 'Email', 'Организация', 'Должность'];
+    const headers = ['Имя', 'Телефон', 'Email', 'Организация', 'Должность', 'Тип организации'];
     for (const h of headers) {
       const th = headRow.createEl('th');
       th.setText(h);
-      th.style.cssText = 'text-align:left;padding:4px 8px;border-bottom:2px solid var(--background-modifier-border);white-space:nowrap';
+      th.addClass('mailer-th');
     }
 
     const tbody = table.createEl('tbody');
     for (const c of contacts) {
       const row = tbody.createEl('tr');
-      row.style.cssText = 'cursor:pointer';
+      row.addClass('mailer-clickable');
       row.addEventListener('click', () => this.showDetailView(c));
-      const cells = [c.name, c.phone, c.email, c.organization, c.position];
+      const cells = [c.name, c.phone, c.email, c.organization, c.position, this.getColumnTitle(c.orgType)];
       for (const cell of cells) {
         const td = row.createEl('td');
         td.setText(cell);
-        td.style.cssText = 'padding:4px 8px;border-bottom:1px solid var(--background-modifier-border)';
+        td.addClass('mailer-td-sm');
       }
     }
   }
@@ -105,7 +178,7 @@ export class ContactsView extends ItemView {
 
     const typeLabel = container.createEl('label', { text: 'Тип организации' });
     const typeSelect = container.createEl('select');
-    typeSelect.style.cssText = 'width:100%;box-sizing:border-box;margin-bottom:8px';
+    typeSelect.addClass('mailer-select');
     const boardCols = this.plugin.db.getColumns().filter(c => c.boardId === this.plugin.settings.contactBoardId);
     for (const col of boardCols) {
       typeSelect.createEl('option', { value: col.id, text: col.title });
@@ -123,16 +196,16 @@ export class ContactsView extends ItemView {
     for (const f of fields) {
       const label = container.createEl('label', { text: f.label });
       const inp = container.createEl('input', { attr: { type: 'text', placeholder: f.placeholder } });
-      inp.style.cssText = 'width:100%;box-sizing:border-box';
+      inp.addClass('mailer-input');
       inputs[f.key] = inp;
     }
 
     const notesLabel = container.createEl('label', { text: 'Примечание' });
     const notesInput = container.createEl('textarea');
-    notesInput.style.cssText = 'width:100%;box-sizing:border-box;min-height:60px';
+    notesInput.addClass('mailer-textarea');
 
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    btnRow.addClass('mailer-mt-12');
     const submitBtn = btnRow.createEl('button', { text: '✅ Создать', cls: 'mailer-yougile-refresh-btn' });
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
     cancelBtn.addEventListener('click', () => this.renderView());
@@ -146,6 +219,7 @@ export class ContactsView extends ItemView {
       cancelBtn.setAttr('disabled', 'true');
 
       const now = new Date().toISOString();
+      const orgType = typeSelect.value;
       const contact: ContactItem = {
         id: generateContactId(),
         name,
@@ -153,6 +227,7 @@ export class ContactsView extends ItemView {
         email: inputs.email.value.trim(),
         organization: inputs.organization.value.trim(),
         position: inputs.position.value.trim(),
+        orgType,
         notes: notesInput.value.trim(),
         createdAt: now,
         updatedAt: now,
@@ -167,6 +242,7 @@ export class ContactsView extends ItemView {
         email: contact.email,
         organization: contact.organization,
         position: contact.position,
+        orgType: contact.orgType,
         notes: contact.notes,
       }, null, 2);
 
@@ -177,13 +253,13 @@ export class ContactsView extends ItemView {
           description,
           columnId: columnId || undefined,
           completed: true,
-        });
+        } as CreateTaskPayload);
         contact.taskId = result.id;
         contact.sync_status = 'synced';
         this.plugin.contactDb.addContact(contact);
         new Notice('Контакт создан');
         this.syncAndRender();
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.contactDb.addContact(contact);
           this.plugin.db.addToOfflineQueue({
@@ -219,23 +295,24 @@ export class ContactsView extends ItemView {
     container.createEl('h3', { text: `👤 ${contact.name}` });
 
     const editBtn = container.createEl('button', { text: '✏️ Редактировать', cls: 'mailer-yougile-refresh-btn' });
-    editBtn.style.marginBottom = '12px';
+    editBtn.addClass('mailer-mb-8');
     editBtn.addEventListener('click', () => this.showEditForm(contact));
 
     const detailContainer = container.createDiv();
-    detailContainer.style.cssText = 'font-size:var(--font-smaller);line-height:1.6';
+    detailContainer.addClass('mailer-detail-text');
 
     const fields: Array<{ label: string; value: string }> = [
       { label: 'Телефон', value: contact.phone },
       { label: 'Email', value: contact.email },
       { label: 'Организация', value: contact.organization },
       { label: 'Должность', value: contact.position },
+      { label: 'Тип организации', value: this.getColumnTitle(contact.orgType) },
       { label: 'Примечание', value: contact.notes },
     ];
     for (const f of fields) {
       if (!f.value) continue;
       const row = detailContainer.createDiv({ cls: 'mailer-yougile-header' });
-      row.style.cssText = 'padding:2px 0';
+      row.addClass('mailer-detail-row');
       const label = row.createEl('strong');
       label.setText(`${f.label}: `);
       row.createSpan({ text: f.value });
@@ -243,9 +320,10 @@ export class ContactsView extends ItemView {
 
     // QR code
     const qrContainer = container.createDiv();
-    qrContainer.style.cssText = 'margin-top:16px;text-align:center';
+    qrContainer.addClass('mailer-text-center', 'mailer-mt-12');
     const qrLabel = qrContainer.createEl('label', { text: 'QR-код контакта' });
-    qrLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:bold';
+    qrLabel.style.cssText = 'display:block;font-weight:bold';
+    qrLabel.addClass('mailer-mb-8');
     const qrCanvas = qrContainer.createEl('canvas', { attr: { width: 250, height: 250 } });
     qrCanvas.style.cssText = 'width:250px;height:250px;margin:0 auto';
 
@@ -268,7 +346,7 @@ export class ContactsView extends ItemView {
         dark: '#FF0000',
         light: '#FFFFFF',
       },
-    } as any).catch(() => {
+    }).catch(() => {
       // silent
     });
   }
@@ -285,12 +363,11 @@ export class ContactsView extends ItemView {
 
     const typeLabel = container.createEl('label', { text: 'Тип организации' });
     const typeSelect = container.createEl('select');
-    typeSelect.style.cssText = 'width:100%;box-sizing:border-box;margin-bottom:8px';
+    typeSelect.addClass('mailer-select');
     const boardCols = this.plugin.db.getColumns().filter(c => c.boardId === this.plugin.settings.contactBoardId);
-    const currentCol = this.plugin.db.getTasks().find(t => t.id === contact.taskId)?.columnId;
     for (const col of boardCols) {
       const opt = typeSelect.createEl('option', { value: col.id, text: col.title });
-      if (col.id === currentCol) opt.selected = true;
+      if (col.id === contact.orgType) opt.selected = true;
     }
 
     const fields: Array<{ label: string; key: keyof ContactItem; placeholder: string }> = [
@@ -313,18 +390,18 @@ export class ContactsView extends ItemView {
     for (const f of fields) {
       const label = container.createEl('label', { text: f.label });
       const inp = container.createEl('input', { attr: { type: 'text', placeholder: f.placeholder } });
-      inp.style.cssText = 'width:100%;box-sizing:border-box';
+      inp.addClass('mailer-input');
       inp.value = prefill[f.key] || '';
       inputs[f.key] = inp;
     }
 
     const notesLabel = container.createEl('label', { text: 'Примечание' });
     const notesInput = container.createEl('textarea');
-    notesInput.style.cssText = 'width:100%;box-sizing:border-box;min-height:60px';
+    notesInput.addClass('mailer-textarea');
     notesInput.value = contact.notes;
 
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    btnRow.addClass('mailer-mt-12');
     const saveBtn = btnRow.createEl('button', { text: '💾 Сохранить', cls: 'mailer-yougile-refresh-btn' });
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
     cancelBtn.addEventListener('click', () => this.showDetailView(contact));
@@ -337,6 +414,7 @@ export class ContactsView extends ItemView {
       saveBtn.setAttr('disabled', 'true');
       cancelBtn.setAttr('disabled', 'true');
 
+      const orgType = typeSelect.value;
       const now = new Date().toISOString();
       const updated: Partial<ContactItem> = {
         name,
@@ -344,10 +422,10 @@ export class ContactsView extends ItemView {
         email: inputs.email.value.trim(),
         organization: inputs.organization.value.trim(),
         position: inputs.position.value.trim(),
+        orgType,
         notes: notesInput.value.trim(),
         updatedAt: now,
       };
-
       const description = JSON.stringify({
         type: 'contact',
         contactId: contact.id,
@@ -356,6 +434,7 @@ export class ContactsView extends ItemView {
         email: updated.email,
         organization: updated.organization,
         position: updated.position,
+        orgType,
         notes: updated.notes,
       }, null, 2);
 
@@ -370,7 +449,7 @@ export class ContactsView extends ItemView {
         this.plugin.contactDb.updateContact(contact.id, updated);
         new Notice('Контакт обновлён');
         this.syncAndRender();
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.contactDb.updateContact(contact.id, updated);
           if (contact.taskId) {
@@ -409,6 +488,7 @@ export class ContactsView extends ItemView {
       new Notice(`YouGile: Ошибка синхронизации — ${msg}`);
     }
     this.plugin.contactDb.syncFromTasks(this.plugin.db.getTasks());
+    this.selectedColumnIds = new Set(this.plugin.settings.contactSelectedColumnIds.split(',').filter(Boolean));
     this.renderView();
   }
 }

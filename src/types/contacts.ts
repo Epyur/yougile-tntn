@@ -5,6 +5,7 @@ export interface ContactItem {
   email: string;
   organization: string;
   position: string;
+  orgType: string;
   notes: string;
   createdAt: string;
   updatedAt: string;

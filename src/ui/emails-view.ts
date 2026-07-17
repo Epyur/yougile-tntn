@@ -94,9 +94,7 @@ export class EmailsView extends ItemView {
     }
 
     const searchInput = container.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск по номеру, теме, тексту...' } });
-    searchInput.style.width = '100%';
-    searchInput.style.boxSizing = 'border-box';
-    searchInput.style.marginBottom = '8px';
+    searchInput.addClass('mailer-mb-8');
     searchInput.value = this.searchQuery;
     searchInput.addEventListener('input', () => {
       this.searchQuery = searchInput.value;
@@ -108,8 +106,7 @@ export class EmailsView extends ItemView {
 
     const columns = this.getBoardColumns();
     if (columns.length > 0) {
-      const filterDiv = container.createDiv();
-      filterDiv.style.marginBottom = '8px';
+      const filterDiv = container.createDiv({ cls: 'mailer-mb-8' });
       filterDiv.createDiv({ text: 'Колонки:', cls: 'mailer-yougile-task-meta' });
       for (const col of columns) {
         const wrapper = filterDiv.createEl('label');
@@ -142,12 +139,7 @@ export class EmailsView extends ItemView {
       }
     }
 
-    const filterRow = container.createDiv();
-    filterRow.style.display = 'flex';
-    filterRow.style.alignItems = 'center';
-    filterRow.style.gap = '8px';
-    filterRow.style.marginBottom = '8px';
-    filterRow.style.flexWrap = 'wrap';
+    const filterRow = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap mailer-mb-8' });
 
     let dateFilterTimeout: number | null = null;
 
@@ -222,65 +214,45 @@ export class EmailsView extends ItemView {
 
     filtered.sort((a, b) => b.id - a.id);
 
-    const table = container.createEl('table');
-    table.style.width = '100%';
-    table.style.borderCollapse = 'collapse';
-    table.style.fontSize = 'var(--font-smaller)';
+    const table = container.createEl('table', { cls: 'mailer-table' });
 
     const thead = table.createEl('thead');
     const headerRow = thead.createEl('tr');
     const headers = ['№ п/п', 'Номер письма', 'Дата письма', 'Тема письма', 'Автор'];
     for (const h of headers) {
-      const th = headerRow.createEl('th');
+      const th = headerRow.createEl('th', { cls: 'mailer-th' });
       th.setText(h);
-      th.style.textAlign = 'left';
-      th.style.padding = '6px 8px';
-      th.style.borderBottom = '2px solid var(--background-modifier-border)';
-      th.style.fontWeight = 'bold';
-      th.style.whiteSpace = 'nowrap';
     }
 
     const tbody = table.createEl('tbody');
 
     if (filtered.length === 0) {
       const emptyRow = tbody.createEl('tr');
-      const td = emptyRow.createEl('td');
+      const td = emptyRow.createEl('td', { cls: 'mailer-text-center mailer-p-24' });
       td.setAttr('colspan', '5');
       td.setText('Нет писем');
-      td.style.textAlign = 'center';
-      td.style.padding = '24px';
-      td.style.color = 'var(--text-muted)';
       return;
     }
 
     for (let i = 0; i < filtered.length; i++) {
       const email = filtered[i];
-      const row = tbody.createEl('tr');
-      row.style.cursor = 'pointer';
-      row.style.borderBottom = '1px solid var(--background-modifier-border)';
-      row.addEventListener('mouseenter', () => { row.style.backgroundColor = 'var(--background-modifier-hover)'; });
-      row.addEventListener('mouseleave', () => { row.style.backgroundColor = ''; });
+      const row = tbody.createEl('tr', { cls: 'mailer-clickable mailer-row-hover' });
       row.addEventListener('click', () => this.renderEmailDetail(email));
 
-      const numCell = row.createEl('td');
-      numCell.style.padding = '6px 8px';
+      const numCell = row.createEl('td', { cls: 'mailer-td' });
       numCell.setText(String(i + 1));
 
-      const numberCell = row.createEl('td');
-      numberCell.style.padding = '6px 8px';
+      const numberCell = row.createEl('td', { cls: 'mailer-td' });
       numberCell.setText(email.number);
 
-      const dateCell = row.createEl('td');
-      dateCell.style.padding = '6px 8px';
+      const dateCell = row.createEl('td', { cls: 'mailer-td' });
       dateCell.style.whiteSpace = 'nowrap';
       dateCell.setText(new Date(email.date).toLocaleDateString());
 
-      const subjectCell = row.createEl('td');
-      subjectCell.style.padding = '6px 8px';
+      const subjectCell = row.createEl('td', { cls: 'mailer-td' });
       subjectCell.setText(email.subject);
 
-      const authorCell = row.createEl('td');
-      authorCell.style.padding = '6px 8px';
+      const authorCell = row.createEl('td', { cls: 'mailer-td' });
       authorCell.setText(email.author);
     }
   }
@@ -301,8 +273,7 @@ export class EmailsView extends ItemView {
 
     container.createEl('h3', { text: `${email.number} — ${email.subject}` });
 
-    const metaDiv = container.createDiv({ cls: 'mailer-yougile-task-meta' });
-    metaDiv.style.marginBottom = '12px';
+    const metaDiv = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-mb-12' });
     const dirName = this.plugin.emailDb.getDirectionName(email.direction_id);
     metaDiv.createDiv({ text: `Автор: ${email.author}` });
     metaDiv.createDiv({ text: `Дата: ${new Date(email.date).toLocaleString()}` });
@@ -315,8 +286,7 @@ export class EmailsView extends ItemView {
     textDiv.style.fontSize = 'var(--font-ui-small)';
     textDiv.setText(email.text);
 
-    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mt-12' });
 
     const editBtn = btnRow.createEl('button', { text: '✏️ Редактировать', cls: 'mailer-yougile-refresh-btn' });
     editBtn.addEventListener('click', () => this.showEditForm(email));
@@ -384,25 +354,18 @@ export class EmailsView extends ItemView {
     const numberLabel = container.createEl('label', { text: 'Исходящий номер' });
     const numberInput = container.createEl('input', { attr: { type: 'text' } });
     numberInput.value = email.number;
-    numberInput.style.width = '100%';
-    numberInput.style.boxSizing = 'border-box';
 
     const subjectLabel = container.createEl('label', { text: 'Тема письма' });
     const subjectInput = container.createEl('input', { attr: { type: 'text' } });
     subjectInput.value = email.subject;
-    subjectInput.style.width = '100%';
-    subjectInput.style.boxSizing = 'border-box';
 
     const textLabel = container.createEl('label', { text: 'Содержимое письма' });
     const textInput = container.createEl('textarea');
     textInput.value = email.text;
-    textInput.style.width = '100%';
-    textInput.style.boxSizing = 'border-box';
     textInput.style.minHeight = '150px';
 
     const filesLabel = container.createEl('label', { text: 'Прикреплённые файлы' });
-    const filesDiv = container.createDiv();
-    filesDiv.style.marginBottom = '8px';
+    const filesDiv = container.createDiv({ cls: 'mailer-mb-8' });
 
     const fileInput = container.createEl('input', { attr: { type: 'file', multiple: 'true' } });
     fileInput.style.display = 'none';
@@ -443,10 +406,7 @@ export class EmailsView extends ItemView {
     });
 
     const dirLabel = container.createEl('label', { text: 'Направление' });
-    const dirSelect = container.createEl('select');
-    dirSelect.style.width = '100%';
-    dirSelect.style.boxSizing = 'border-box';
-    dirSelect.style.marginBottom = '12px';
+    const dirSelect = container.createEl('select', { cls: 'mailer-mb-12' });
 
     const columns = this.getBoardColumns();
     const currentDirName = this.plugin.emailDb.getDirectionName(email.direction_id);
@@ -456,8 +416,7 @@ export class EmailsView extends ItemView {
       if (name === currentDirName) opt.selected = true;
     }
 
-    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mt-12' });
 
     const saveBtn = btnRow.createEl('button', { text: '💾 Сохранить изменения', cls: 'mailer-yougile-refresh-btn' });
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
@@ -533,7 +492,7 @@ export class EmailsView extends ItemView {
         this.plugin.emailDb.addEmail(email);
         new Notice('Письмо сохранено');
         this.renderEmailDetail(email);
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           email.number = number;
           email.subject = subject;
@@ -583,25 +542,18 @@ export class EmailsView extends ItemView {
 
     const numberLabel = container.createEl('label', { text: 'Исходящий номер' });
     const numberInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Например: 009' } });
-    numberInput.style.width = '100%';
-    numberInput.style.boxSizing = 'border-box';
 
     const subjectLabel = container.createEl('label', { text: 'Тема письма' });
     const subjectInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Тема' } });
     subjectInput.value = initialSubject;
-    subjectInput.style.width = '100%';
-    subjectInput.style.boxSizing = 'border-box';
 
     const textLabel = container.createEl('label', { text: 'Содержимое письма' });
     const textInput = container.createEl('textarea');
     textInput.value = initialText;
-    textInput.style.width = '100%';
-    textInput.style.boxSizing = 'border-box';
     textInput.style.minHeight = '100px';
 
     const filesLabel = container.createEl('label', { text: 'Прикреплённые файлы' });
-    const filesDiv = container.createDiv();
-    filesDiv.style.marginBottom = '8px';
+    const filesDiv = container.createDiv({ cls: 'mailer-mb-8' });
 
     const fileInput = container.createEl('input', { attr: { type: 'file', multiple: 'true' } });
     fileInput.style.display = 'none';
@@ -643,10 +595,7 @@ export class EmailsView extends ItemView {
     });
 
     const dirLabel = container.createEl('label', { text: 'Направление' });
-    const dirSelect = container.createEl('select');
-    dirSelect.style.width = '100%';
-    dirSelect.style.boxSizing = 'border-box';
-    dirSelect.style.marginBottom = '12px';
+    const dirSelect = container.createEl('select', { cls: 'mailer-mb-12' });
 
     const columns = this.getBoardColumns();
     const mappings = this.getDirectionMappings();
@@ -656,8 +605,7 @@ export class EmailsView extends ItemView {
       dirSelect.createEl('option', { value: col.id, text: name });
     }
 
-    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mt-12' });
 
     const saveBtn = btnRow.createEl('button', { text: '💾 Сохранить', cls: 'mailer-yougile-refresh-btn' });
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
@@ -739,7 +687,7 @@ export class EmailsView extends ItemView {
         this.plugin.emailDb.addEmail(emailItem);
         new Notice('Письмо сохранено и отправлено на сервер');
         this.renderView();
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.emailDb.addEmail(emailItem);
           this.plugin.db.addToOfflineQueue({
@@ -780,11 +728,9 @@ export class EmailsView extends ItemView {
       tag.style.fontSize = 'var(--font-smaller)';
       tag.setText(`📎 ${f.name}`);
       if (onRemove) {
-        const removeBtn = tag.createEl('span');
+        const removeBtn = tag.createEl('span', { cls: 'mailer-clickable mailer-bold' });
         removeBtn.setText(' ×');
-        removeBtn.style.cursor = 'pointer';
         removeBtn.style.marginLeft = '4px';
-        removeBtn.style.fontWeight = 'bold';
         removeBtn.style.color = 'var(--text-error)';
         removeBtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -899,16 +845,14 @@ class ChatAIEmailModal extends Modal {
     const allEmails = this.plugin.emailDb.getAllEmails();
     infoBar.setText(`📊 База знаний: ${allEmails.length} писем | Загруженных файлов: ${this.uploadedFiles.length}`);
 
-    this.chatContainer = contentEl.createDiv();
+    this.chatContainer = contentEl.createDiv({ cls: 'mailer-mb-8' });
     this.chatContainer.style.maxHeight = '400px';
     this.chatContainer.style.overflowY = 'auto';
-    this.chatContainer.style.marginBottom = '8px';
 
     const welcome = this.chatContainer.createDiv({ cls: 'mailer-yougile-sync-indicator' });
     welcome.setText('👋 Здравствуйте! Задайте мне вопрос по базе писем или загрузите документ для анализа.');
 
-    const fileArea = contentEl.createDiv();
-    fileArea.style.marginBottom = '8px';
+    const fileArea = contentEl.createDiv({ cls: 'mailer-mb-8' });
 
     const fileInput = fileArea.createEl('input', { attr: { type: 'file', multiple: 'true' } });
     fileInput.style.display = 'none';
@@ -939,10 +883,7 @@ class ChatAIEmailModal extends Modal {
       fileInput.value = '';
     });
 
-    this.inputArea = contentEl.createEl('textarea', { attr: { placeholder: 'Введите вопрос... (Enter для отправки, Shift+Enter для переноса)' } });
-    this.inputArea.style.width = '100%';
-    this.inputArea.style.boxSizing = 'border-box';
-    this.inputArea.style.minHeight = '60px';
+    this.inputArea = contentEl.createEl('textarea', { attr: { placeholder: 'Введите вопрос... (Enter для отправки, Shift+Enter для переноса)' }, cls: 'mailer-textarea' });
     this.inputArea.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -950,8 +891,7 @@ class ChatAIEmailModal extends Modal {
       }
     });
 
-    const btnRow = contentEl.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '8px';
+    const btnRow = contentEl.createDiv({ cls: 'mailer-yougile-header mailer-mt-8' });
 
     const sendBtn = btnRow.createEl('button', { text: '✉️ Отправить', cls: 'mailer-yougile-refresh-btn' });
     sendBtn.addEventListener('click', () => this.sendMessage());
@@ -1033,9 +973,7 @@ class ChatAIEmailModal extends Modal {
     msgEl.style.backgroundColor = role === 'user' ? 'var(--background-modifier-hover)' : 'var(--background-primary-alt)';
     msgEl.style.whiteSpace = 'pre-wrap';
     msgEl.style.fontSize = 'var(--font-smaller)';
-    const label = msgEl.createDiv();
-    label.style.fontWeight = 'bold';
-    label.style.marginBottom = '2px';
+    const label = msgEl.createDiv({ cls: 'mailer-bold mailer-mb-2' });
     label.setText(role === 'user' ? '👤 Вы' : '🤖 AI');
     msgEl.createDiv().setText(content);
     this.chatContainer.scrollTop = this.chatContainer.scrollHeight;

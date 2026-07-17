@@ -1,5 +1,6 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
+import type { CreateTaskPayload } from '../types/yougile';
 import { AssigneeSelector } from './assignee-selector';
 
 function isNetworkError(e: unknown): boolean {
@@ -172,11 +173,10 @@ export class DocumentsView extends ItemView {
     const titleEl = headerEl.createEl('h3', { text: 'Документы' });
     titleEl.style.margin = '0';
 
-    const actionRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    actionRow.style.marginBottom = '8px';
+    const actionRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mb-8' });
 
     const createBtn = actionRow.createEl('button', { text: '➕ Добавить документ', cls: 'mailer-yougile-refresh-btn' });
-    const syncBtn = actionRow.createEl('button', { text: 'Обновить', cls: 'mailer-yougile-refresh-btn' });
+    const syncBtn = actionRow.createEl('button', { text: '🔄', cls: 'mailer-yougile-refresh-btn' });
     const exportHtmlBtn = actionRow.createEl('button', { text: '📄 Экспорт HTML', cls: 'mailer-yougile-refresh-btn' });
     const exportCsvBtn = actionRow.createEl('button', { text: '📊 Экспорт CSV', cls: 'mailer-yougile-refresh-btn' });
 
@@ -187,10 +187,8 @@ export class DocumentsView extends ItemView {
 
     const syncStatus = container.createDiv({ cls: 'mailer-yougile-task-meta', text: this.plugin.db.hasUnsynchronizedActions() ? '⚠ Не синхронизировано' : '✅ Синхронизировано' });
 
-    const searchInput = container.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск по названию...' } });
-    searchInput.style.width = '100%';
-    searchInput.style.boxSizing = 'border-box';
-    searchInput.style.marginBottom = '8px';
+    const searchInput = container.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск по названию...' }, cls: 'mailer-input' });
+    searchInput.classList.add('mailer-mb-8');
     searchInput.value = this.searchQuery;
     searchInput.addEventListener('input', () => {
       this.searchQuery = searchInput.value;
@@ -202,8 +200,7 @@ export class DocumentsView extends ItemView {
 
     const columns = this.getBoardColumns();
     if (columns.length > 0) {
-      const filterDiv = container.createDiv();
-      filterDiv.style.marginBottom = '8px';
+      const filterDiv = container.createDiv({ cls: 'mailer-mb-8' });
       filterDiv.createDiv({ text: 'Колонки:', cls: 'mailer-yougile-task-meta' });
       for (const col of columns) {
         const wrapper = filterDiv.createEl('label');
@@ -238,22 +235,13 @@ export class DocumentsView extends ItemView {
 
     const docs = this.getFilteredDocuments();
 
-    const table = container.createEl('table');
-    table.style.width = '100%';
-    table.style.borderCollapse = 'collapse';
-    table.style.fontSize = 'var(--font-smaller)';
+    const table = container.createEl('table', { cls: 'mailer-table' });
 
     const thead = table.createEl('thead');
     const headerRow = thead.createEl('tr');
     const headers = ['Наименование', 'Тип документа', 'Куратор', 'Срок действия', 'Ссылка'];
     for (const h of headers) {
-      const th = headerRow.createEl('th');
-      th.setText(h);
-      th.style.textAlign = 'left';
-      th.style.padding = '6px 8px';
-      th.style.borderBottom = '2px solid var(--background-modifier-border)';
-      th.style.fontWeight = 'bold';
-      th.style.whiteSpace = 'nowrap';
+      headerRow.createEl('th', { cls: 'mailer-th', text: h });
     }
 
     const tbody = table.createEl('tbody');
@@ -270,25 +258,17 @@ export class DocumentsView extends ItemView {
 
     for (const doc of docs) {
       const row = tbody.createEl('tr');
-      row.style.cursor = 'pointer';
-      row.style.borderBottom = '1px solid var(--background-modifier-border)';
+      row.addClass('mailer-clickable');
       row.addEventListener('mouseenter', () => { row.style.backgroundColor = 'var(--background-modifier-hover)'; });
       row.addEventListener('mouseleave', () => { row.style.backgroundColor = ''; });
 
-      const titleCell = row.createEl('td');
-      titleCell.style.padding = '6px 8px';
-      titleCell.setText(doc.title);
+      const titleCell = row.createEl('td', { cls: 'mailer-td', text: doc.title });
 
-      const typeCell = row.createEl('td');
-      typeCell.style.padding = '6px 8px';
-      typeCell.setText(doc.docType);
+      const typeCell = row.createEl('td', { cls: 'mailer-td', text: doc.docType });
 
-      const curatorCell = row.createEl('td');
-      curatorCell.style.padding = '6px 8px';
-      curatorCell.setText(doc.curatorName || '—');
+      const curatorCell = row.createEl('td', { cls: 'mailer-td', text: doc.curatorName || '—' });
 
-      const deadlineCell = row.createEl('td');
-      deadlineCell.style.padding = '6px 8px';
+      const deadlineCell = row.createEl('td', { cls: 'mailer-td' });
       if (doc.deadline) {
         const d = new Date(doc.deadline);
         deadlineCell.setText(d.toLocaleDateString());
@@ -309,12 +289,11 @@ export class DocumentsView extends ItemView {
         deadlineCell.setText('—');
       }
 
-      const linkCell = row.createEl('td');
-      linkCell.style.padding = '6px 8px';
+      const linkCell = row.createEl('td', { cls: 'mailer-td' });
       if (doc.linkUrl) {
         const a = linkCell.createEl('a', { href: doc.linkUrl });
         a.setText(doc.linkFileName || 'Ссылка');
-        a.style.wordBreak = 'break-all';
+        a.addClass('mailer-word-break');
       } else {
         linkCell.setText('—');
       }
@@ -348,10 +327,7 @@ export class DocumentsView extends ItemView {
     }
 
     if (doc.linkUrl) {
-      const linkDiv = container.createDiv({ cls: 'mailer-yougile-task-meta' });
-      linkDiv.style.marginTop = '12px';
-      linkDiv.style.borderTop = '1px solid var(--background-modifier-border)';
-      linkDiv.style.paddingTop = '8px';
+      const linkDiv = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-section-divider' });
       linkDiv.createDiv({ text: 'Ссылка на документ:' });
       const a = linkDiv.createEl('a', { href: doc.linkUrl });
       a.setText(doc.linkFileName || doc.linkUrl);
@@ -367,59 +343,40 @@ export class DocumentsView extends ItemView {
     }
 
     if (doc.remarks.length > 0) {
-      const remarksDiv = container.createDiv({ cls: 'mailer-yougile-task-meta' });
-      remarksDiv.style.marginTop = '12px';
-      remarksDiv.style.borderTop = '1px solid var(--background-modifier-border)';
-      remarksDiv.style.paddingTop = '8px';
+      const remarksDiv = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-section-divider' });
       remarksDiv.createDiv({ text: `📝 Замечания (${doc.remarks.length}):` });
 
-      const remTable = remarksDiv.createEl('table');
-      remTable.style.width = '100%';
-      remTable.style.borderCollapse = 'collapse';
-      remTable.style.fontSize = 'var(--font-smaller)';
+      const remTable = remarksDiv.createEl('table', { cls: 'mailer-table' });
       remTable.style.marginTop = '4px';
 
       const remThead = remTable.createEl('thead');
       const remHeaderRow = remThead.createEl('tr');
       const remHeaders = ['№ п/п', 'Номер структурного элемента', 'Текущая редакция', 'Предлагаемая редакция', 'Обоснование изменений', 'Файлы', 'Автор'];
       for (const rh of remHeaders) {
-        const th = remHeaderRow.createEl('th');
-        th.setText(rh);
-        th.style.textAlign = 'left';
-        th.style.padding = '4px 6px';
-        th.style.borderBottom = '1px solid var(--background-modifier-border)';
-        th.style.fontWeight = 'bold';
-        th.style.whiteSpace = 'nowrap';
+        remHeaderRow.createEl('th', { cls: 'mailer-th-sm', text: rh });
       }
 
       const remTbody = remTable.createEl('tbody');
       for (let i = 0; i < doc.remarks.length; i++) {
         const r = doc.remarks[i];
         const row = remTbody.createEl('tr');
-        row.style.borderBottom = '1px solid var(--background-modifier-border)';
 
-        const numCell = row.createEl('td');
-        numCell.style.padding = '4px 6px';
+        const numCell = row.createEl('td', { cls: 'mailer-td-sm' });
         numCell.setText(String(i + 1));
 
-        const elemCell = row.createEl('td');
-        elemCell.style.padding = '4px 6px';
+        const elemCell = row.createEl('td', { cls: 'mailer-td-sm' });
         elemCell.setText(r.elementNumber || '—');
 
-        const curCell = row.createEl('td');
-        curCell.style.padding = '4px 6px';
+        const curCell = row.createEl('td', { cls: 'mailer-td-sm' });
         curCell.setText(r.currentEdition || '—');
 
-        const propCell = row.createEl('td');
-        propCell.style.padding = '4px 6px';
+        const propCell = row.createEl('td', { cls: 'mailer-td-sm' });
         propCell.setText(r.proposedEdition || '—');
 
-        const justCell = row.createEl('td');
-        justCell.style.padding = '4px 6px';
+        const justCell = row.createEl('td', { cls: 'mailer-td-sm' });
         justCell.setText(r.justification || '—');
 
-        const fileCell = row.createEl('td');
-        fileCell.style.padding = '4px 6px';
+        const fileCell = row.createEl('td', { cls: 'mailer-td-sm' });
         if (r.files && r.files.length > 0) {
           for (const f of r.files) {
             const a = fileCell.createEl('a', { href: f.url });
@@ -430,23 +387,18 @@ export class DocumentsView extends ItemView {
           fileCell.setText('—');
         }
 
-        const authorCell = row.createEl('td');
-        authorCell.style.padding = '4px 6px';
+        const authorCell = row.createEl('td', { cls: 'mailer-td-sm' });
         authorCell.setText(r.authorEmail || '—');
       }
     }
 
     const relatedDocs = this.getRelatedDocuments(doc.taskId);
     if (relatedDocs.length > 0) {
-      const relatedDiv = container.createDiv({ cls: 'mailer-yougile-task-meta' });
-      relatedDiv.style.marginTop = '12px';
-      relatedDiv.style.borderTop = '1px solid var(--background-modifier-border)';
-      relatedDiv.style.paddingTop = '8px';
+      const relatedDiv = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-section-divider' });
       relatedDiv.createDiv({ text: `📎 Связанные документы (${relatedDocs.length}):` });
       for (const rd of relatedDocs) {
-        const rdRow = relatedDiv.createDiv();
+        const rdRow = relatedDiv.createDiv({ cls: 'mailer-clickable' });
         rdRow.style.marginTop = '4px';
-        rdRow.style.cursor = 'pointer';
         rdRow.addEventListener('click', () => this.renderDocumentDetail(rd));
         const rdTitle = rdRow.createEl('span');
         rdTitle.setText(rd.title);
@@ -455,7 +407,7 @@ export class DocumentsView extends ItemView {
           rdRow.createEl('br');
           const rdLink = rdRow.createEl('a', { href: rd.linkUrl });
           rdLink.setText(rd.linkFileName || 'Ссылка');
-          rdLink.style.wordBreak = 'break-all';
+          rdLink.addClass('mailer-word-break');
           const ext = rd.linkFileName.toLowerCase().split('.').pop() || '';
           const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
           if (isImage && rd.linkUrl.startsWith('http')) {
@@ -473,8 +425,7 @@ export class DocumentsView extends ItemView {
       }
     }
 
-    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mt-12' });
 
     const relatedBtn = btnRow.createEl('button', { text: '🔗 Создать связанный документ', cls: 'mailer-yougile-refresh-btn' });
     relatedBtn.addEventListener('click', () => this.showCreateRelatedForm(doc));
@@ -494,7 +445,7 @@ export class DocumentsView extends ItemView {
           await this.plugin.client.updateTask(doc.taskId, { completed: false });
           new Notice('Документ возобновлён');
           this.syncAndRender();
-        } catch (e) {
+        } catch (e: unknown) {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
         }
       });
@@ -505,7 +456,7 @@ export class DocumentsView extends ItemView {
           await this.plugin.client.updateTask(doc.taskId, { completed: true });
           new Notice('Документ завершён');
           this.syncAndRender();
-        } catch (e) {
+        } catch (e: unknown) {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
         }
       });
@@ -528,15 +479,10 @@ export class DocumentsView extends ItemView {
     const bTitle = this.plugin.db.getBoards().find(b => b.id === boardId)?.title || '—';
     container.createDiv({ cls: 'mailer-yougile-task-meta', text: `Проект: ${pTitle} · Доска: ${bTitle}` });
 
-    const titleInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Введите наименование документа' } });
-    titleInput.style.width = '100%';
-    titleInput.style.boxSizing = 'border-box';
+    const titleInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Введите наименование документа' }, cls: 'mailer-input' });
 
     const typeLabel = container.createEl('label', { text: 'Тип документа' });
-    const typeSelect = container.createEl('select');
-    typeSelect.style.width = '100%';
-    typeSelect.style.boxSizing = 'border-box';
-    typeSelect.style.marginBottom = '8px';
+    const typeSelect = container.createEl('select', { cls: 'mailer-select' });
     const columns = this.getBoardColumns();
     for (const col of columns) {
       typeSelect.createEl('option', { value: col.id, text: col.title });
@@ -545,18 +491,13 @@ export class DocumentsView extends ItemView {
     const curatorSelector = new AssigneeSelector(container, 'Куратор', () => this.plugin.db.getUsers());
 
     const deadlineLabel = container.createEl('label', { text: 'Срок действия' });
-    const deadlineInput = container.createEl('input', { attr: { type: 'date' } });
-    deadlineInput.style.width = '100%';
-    deadlineInput.style.boxSizing = 'border-box';
+    const deadlineInput = container.createEl('input', { attr: { type: 'date' }, cls: 'mailer-input' });
     deadlineInput.value = new Date().toISOString().slice(0, 10);
 
     const linkLabel = container.createEl('label', { text: 'Ссылка на документ (только https://kb.tn.ru/file или https://www.kb.tn.ru/file)' });
-    const linkUrlInput = container.createEl('input', { attr: { type: 'url', placeholder: 'https://kb.tn.ru/file/...' } });
-    linkUrlInput.style.width = '100%';
-    linkUrlInput.style.boxSizing = 'border-box';
+    const linkUrlInput = container.createEl('input', { attr: { type: 'url', placeholder: 'https://kb.tn.ru/file/...' }, cls: 'mailer-input' });
 
-    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mt-12' });
 
     const submitBtn = btnRow.createEl('button', { text: '✅ Создать', cls: 'mailer-yougile-refresh-btn' });
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
@@ -609,17 +550,17 @@ export class DocumentsView extends ItemView {
       const deadlineMs = new Date(`${deadlineVal}T23:59:59`).getTime();
 
       try {
-        const payload: Record<string, unknown> = {
+        const payload: CreateTaskPayload = {
           title,
           description,
           columnId: selectedColumnId || undefined,
           assigned: assignedIds.length > 0 ? assignedIds : undefined,
           deadline: { deadline: deadlineMs, withTime: true },
         };
-        await this.plugin.client.createTask(payload as any);
+        await this.plugin.client.createTask(payload);
         new Notice('Документ создан');
         this.syncAndRender();
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
             type: 'create-task',
@@ -657,28 +598,22 @@ export class DocumentsView extends ItemView {
     const bTitle = this.plugin.db.getBoards().find(b => b.id === this.plugin.settings.docsBoardId)?.title || '—';
     container.createDiv({ cls: 'mailer-yougile-task-meta', text: `Проект: ${pTitle} · Доска: ${bTitle}` });
 
-    const titleInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Введите наименование документа' } });
-    titleInput.style.width = '100%';
-    titleInput.style.boxSizing = 'border-box';
+    const titleInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Введите наименование документа' }, cls: 'mailer-input' });
 
     const relatedCuratorSelector = new AssigneeSelector(container, 'Куратор', () => this.plugin.db.getUsers());
 
-    const inheritInfo = container.createDiv({ cls: 'mailer-yougile-task-meta' });
+    const inheritInfo = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-mb-8' });
     if (parentDoc.deadline) {
       const d = new Date(parentDoc.deadline);
       inheritInfo.setText(`📅 Срок действия наследуется от родителя: ${d.toLocaleDateString()}`);
     } else {
       inheritInfo.setText('📅 Срок действия не задан у родителя');
     }
-    inheritInfo.style.marginBottom = '8px';
 
     const linkLabel = container.createEl('label', { text: 'Ссылка на документ (только https://kb.tn.ru/file или https://www.kb.tn.ru/file)' });
-    const linkUrlInput = container.createEl('input', { attr: { type: 'url', placeholder: 'https://kb.tn.ru/file/...' } });
-    linkUrlInput.style.width = '100%';
-    linkUrlInput.style.boxSizing = 'border-box';
+    const linkUrlInput = container.createEl('input', { attr: { type: 'url', placeholder: 'https://kb.tn.ru/file/...' }, cls: 'mailer-input' });
 
-    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mt-12' });
 
     const submitBtn = btnRow.createEl('button', { text: '✅ Создать', cls: 'mailer-yougile-refresh-btn' });
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
@@ -730,17 +665,17 @@ export class DocumentsView extends ItemView {
       const selectedColumnId = parentDoc.docTypeId;
 
       try {
-        const payload: Record<string, unknown> = {
+        const payload: CreateTaskPayload = {
           title,
           description,
           columnId: selectedColumnId || undefined,
           assigned: assignedIds.length > 0 ? assignedIds : undefined,
           deadline: { deadline: deadlineMs, withTime: true },
         };
-        await this.plugin.client.createTask(payload as any);
+        await this.plugin.client.createTask(payload);
         new Notice('Связанный документ создан');
         this.syncAndRender();
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
             type: 'create-task',
@@ -775,34 +710,21 @@ export class DocumentsView extends ItemView {
     container.createEl('h3', { text: `Замечания к документу: ${doc.title}` });
 
     const elemLabel = container.createEl('label', { text: 'Номер структурного элемента документа' });
-    const elemInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Например: 1.2.3' } });
-    elemInput.style.width = '100%';
-    elemInput.style.boxSizing = 'border-box';
+    const elemInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Например: 1.2.3' }, cls: 'mailer-input' });
 
     const curLabel = container.createEl('label', { text: 'Текущая редакция' });
-    const curInput = container.createEl('textarea');
-    curInput.style.width = '100%';
-    curInput.style.boxSizing = 'border-box';
-    curInput.style.minHeight = '50px';
+    const curInput = container.createEl('textarea', { cls: 'mailer-textarea' });
 
     const propLabel = container.createEl('label', { text: 'Предлагаемая редакция' });
-    const propInput = container.createEl('textarea');
-    propInput.style.width = '100%';
-    propInput.style.boxSizing = 'border-box';
-    propInput.style.minHeight = '50px';
+    const propInput = container.createEl('textarea', { cls: 'mailer-textarea' });
 
     const justLabel = container.createEl('label', { text: 'Обоснование изменений' });
-    const justInput = container.createEl('textarea');
-    justInput.style.width = '100%';
-    justInput.style.boxSizing = 'border-box';
-    justInput.style.minHeight = '50px';
+    const justInput = container.createEl('textarea', { cls: 'mailer-textarea' });
 
     const fileLabel = container.createEl('label', { text: 'Прикрепить файл к замечанию' });
-    const fileInput = container.createEl('input', { attr: { type: 'file' } });
-    fileInput.style.marginBottom = '8px';
+    const fileInput = container.createEl('input', { attr: { type: 'file' }, cls: 'mailer-mb-8' });
 
-    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    btnRow.style.marginTop = '12px';
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mt-12' });
 
     const saveBtn = btnRow.createEl('button', { text: '💾 Сохранить замечание', cls: 'mailer-yougile-refresh-btn' });
     const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
@@ -828,7 +750,7 @@ export class DocumentsView extends ItemView {
           const buffer = await file.arrayBuffer();
           const result = await this.plugin.client.uploadFile(buffer, file.name);
           remarkFiles.push({ name: file.name, url: result.fullUrl });
-        } catch (e) {
+        } catch (e: unknown) {
           if (!isNetworkError(e)) {
             new Notice(`Ошибка загрузки: ${e instanceof Error ? e.message : String(e)}`);
             saveBtn.setText('💾 Сохранить замечание');
@@ -883,7 +805,7 @@ export class DocumentsView extends ItemView {
         saveBtn.setText('💾 Сохранить замечание');
         saveBtn.removeAttribute('disabled');
         cancelBtn.removeAttribute('disabled');
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
             type: 'update-task',
@@ -944,7 +866,7 @@ export class DocumentsView extends ItemView {
       const file = this.plugin.app.vault.getFileByPath(fileName)!;
       this.plugin.app.workspace.openLinkText(file.path, '');
       new Notice(`Файл "${fileName}" открыт`);
-    } catch (e) {
+    } catch (e: unknown) {
       new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
     }
   }

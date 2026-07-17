@@ -18,7 +18,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
         return;
       }
       plugin.activateView();
-      setTimeout(() => {
+      window.setTimeout(() => {
         const leaf = plugin.app.workspace.getLeavesOfType(TASKS_VIEW_TYPE).first();
         const view = leaf?.view;
         if (view instanceof TasksView) {

@@ -9,6 +9,7 @@ export class DashboardView extends ItemView {
   plugin: YouGilePlugin;
   private containerElContent!: HTMLElement;
   private selectedProjectId = '';
+  private selectedBoardId = '';
   private selectedColumnId = '';
   private selectedAssigneeId = '';
   private dateFrom = '';
@@ -67,6 +68,9 @@ export class DashboardView extends ItemView {
     if (this.selectedProjectId) {
       tasks = tasks.filter(t => t.projectId === this.selectedProjectId);
     }
+    if (this.selectedBoardId) {
+      tasks = tasks.filter(t => t.boardId === this.selectedBoardId);
+    }
     if (this.selectedColumnId) {
       tasks = tasks.filter(t => t.columnId === this.selectedColumnId);
     }
@@ -97,20 +101,19 @@ export class DashboardView extends ItemView {
     const refreshBtn = header.createEl('button', { text: '🔄', cls: 'mailer-yougile-refresh-btn' });
     refreshBtn.addEventListener('click', () => this.syncAndRender());
 
-    const filterRow = container.createDiv();
-    filterRow.style.display = 'flex';
-    filterRow.style.alignItems = 'center';
-    filterRow.style.gap = '8px';
-    filterRow.style.marginBottom = '12px';
-    filterRow.style.flexWrap = 'wrap';
+    const filterRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mb-8' });
 
     const projects = this.plugin.db.getProjects();
     const allTasks = this.plugin.db.getTasks();
-    const projectTasks = this.selectedProjectId ? allTasks.filter(t => t.projectId === this.selectedProjectId) : allTasks;
 
-    filterRow.createSpan({ text: 'Проект:' });
-    const projectSelect = filterRow.createEl('select');
-    projectSelect.style.width = '160px';
+    const fgStyle = 'display:flex;flex-direction:column;margin-right:8px';
+    const fLabelStyle = 'font-size:var(--font-smaller);margin-bottom:2px';
+
+    const projectGroup = filterRow.createDiv();
+    projectGroup.style.cssText = fgStyle;
+    projectGroup.createEl('label', { text: 'Проект' }).style.cssText = fLabelStyle;
+    const projectSelect = projectGroup.createEl('select');
+    projectSelect.addClass('dropdown');
     projectSelect.createEl('option', { value: '', text: '— все —' });
     for (const p of projects) {
       projectSelect.createEl('option', { value: p.id, text: p.title });
@@ -118,15 +121,34 @@ export class DashboardView extends ItemView {
     projectSelect.value = this.selectedProjectId;
     projectSelect.addEventListener('change', () => {
       this.selectedProjectId = projectSelect.value;
+      this.selectedBoardId = '';
       this.selectedColumnId = '';
       this.renderView();
     });
 
+    const boardGroup = filterRow.createDiv();
+    boardGroup.style.cssText = fgStyle;
+    boardGroup.createEl('label', { text: 'Доска' }).style.cssText = fLabelStyle;
     const boards = this.plugin.db.getBoards().filter(b => !this.selectedProjectId || b.projectId === this.selectedProjectId);
-    const allCols = this.plugin.db.getColumns().filter(c => boards.some(b => b.id === c.boardId));
-    filterRow.createSpan({ text: 'Колонка:' });
-    const columnSelect = filterRow.createEl('select');
-    columnSelect.style.width = '160px';
+    const boardSelect = boardGroup.createEl('select');
+    boardSelect.addClass('dropdown');
+    boardSelect.createEl('option', { value: '', text: '— все —' });
+    for (const b of boards) {
+      boardSelect.createEl('option', { value: b.id, text: b.title });
+    }
+    boardSelect.value = this.selectedBoardId;
+    boardSelect.addEventListener('change', () => {
+      this.selectedBoardId = boardSelect.value;
+      this.selectedColumnId = '';
+      this.renderView();
+    });
+
+    const colGroup = filterRow.createDiv();
+    colGroup.style.cssText = fgStyle;
+    colGroup.createEl('label', { text: 'Колонка' }).style.cssText = fLabelStyle;
+    const allCols = this.plugin.db.getColumns().filter(c => !this.selectedBoardId || c.boardId === this.selectedBoardId);
+    const columnSelect = colGroup.createEl('select');
+    columnSelect.addClass('dropdown');
     columnSelect.createEl('option', { value: '', text: '— все —' });
     for (const c of allCols) {
       columnSelect.createEl('option', { value: c.id, text: c.title });
@@ -137,10 +159,12 @@ export class DashboardView extends ItemView {
       this.renderView();
     });
 
+    const assigneeGroup = filterRow.createDiv();
+    assigneeGroup.style.cssText = fgStyle;
+    assigneeGroup.createEl('label', { text: 'Исполнитель' }).style.cssText = fLabelStyle;
     const allAssignees = [...new Set(allTasks.flatMap(t => t.assigned || []))].filter(Boolean).sort();
-    filterRow.createSpan({ text: 'Исполнитель:' });
-    const assigneeSelect = filterRow.createEl('select');
-    assigneeSelect.style.width = '160px';
+    const assigneeSelect = assigneeGroup.createEl('select');
+    assigneeSelect.addClass('dropdown');
     assigneeSelect.createEl('option', { value: '', text: '— все —' });
     for (const a of allAssignees) {
       const name = this.plugin.db.getUserName(a);
@@ -152,20 +176,27 @@ export class DashboardView extends ItemView {
       this.renderView();
     });
 
+    const dateGroup = filterRow.createDiv();
+    dateGroup.style.cssText = fgStyle;
+    dateGroup.createEl('label', { text: 'Даты' }).style.cssText = fLabelStyle;
+    const dateInner = dateGroup.createDiv();
+    dateInner.style.display = 'flex';
+    dateInner.style.alignItems = 'center';
+    dateInner.style.gap = '4px';
     let dateFilterTimeout: number | null = null;
     const applyDateFilter = () => {
       if (dateFilterTimeout) clearTimeout(dateFilterTimeout);
       dateFilterTimeout = window.setTimeout(() => this.renderView(), 600);
     };
 
-    filterRow.createSpan({ text: 'с' });
-    const dateFromInput = filterRow.createEl('input', { attr: { type: 'date' } });
+    dateInner.createSpan({ text: 'с' });
+    const dateFromInput = dateInner.createEl('input', { attr: { type: 'date' } });
     dateFromInput.style.width = '130px';
     dateFromInput.value = this.dateFrom;
     dateFromInput.addEventListener('input', () => { this.dateFrom = dateFromInput.value; applyDateFilter(); });
 
-    filterRow.createSpan({ text: 'по' });
-    const dateToInput = filterRow.createEl('input', { attr: { type: 'date' } });
+    dateInner.createSpan({ text: 'по' });
+    const dateToInput = dateInner.createEl('input', { attr: { type: 'date' } });
     dateToInput.style.width = '130px';
     dateToInput.value = this.dateTo;
     dateToInput.addEventListener('input', () => { this.dateTo = dateToInput.value; applyDateFilter(); });
@@ -176,9 +207,18 @@ export class DashboardView extends ItemView {
     exportCsvBtn.addEventListener('click', () => this.exportCsv());
 
     const subtaskWrapper = filterRow.createDiv();
-    subtaskWrapper.style.cssText = 'display:flex;align-items:center;marginRight:12px;marginTop:4px;font-size:var(--font-smaller);cursor:pointer;white-space:nowrap';
+    subtaskWrapper.style.display = 'inline-flex';
+    subtaskWrapper.style.alignItems = 'center';
+    subtaskWrapper.style.marginRight = '12px';
+    subtaskWrapper.style.marginTop = '4px';
+    subtaskWrapper.style.fontSize = 'var(--font-smaller)';
+    subtaskWrapper.style.cursor = 'pointer';
+    subtaskWrapper.style.whiteSpace = 'nowrap';
     const subtaskCb = subtaskWrapper.createEl('input', { attr: { type: 'checkbox' } });
-    subtaskCb.style.cssText = 'width:16px;height:16px;margin:0 4px 0 0;flex-shrink:0';
+    subtaskCb.style.width = '16px';
+    subtaskCb.style.height = '16px';
+    subtaskCb.style.margin = '0 4px 0 0';
+    subtaskCb.style.flexShrink = '0';
     subtaskCb.checked = this.includeSubtasks;
     subtaskCb.addEventListener('change', () => {
       this.includeSubtasks = subtaskCb.checked;
@@ -188,9 +228,18 @@ export class DashboardView extends ItemView {
     subtaskSpan.setText('Учитывать подзадачи');
 
     const deadlineWrapper = filterRow.createDiv();
-    deadlineWrapper.style.cssText = 'display:flex;align-items:center;marginRight:12px;marginTop:4px;font-size:var(--font-smaller);cursor:pointer;white-space:nowrap';
+    deadlineWrapper.style.display = 'inline-flex';
+    deadlineWrapper.style.alignItems = 'center';
+    deadlineWrapper.style.marginRight = '12px';
+    deadlineWrapper.style.marginTop = '4px';
+    deadlineWrapper.style.fontSize = 'var(--font-smaller)';
+    deadlineWrapper.style.cursor = 'pointer';
+    deadlineWrapper.style.whiteSpace = 'nowrap';
     const deadlineCb = deadlineWrapper.createEl('input', { attr: { type: 'checkbox' } });
-    deadlineCb.style.cssText = 'width:16px;height:16px;margin:0 4px 0 0;flex-shrink:0';
+    deadlineCb.style.width = '16px';
+    deadlineCb.style.height = '16px';
+    deadlineCb.style.margin = '0 4px 0 0';
+    deadlineCb.style.flexShrink = '0';
     deadlineCb.checked = this.showDeadlines;
     deadlineCb.addEventListener('change', () => {
       this.showDeadlines = deadlineCb.checked;
@@ -210,11 +259,7 @@ export class DashboardView extends ItemView {
     const completed = tasks.filter(t => t.completed).length;
     const withDeadline = tasks.filter(t => t.deadline).length;
 
-    const cardsRow = container.createDiv();
-    cardsRow.style.display = 'grid';
-    cardsRow.style.gridTemplateColumns = 'repeat(auto-fit, minmax(140px, 1fr))';
-    cardsRow.style.gap = '12px';
-    cardsRow.style.marginBottom = '20px';
+    const cardsRow = container.createDiv({ cls: 'mailer-cards-grid' });
 
     const items = [
       { label: 'Всего задач', value: total, color: 'var(--text-normal)' },
@@ -225,29 +270,27 @@ export class DashboardView extends ItemView {
 
     for (const m of items) {
       const card = cardsRow.createDiv();
-      card.style.cssText = 'background:var(--background-primary-alt);border-radius:8px;padding:16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.1)';
+      card.addClass('mailer-card');
       const v = card.createEl('div');
-      v.style.cssText = `font-size:32px;font-weight:bold;color:${m.color}`;
+      v.addClass('mailer-card-value');
+      v.style.color = m.color;
       v.setText(String(m.value));
       const l = card.createDiv();
-      l.style.cssText = 'font-size:var(--font-smaller);margin-top:4px;color:var(--text-muted)';
+      l.addClass('mailer-card-label');
       l.setText(m.label);
     }
   }
 
   private chartBox(container: HTMLElement, title: string): { box: HTMLElement; el: HTMLElement } {
-    const box = container.createDiv();
-    box.style.cssText = 'background:var(--background-primary-alt);border-radius:8px;padding:12px;position:relative';
+    const box = container.createDiv({ cls: 'mailer-chart-box' });
 
-    const titleRow = box.createDiv();
-    titleRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px';
+    const titleRow = box.createDiv({ cls: 'mailer-chart-title-row' });
 
-    const titleEl = titleRow.createDiv();
-    titleEl.style.cssText = 'font-weight:bold;font-size:var(--font-ui-small)';
+    const titleEl = titleRow.createDiv({ cls: 'mailer-chart-title' });
     titleEl.setText(title);
 
     const dlBtn = titleRow.createEl('button', { text: '💾', cls: 'mailer-yougile-refresh-btn' });
-    dlBtn.style.cssText = 'font-size:12px;padding:2px 6px';
+    dlBtn.addClass('mailer-dl-btn');
     const curIdx = this.charts.length;
     this.charts.push(null as unknown as ApexCharts);
     dlBtn.addEventListener('click', async () => {
@@ -262,8 +305,7 @@ export class DashboardView extends ItemView {
   }
 
   private renderCharts(container: HTMLElement, tasks: CachedTask[]): void {
-    const grid = container.createDiv();
-    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:16px';
+    const grid = container.createDiv({ cls: 'mailer-chart-grid' });
 
     // Chart 1: Tasks by column (donut)
     const columnCount = new Map<string, number>();
@@ -410,7 +452,7 @@ export class DashboardView extends ItemView {
         });
         chart4.render();
         this.charts[3] = chart4;
-      } catch (e) {
+      } catch (e: unknown) {
         console.error('Dashboard chart error:', e);
       }
     }, 100);
@@ -438,8 +480,9 @@ export class DashboardView extends ItemView {
         new Notice(`✅ Экспортирован: ${name}.jpg`);
       };
       img.src = pngData;
-    } catch (e) {
-      new Notice(`❌ Ошибка экспорта: ${e}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      new Notice(`❌ Ошибка экспорта: ${msg}`);
     }
   }
 

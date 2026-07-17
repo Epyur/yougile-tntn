@@ -4521,6 +4521,7 @@ var DEFAULT_SETTINGS = {
   moduleContactsEnabled: true,
   contactProjectId: "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B \u0434\u0438\u0440\u0435\u043A\u0446\u0438\u0438",
   contactBoardId: "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B",
+  contactSelectedColumnIds: "",
   contactDbPath: "contacts_data.json"
 };
 
@@ -4770,13 +4771,10 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         await this.plugin.saveSettings();
         this.tryAutoAuth();
       }));
-      new import_obsidian2.Setting(body).setName("\u041F\u0430\u0440\u043E\u043B\u044C").setDesc("\u041F\u0430\u0440\u043E\u043B\u044C \u043E\u0442 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430 YouGile (\u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E)").addText((text) => {
-        text.inputEl.type = "password";
-        text.setPlaceholder("\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022").setValue("").onChange((value) => {
-          this.plugin.savePassword(value);
-          this.tryAutoAuth();
-        });
-        return text;
+      const passwordSetting = new import_obsidian2.Setting(body).setName("\u041F\u0430\u0440\u043E\u043B\u044C").setDesc("\u041F\u0430\u0440\u043E\u043B\u044C \u043E\u0442 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430 YouGile (\u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E)");
+      new import_obsidian2.SecretComponent(this.app, passwordSetting.controlEl).onChange((value) => {
+        this.plugin.savePassword(value);
+        this.tryAutoAuth();
       });
       new import_obsidian2.Setting(body).setName("\u041F\u043E\u043B\u0443\u0447\u0438\u0442\u044C API Key").setDesc(this.plugin.settings.apiKeySecret ? "\u041A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E" : "\u041A\u043B\u044E\u0447 \u043D\u0435 \u043F\u043E\u043B\u0443\u0447\u0435\u043D").addButton((btn) => btn.setButtonText("\u041F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043A\u043B\u044E\u0447").onClick(async () => {
         btn.setDisabled(true).setButtonText("\u041F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435...");
@@ -4799,8 +4797,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       const projectSetting = new import_obsidian2.Setting(body).setName("\u041F\u0440\u043E\u0435\u043A\u0442").setDesc("\u041F\u0440\u043E\u0435\u043A\u0442 \u0434\u043B\u044F \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0439");
       const projectSelect = projectSetting.descEl.parentElement.createEl("select");
       projectSelect.addClass("dropdown");
-      projectSelect.style.maxWidth = "100%";
-      projectSelect.style.marginTop = "4px";
       this.populateProjectDropdown(projectSelect, this.plugin.settings.calendarProjectId);
       projectSelect.addEventListener("change", async () => {
         this.plugin.settings.calendarProjectId = projectSelect.value;
@@ -4810,8 +4806,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       const boardSetting = new import_obsidian2.Setting(body).setName("\u0414\u043E\u0441\u043A\u0430").setDesc("\u0414\u043E\u0441\u043A\u0430 \u0434\u043B\u044F \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0439");
       const boardSelect = boardSetting.descEl.parentElement.createEl("select");
       boardSelect.addClass("dropdown");
-      boardSelect.style.maxWidth = "100%";
-      boardSelect.style.marginTop = "4px";
       this.populateBoardDropdown(boardSelect, this.plugin.settings.calendarProjectId, this.plugin.settings.calendarBoardId);
       boardSelect.addEventListener("change", async () => {
         this.plugin.settings.calendarBoardId = boardSelect.value;
@@ -4822,8 +4816,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       const projectSetting = new import_obsidian2.Setting(body).setName("\u041F\u0440\u043E\u0435\u043A\u0442").setDesc("\u041F\u0440\u043E\u0435\u043A\u0442 \u0434\u043B\u044F \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432");
       const projectSelect = projectSetting.descEl.parentElement.createEl("select");
       projectSelect.addClass("dropdown");
-      projectSelect.style.maxWidth = "100%";
-      projectSelect.style.marginTop = "4px";
       this.populateProjectDropdown(projectSelect, this.plugin.settings.docsProjectId);
       projectSelect.addEventListener("change", async () => {
         this.plugin.settings.docsProjectId = projectSelect.value;
@@ -4833,8 +4825,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       const boardSetting = new import_obsidian2.Setting(body).setName("\u0414\u043E\u0441\u043A\u0430").setDesc("\u0414\u043E\u0441\u043A\u0430 \u0434\u043B\u044F \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u043E\u0432");
       const boardSelect = boardSetting.descEl.parentElement.createEl("select");
       boardSelect.addClass("dropdown");
-      boardSelect.style.maxWidth = "100%";
-      boardSelect.style.marginTop = "4px";
       this.populateBoardDropdown(boardSelect, this.plugin.settings.docsProjectId, this.plugin.settings.docsBoardId);
       boardSelect.addEventListener("change", async () => {
         this.plugin.settings.docsBoardId = boardSelect.value;
@@ -4846,8 +4836,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       const projectSetting = new import_obsidian2.Setting(body).setName("\u041F\u0440\u043E\u0435\u043A\u0442").setDesc("\u041F\u0440\u043E\u0435\u043A\u0442 \u0434\u043B\u044F \u043F\u0438\u0441\u0435\u043C");
       const projectSelect = projectSetting.descEl.parentElement.createEl("select");
       projectSelect.addClass("dropdown");
-      projectSelect.style.maxWidth = "100%";
-      projectSelect.style.marginTop = "4px";
       this.populateProjectDropdown(projectSelect, this.plugin.settings.emailProjectId);
       projectSelect.addEventListener("change", async () => {
         this.plugin.settings.emailProjectId = projectSelect.value;
@@ -4857,8 +4845,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       const boardSetting = new import_obsidian2.Setting(body).setName("\u0414\u043E\u0441\u043A\u0430").setDesc("\u0414\u043E\u0441\u043A\u0430 \u0434\u043B\u044F \u043F\u0438\u0441\u0435\u043C");
       const boardSelect = boardSetting.descEl.parentElement.createEl("select");
       boardSelect.addClass("dropdown");
-      boardSelect.style.maxWidth = "100%";
-      boardSelect.style.marginTop = "4px";
       this.populateBoardDropdown(boardSelect, this.plugin.settings.emailProjectId, this.plugin.settings.emailBoardId);
       boardSelect.addEventListener("change", async () => {
         this.plugin.settings.emailBoardId = boardSelect.value;
@@ -4873,15 +4859,12 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         await this.plugin.saveSettings();
       }));
       this.renderSubheading(body, "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 AI \u043F\u043E\u043C\u043E\u0449\u043D\u0438\u043A\u0430");
-      new import_obsidian2.Setting(body).setName("API \u043A\u043B\u044E\u0447").setDesc("API \u043A\u043B\u044E\u0447 \u0434\u043B\u044F OpenAI-\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u043E\u0433\u043E API").addText((text) => {
-        text.inputEl.type = "password";
-        text.setPlaceholder("sk-...").setValue("").onChange((value) => {
-          const secretName = `yougile-llm-${Date.now()}`;
-          this.plugin.saveSecret(secretName, value);
-          this.plugin.settings.llmApiKeySecret = secretName;
-          this.plugin.saveSettings();
-        });
-        return text;
+      const llmKeySetting = new import_obsidian2.Setting(body).setName("API \u043A\u043B\u044E\u0447").setDesc("API \u043A\u043B\u044E\u0447 \u0434\u043B\u044F OpenAI-\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u043E\u0433\u043E API");
+      new import_obsidian2.SecretComponent(this.app, llmKeySetting.controlEl).onChange((value) => {
+        const secretName = `yougile-llm-${Date.now()}`;
+        this.plugin.saveSecret(secretName, value);
+        this.plugin.settings.llmApiKeySecret = secretName;
+        this.plugin.saveSettings();
       });
       new import_obsidian2.Setting(body).setName("URL API").setDesc("URL \u044D\u043D\u0434\u043F\u043E\u0438\u043D\u0442\u0430 LLM (OpenAI-\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u044B\u0439)").addText((text) => text.setPlaceholder("https://ask.chadgpt.ru/api/v1/chat/completions").setValue(this.plugin.settings.llmApiUrl).onChange(async (value) => {
         this.plugin.settings.llmApiUrl = value;
@@ -4916,8 +4899,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       const projectSetting = new import_obsidian2.Setting(body).setName("\u041F\u0440\u043E\u0435\u043A\u0442").setDesc("\u041F\u0440\u043E\u0435\u043A\u0442 \u0434\u043B\u044F \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043E\u0432");
       const projectSelect = projectSetting.descEl.parentElement.createEl("select");
       projectSelect.addClass("dropdown");
-      projectSelect.style.maxWidth = "100%";
-      projectSelect.style.marginTop = "4px";
       this.populateProjectDropdown(projectSelect, this.plugin.settings.contactProjectId);
       projectSelect.addEventListener("change", async () => {
         this.plugin.settings.contactProjectId = projectSelect.value;
@@ -4927,8 +4908,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       const boardSetting = new import_obsidian2.Setting(body).setName("\u0414\u043E\u0441\u043A\u0430").setDesc("\u0414\u043E\u0441\u043A\u0430 \u0434\u043B\u044F \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043E\u0432");
       const boardSelect = boardSetting.descEl.parentElement.createEl("select");
       boardSelect.addClass("dropdown");
-      boardSelect.style.maxWidth = "100%";
-      boardSelect.style.marginTop = "4px";
       this.populateBoardDropdown(boardSelect, this.plugin.settings.contactProjectId, this.plugin.settings.contactBoardId);
       boardSelect.addEventListener("change", async () => {
         this.plugin.settings.contactBoardId = boardSelect.value;
@@ -4947,19 +4926,19 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
   }
   renderCollapsibleBlock(container, title, collapsible, hasToggle, renderBody) {
     const block = container.createDiv();
-    block.style.marginBottom = "8px";
+    block.addClass("mailer-mb-8");
     const header = block.createDiv();
-    header.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--background-modifier-border);cursor:pointer;user-select:none";
+    header.addClass("mailer-block-header");
     let bodyEl = null;
     let collapsed = false;
     if (collapsible) {
       const arrow = header.createSpan();
       arrow.setText("\u25BC");
-      arrow.style.cssText = "font-size:10px;width:14px;text-align:center;flex-shrink:0";
+      arrow.addClass("mailer-arrow");
       const toggleCollapse = () => {
         collapsed = !collapsed;
         arrow.setText(collapsed ? "\u25B6" : "\u25BC");
-        if (bodyEl) bodyEl.style.display = collapsed ? "none" : "";
+        if (bodyEl) bodyEl.classList.toggle("mailer-hidden", collapsed);
       };
       header.addEventListener("click", (e) => {
         if (e.target.tagName !== "INPUT" && e.target.tagName !== "BUTTON") {
@@ -4967,12 +4946,12 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         }
       });
       const titleSpan = header.createSpan();
-      titleSpan.style.cssText = "font-weight:bold;font-size:var(--font-ui-medium);flex:1";
+      titleSpan.addClass("mailer-title-medium");
       titleSpan.setText(title);
       if (hasToggle) {
         const toggleKey = this.getToggleKey(title);
         const toggle = header.createEl("input", { attr: { type: "checkbox" } });
-        toggle.style.cssText = "width:16px;height:16px;cursor:pointer;flex-shrink:0";
+        toggle.addClass("mailer-cb");
         toggle.checked = toggleKey ? this.plugin.settings[toggleKey] !== false : true;
         toggle.addEventListener("change", async (e) => {
           e.stopPropagation();
@@ -4980,33 +4959,33 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
             this.plugin.settings[toggleKey] = toggle.checked;
             await this.plugin.saveSettings();
           }
-          if (bodyEl) bodyEl.style.display = toggle.checked ? "" : "none";
+          if (bodyEl) bodyEl.classList.toggle("mailer-hidden", !toggle.checked);
           if (!toggle.checked) collapsed = true;
         });
         if (!toggle.checked) collapsed = true;
       }
       bodyEl = block.createDiv();
-      bodyEl.style.marginLeft = "18px";
-      if (collapsed) bodyEl.style.display = "none";
+      bodyEl.addClass("mailer-ml-18");
+      if (collapsed) bodyEl.addClass("mailer-hidden");
       renderBody(bodyEl);
     } else {
       const titleSpan = header.createSpan();
-      titleSpan.style.cssText = "font-weight:bold;font-size:var(--font-ui-medium);flex:1";
+      titleSpan.addClass("mailer-title-medium");
       titleSpan.setText(title);
       if (hasToggle) {
         const toggleKey = this.getToggleKey(title);
         const toggle = header.createEl("input", { attr: { type: "checkbox" } });
-        toggle.style.cssText = "width:16px;height:16px;cursor:pointer;flex-shrink:0";
+        toggle.addClass("mailer-cb");
         toggle.checked = toggleKey ? this.plugin.settings[toggleKey] !== false : true;
         toggle.addEventListener("change", async () => {
           if (toggleKey) {
             this.plugin.settings[toggleKey] = toggle.checked;
             await this.plugin.saveSettings();
           }
-          if (bodyEl) bodyEl.style.display = toggle.checked ? "" : "none";
+          if (bodyEl) bodyEl.classList.toggle("mailer-hidden", !toggle.checked);
         });
         bodyEl = block.createDiv();
-        if (!toggle.checked) bodyEl.style.display = "none";
+        if (!toggle.checked) bodyEl.addClass("mailer-hidden");
         renderBody(bodyEl);
       } else {
         bodyEl = block.createDiv();
@@ -5016,7 +4995,7 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
   }
   renderSubheading(container, title) {
     const el = container.createDiv();
-    el.style.cssText = "font-weight:600;font-size:var(--font-smaller);color:var(--text-muted);padding:8px 0 4px;border-bottom:1px dashed var(--background-modifier-border);margin-top:8px";
+    el.addClass("mailer-subheading");
     el.setText(title);
   }
   getToggleKey(blockTitle) {
@@ -5084,15 +5063,19 @@ var AssigneeSelector = class {
     this.getUsers = getUsers;
     this.container = container;
     const labelEl = container.createEl("label", { text: label });
-    labelEl.style.marginTop = "8px";
+    labelEl.addClass("mailer-mt-8");
     const users = getUsers();
     const wrapper = container.createDiv();
     wrapper.style.cssText = "max-height:180px;overflow-y:auto;border:1px solid var(--background-modifier-border);border-radius:4px;padding:4px 8px;margin-bottom:4px";
     for (const u of users) {
       const row = wrapper.createDiv();
-      row.style.cssText = "display:flex;align-items:center;gap:4px;padding:2px 0;font-size:var(--font-smaller);cursor:pointer";
+      row.addClass("mailer-flex-row");
       const cb = row.createEl("input", { attr: { type: "checkbox" } });
-      cb.style.cssText = "width:14px;height:14px;margin:0;flex-shrink:0;cursor:pointer";
+      cb.style.width = "16px";
+      cb.style.height = "16px";
+      cb.style.margin = "0 4px 0 0";
+      cb.style.flexShrink = "0";
+      cb.style.cursor = "pointer";
       cb.value = u.id;
       if (prefillName && (u.name === prefillName || u.email === prefillName)) cb.checked = true;
       this.checkboxes.set(u.id, cb);
@@ -5105,12 +5088,10 @@ var AssigneeSelector = class {
       });
     }
     const emailRow = container.createDiv();
-    emailRow.style.cssText = "display:flex;align-items:center;gap:4px;font-size:var(--font-smaller)";
+    emailRow.addClass("mailer-flex-row");
     const emailLabel = emailRow.createEl("span");
     emailLabel.setText("\u0418\u043B\u0438 email:");
-    emailLabel.style.flexShrink = "0";
     this.emailInput = emailRow.createEl("input", { attr: { type: "text", placeholder: "user@example.com" } });
-    this.emailInput.style.cssText = "flex:1;min-width:0";
     if (prefillName && !Array.from(this.checkboxes.values()).some((cb) => cb.checked)) {
       this.emailInput.value = prefillName;
     }
@@ -5181,11 +5162,15 @@ var TasksView = class extends import_obsidian3.ItemView {
     this.selectProject.addEventListener("change", () => {
       this.plugin.settings.selectedProjectId = this.selectProject.value;
       this.plugin.saveSettings();
+      this.populateFilters();
       this.renderFromCache();
     });
     this.selectBoard = filtersEl.createEl("select");
     this.selectBoard.addClass("dropdown");
-    this.selectBoard.addEventListener("change", () => this.renderFromCache());
+    this.selectBoard.addEventListener("change", () => {
+      this.populateFilters();
+      this.renderFromCache();
+    });
     this.selectColumn = filtersEl.createEl("select");
     this.selectColumn.addClass("dropdown");
     this.selectColumn.addEventListener("change", () => this.renderFromCache());
@@ -5210,11 +5195,10 @@ var TasksView = class extends import_obsidian3.ItemView {
     const createBtn = headerEl.createEl("button", { text: "\u2795 \u041D\u043E\u0432\u0430\u044F \u0437\u0430\u0434\u0430\u0447\u0430", cls: "mailer-yougile-refresh-btn" });
     createBtn.addEventListener("click", () => this.showCreateForm());
     this.searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u0437\u0430\u0434\u0430\u0447\u0430\u043C..." } });
-    this.searchInput.style.width = "100%";
-    this.searchInput.style.boxSizing = "border-box";
-    this.searchInput.style.marginBottom = "8px";
+    this.searchInput.addClass("mailer-input");
+    this.searchInput.addClass("mailer-mb-8");
     this.searchInput.addEventListener("input", () => this.renderFromCache());
-    const refreshBtn = headerEl.createEl("button", { text: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    const refreshBtn = headerEl.createEl("button", { text: "\u{1F504}", cls: "mailer-yougile-refresh-btn" });
     refreshBtn.addEventListener("click", () => this.syncAndRender());
     this.containerElContent = container.createDiv();
     this.populateFilters();
@@ -5248,7 +5232,8 @@ var TasksView = class extends import_obsidian3.ItemView {
       selP.createEl("option", { value: p.id, text: p.title });
     }
     selP.value = savedProject || this.plugin.settings.selectedProjectId;
-    const boards = this.plugin.db.getBoards();
+    const selectedProjectId = this.selectProject.value;
+    const boards = this.plugin.db.getBoards().filter((b) => !selectedProjectId || b.projectId === selectedProjectId);
     const selB = this.selectBoard;
     selB.empty();
     selB.createEl("option", { value: "", text: "\u0412\u0441\u0435 \u0434\u043E\u0441\u043A\u0438" });
@@ -5425,7 +5410,6 @@ var TasksView = class extends import_obsidian3.ItemView {
       const indi = this.getDeadlineIndicator(task);
       if (indi.color) {
         const indiEl = taskEl.createSpan({ text: indi.symbol });
-        indiEl.style.marginRight = "6px";
       }
       const bodyEl = taskEl.createDiv({ cls: "mailer-yougile-task-body" });
       const titleEl = bodyEl.createDiv({ cls: `mailer-yougile-task-title${task.completed ? " completed" : ""}` });
@@ -5590,8 +5574,7 @@ var TasksView = class extends import_obsidian3.ItemView {
     const infoInput = addInfoRow.createEl("textarea", {
       attr: { placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u0434\u043E\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u044F...", rows: "3" }
     });
-    infoInput.style.width = "100%";
-    infoInput.style.boxSizing = "border-box";
+    infoInput.addClass("mailer-textarea");
     const addInfoSubmitBtn = addInfoRow.createEl("button", { text: "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044E", cls: "mailer-yougile-refresh-btn" });
     addInfoSubmitBtn.addEventListener("click", async () => {
       var _a2;
@@ -5737,16 +5720,14 @@ var TasksView = class extends import_obsidian3.ItemView {
     container.createEl("h3", { text: "\u041D\u043E\u0432\u0430\u044F \u0437\u0430\u0434\u0430\u0447\u0430 YouGile" });
     const nameLabel = container.createEl("label", { text: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438" });
     const nameInput = container.createEl("input", { attr: { type: "text", placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435" } });
-    nameInput.style.width = "100%";
-    nameInput.style.boxSizing = "border-box";
+    nameInput.addClass("mailer-input");
     const descLabel = container.createEl("label", { text: "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435" });
     const descInput = container.createEl("textarea", { attr: { placeholder: "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 (\u043E\u043F\u0446\u0438\u043E\u043D\u0430\u043B\u044C\u043D\u043E)", rows: "3" } });
-    descInput.style.width = "100%";
-    descInput.style.boxSizing = "border-box";
+    descInput.addClass("mailer-textarea");
     const projects = this.plugin.db.getProjects();
     const projectLabel = container.createEl("label", { text: "\u041F\u0440\u043E\u0435\u043A\u0442" });
     const projectSelect = container.createEl("select");
-    projectSelect.style.width = "100%";
+    projectSelect.addClass("mailer-select");
     projectSelect.createEl("option", { value: "", text: "\u2014 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u043E\u0435\u043A\u0442 \u2014" });
     for (const p of projects) {
       projectSelect.createEl("option", { value: p.id, text: p.title });
@@ -5755,11 +5736,11 @@ var TasksView = class extends import_obsidian3.ItemView {
     let selectedColumnId = "";
     const boardLabel = container.createEl("label", { text: "\u0414\u043E\u0441\u043A\u0430" });
     const boardSelect = container.createEl("select");
-    boardSelect.style.width = "100%";
+    boardSelect.addClass("mailer-select");
     boardSelect.createEl("option", { value: "", text: "\u2014 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u043E\u0441\u043A\u0443 \u2014" });
     const columnLabel = container.createEl("label", { text: "\u041A\u043E\u043B\u043E\u043D\u043A\u0430" });
     const columnSelect = container.createEl("select");
-    columnSelect.style.width = "100%";
+    columnSelect.addClass("mailer-select");
     columnSelect.createEl("option", { value: "", text: "\u2014 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043A\u043E\u043B\u043E\u043D\u043A\u0443 \u2014" });
     projectSelect.addEventListener("change", () => {
       const pid = projectSelect.value;
@@ -5793,8 +5774,7 @@ var TasksView = class extends import_obsidian3.ItemView {
     const assigneeSelector = new AssigneeSelector(container, "\u0418\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u0438", () => this.plugin.db.getUsers());
     const deadlineLabel = container.createEl("label", { text: "\u0414\u0435\u0434\u043B\u0430\u0439\u043D (\u0434\u0430\u0442\u0430, \u043E\u043F\u0446\u0438\u043E\u043D\u0430\u043B\u044C\u043D\u043E)" });
     const deadlineInput = container.createEl("input", { attr: { type: "date" } });
-    deadlineInput.style.width = "100%";
-    deadlineInput.style.boxSizing = "border-box";
+    deadlineInput.addClass("mailer-input");
     const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
     const submitBtn = btnRow.createEl("button", { text: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     submitBtn.addEventListener("click", async () => {
@@ -5908,10 +5888,9 @@ var TasksView = class extends import_obsidian3.ItemView {
       msgContainer.createDiv({ text: `\u041E\u0448\u0438\u0431\u043A\u0430: ${msg}`, cls: "mailer-yougile-error" });
     }
     const inputRow = container.createDiv();
-    inputRow.style.width = "100%";
+    inputRow.addClass("mailer-fullwidth");
     const inputEl = inputRow.createEl("textarea", { attr: { placeholder: "\u0421\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435...", rows: "2" } });
-    inputEl.style.width = "100%";
-    inputEl.style.boxSizing = "border-box";
+    inputEl.addClass("mailer-textarea");
     const sendBtn = inputRow.createEl("button", { text: "\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C" });
     sendBtn.addEventListener("click", async () => {
       const text = inputEl.value.trim();
@@ -6042,136 +6021,137 @@ var ScheduleView = class extends import_obsidian4.ItemView {
     return "calendar";
   }
   async onOpen() {
-    const container = this.contentEl;
-    container.addClass("mailer-yougile-container");
-    this.containerElContent = container.createDiv();
-    const ids = this.filterMode === "docs" ? this.plugin.settings.docsSelectedColumnIds : this.plugin.settings.calendarSelectedColumnIds;
-    this.selectedColumnIds = new Set(ids.split(",").filter(Boolean));
-    this.renderCalendar();
+    try {
+      const container = this.contentEl;
+      container.addClass("mailer-yougile-container");
+      this.containerElContent = container.createDiv();
+      const ids = this.filterMode === "docs" ? this.plugin.settings.docsSelectedColumnIds : this.plugin.settings.calendarSelectedColumnIds;
+      this.selectedColumnIds = new Set((ids || "").split(",").filter(Boolean));
+      this.renderCalendar();
+      this.syncAndRender();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("ScheduleView onOpen error:", msg, e);
+      if (this.containerElContent) {
+        this.containerElContent.empty();
+        this.containerElContent.createDiv({ text: `\u041E\u0448\u0438\u0431\u043A\u0430: ${msg}`, cls: "mailer-yougile-error" });
+      }
+    }
   }
   renderCalendar() {
-    const container = this.containerElContent;
-    container.empty();
-    this.dayViewActive = false;
-    this.createViewActive = false;
-    const headerEl = container.createDiv({ cls: "mailer-yougile-header" });
-    headerEl.style.justifyContent = "space-between";
-    const navLeft = headerEl.createDiv({ cls: "mailer-yougile-header" });
-    const prevBtn = navLeft.createEl("button", { text: "\u25C0", cls: "mailer-yougile-refresh-btn" });
-    const monthYearLabel = navLeft.createEl("span", { text: this.getMonthYearLabel() });
-    monthYearLabel.style.fontWeight = "bold";
-    monthYearLabel.style.margin = "0 8px";
-    const nextBtn = navLeft.createEl("button", { text: "\u25B6", cls: "mailer-yougile-refresh-btn" });
-    const filterToggle = container.createEl("select");
-    filterToggle.addClass("dropdown");
-    filterToggle.style.marginBottom = "8px";
-    filterToggle.style.width = "auto";
-    filterToggle.createEl("option", { value: "all", text: "\u0412\u0441\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u0441 \u0434\u0435\u0434\u043B\u0430\u0439\u043D\u043E\u043C" });
-    filterToggle.createEl("option", { value: "events", text: "\u0420\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0439" });
-    filterToggle.createEl("option", { value: "docs", text: "\u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B" });
-    filterToggle.value = this.filterMode;
-    const columnFilterContainer = container.createDiv();
-    columnFilterContainer.style.marginBottom = "8px";
-    filterToggle.addEventListener("change", () => {
-      this.filterMode = filterToggle.value;
-      const ids = this.filterMode === "docs" ? this.plugin.settings.docsSelectedColumnIds : this.plugin.settings.calendarSelectedColumnIds;
-      this.selectedColumnIds = new Set(ids.split(",").filter(Boolean));
-      this.renderCalendar();
-    });
-    if (this.filterMode === "events" && this.plugin.settings.calendarBoardId) {
-      this.renderColumnCheckboxes(columnFilterContainer, this.plugin.settings.calendarBoardId, "calendarSelectedColumnIds");
-    } else if (this.filterMode === "docs" && this.plugin.settings.docsBoardId) {
-      this.renderColumnCheckboxes(columnFilterContainer, this.plugin.settings.docsBoardId, "docsSelectedColumnIds");
-    }
-    const navRight = headerEl.createDiv({ cls: "mailer-yougile-header" });
-    const createBtnText = this.filterMode === "docs" ? "\u2795 \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442" : "\u2795 \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435";
-    const createBtn = navRight.createEl("button", { text: createBtnText, cls: "mailer-yougile-refresh-btn" });
-    const syncBtn = navRight.createEl("button", { text: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
-    prevBtn.addEventListener("click", () => {
-      this.currentMonth--;
-      if (this.currentMonth < 0) {
-        this.currentMonth = 11;
-        this.currentYear--;
+    try {
+      const container = this.containerElContent;
+      if (!container) {
+        console.error("renderCalendar: containerElContent is null");
+        return;
       }
-      this.renderCalendar();
-    });
-    nextBtn.addEventListener("click", () => {
-      this.currentMonth++;
-      if (this.currentMonth > 11) {
-        this.currentMonth = 0;
-        this.currentYear++;
-      }
-      this.renderCalendar();
-    });
-    createBtn.addEventListener("click", () => {
-      if (this.filterMode === "docs") {
-        this.plugin.activateDocumentsView();
-      } else {
-        this.showCreateForm();
-      }
-    });
-    syncBtn.addEventListener("click", () => this.syncAndRender());
-    const syncStatus = container.createDiv({ cls: "mailer-yougile-task-meta", text: this.plugin.db.hasUnsynchronizedActions() ? "\u26A0 \u041D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E" : "\u2705 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E" });
-    const calendarGrid = container.createDiv({ cls: "mailer-yougile-calendar-grid" });
-    calendarGrid.style.display = "grid";
-    calendarGrid.style.gridTemplateColumns = "repeat(7, 1fr)";
-    calendarGrid.style.gap = "2px";
-    const dayNames = ["\u041F\u043D", "\u0412\u0442", "\u0421\u0440", "\u0427\u0442", "\u041F\u0442", "\u0421\u0431", "\u0412\u0441"];
-    for (const dn of dayNames) {
-      const dayHeader = calendarGrid.createDiv({ cls: "mailer-yougile-calendar-day-header", text: dn });
-      dayHeader.style.textAlign = "center";
-      dayHeader.style.fontWeight = "bold";
-      dayHeader.style.padding = "4px";
-      dayHeader.style.fontSize = "var(--font-smaller)";
-    }
-    const events = this.getCalendarEvents();
-    const eventsByDate = /* @__PURE__ */ new Map();
-    for (const ev of events) {
-      const list = eventsByDate.get(ev.date) || [];
-      list.push(ev);
-      eventsByDate.set(ev.date, list);
-    }
-    const firstDay = new Date(this.currentYear, this.currentMonth, 1);
-    const startDayOfWeek = (firstDay.getDay() + 6) % 7;
-    const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
-    const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-    for (let i = 0; i < startDayOfWeek; i++) {
-      calendarGrid.createDiv();
-    }
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const cell = calendarGrid.createDiv({ cls: "mailer-yougile-calendar-cell" });
-      cell.style.border = "1px solid var(--background-modifier-border)";
-      cell.style.padding = "4px";
-      cell.style.minHeight = "70px";
-      cell.style.cursor = "pointer";
-      cell.style.fontSize = "var(--font-smaller)";
-      cell.style.overflow = "hidden";
-      if (dateStr === todayStr) {
-        cell.style.backgroundColor = "var(--interactive-accent)";
-        cell.style.color = "var(--text-on-accent)";
-      }
-      const dayNum = cell.createDiv({ text: String(day) });
-      dayNum.style.fontWeight = "bold";
-      dayNum.style.marginBottom = "2px";
-      const dayEvents = eventsByDate.get(dateStr) || [];
-      for (const ev of dayEvents) {
-        const evEl = cell.createDiv({ cls: "mailer-yougile-calendar-event" });
-        evEl.setText(ev.title);
-        evEl.style.fontSize = "10px";
-        evEl.style.padding = "1px 2px";
-        evEl.style.marginBottom = "1px";
-        evEl.style.borderRadius = "2px";
-        evEl.style.whiteSpace = "nowrap";
-        evEl.style.overflow = "hidden";
-        evEl.style.textOverflow = "ellipsis";
-        evEl.style.backgroundColor = ev.completed ? "var(--color-green)" : "var(--interactive-accent)";
-        evEl.style.color = "var(--text-on-accent)";
-      }
-      cell.addEventListener("click", () => {
-        this.selectedDate = dateStr;
-        this.renderDayView(dateStr, dayEvents);
+      container.empty();
+      this.dayViewActive = false;
+      this.createViewActive = false;
+      const headerEl = container.createDiv({ cls: "mailer-yougile-header mailer-flex-space-between" });
+      const navLeft = headerEl.createDiv({ cls: "mailer-yougile-header" });
+      const prevBtn = navLeft.createEl("button", { text: "\u25C0", cls: "mailer-yougile-refresh-btn" });
+      const monthYearLabel = navLeft.createEl("span", { text: this.getMonthYearLabel(), cls: "mailer-bold mailer-mx-8" });
+      const nextBtn = navLeft.createEl("button", { text: "\u25B6", cls: "mailer-yougile-refresh-btn" });
+      const filterToggle = container.createEl("select");
+      filterToggle.addClass("dropdown");
+      filterToggle.addClass("mailer-mb-8");
+      filterToggle.addClass("mailer-w-auto");
+      filterToggle.createEl("option", { value: "all", text: "\u0412\u0441\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u0441 \u0434\u0435\u0434\u043B\u0430\u0439\u043D\u043E\u043C" });
+      filterToggle.createEl("option", { value: "events", text: "\u0420\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0439" });
+      filterToggle.createEl("option", { value: "docs", text: "\u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B" });
+      filterToggle.value = this.filterMode;
+      const columnFilterContainer = container.createDiv({ cls: "mailer-mb-8" });
+      filterToggle.addEventListener("change", () => {
+        this.filterMode = filterToggle.value;
+        const ids = this.filterMode === "docs" ? this.plugin.settings.docsSelectedColumnIds : this.plugin.settings.calendarSelectedColumnIds;
+        this.selectedColumnIds = new Set((ids || "").split(",").filter(Boolean));
+        this.renderCalendar();
       });
+      if (this.filterMode === "events" && this.plugin.settings.calendarBoardId) {
+        this.renderColumnCheckboxes(columnFilterContainer, this.plugin.settings.calendarBoardId, "calendarSelectedColumnIds");
+      } else if (this.filterMode === "docs" && this.plugin.settings.docsBoardId) {
+        this.renderColumnCheckboxes(columnFilterContainer, this.plugin.settings.docsBoardId, "docsSelectedColumnIds");
+      }
+      const navRight = headerEl.createDiv({ cls: "mailer-yougile-header" });
+      const createBtnText = this.filterMode === "docs" ? "\u2795 \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442" : "\u2795 \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435";
+      const createBtn = navRight.createEl("button", { text: createBtnText, cls: "mailer-yougile-refresh-btn" });
+      const syncBtn = navRight.createEl("button", { text: "\u{1F504}", cls: "mailer-yougile-refresh-btn" });
+      prevBtn.addEventListener("click", () => {
+        this.currentMonth--;
+        if (this.currentMonth < 0) {
+          this.currentMonth = 11;
+          this.currentYear--;
+        }
+        this.renderCalendar();
+      });
+      nextBtn.addEventListener("click", () => {
+        this.currentMonth++;
+        if (this.currentMonth > 11) {
+          this.currentMonth = 0;
+          this.currentYear++;
+        }
+        this.renderCalendar();
+      });
+      createBtn.addEventListener("click", () => {
+        if (this.filterMode === "docs") {
+          this.plugin.activateDocumentsView();
+        } else {
+          this.showCreateForm();
+        }
+      });
+      syncBtn.addEventListener("click", () => this.syncAndRender());
+      const syncStatus = container.createDiv({ cls: "mailer-yougile-task-meta", text: this.plugin.db.hasUnsynchronizedActions() ? "\u26A0 \u041D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E" : "\u2705 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E" });
+      const calendarGrid = container.createDiv({ cls: "mailer-yougile-calendar-grid" });
+      const dayNames = ["\u041F\u043D", "\u0412\u0442", "\u0421\u0440", "\u0427\u0442", "\u041F\u0442", "\u0421\u0431", "\u0412\u0441"];
+      for (const dn of dayNames) {
+        const dayHeader = calendarGrid.createDiv({ cls: "mailer-yougile-calendar-day-header", text: dn });
+      }
+      const events = this.getCalendarEvents();
+      const eventsByDate = /* @__PURE__ */ new Map();
+      for (const ev of events) {
+        const list = eventsByDate.get(ev.date) || [];
+        list.push(ev);
+        eventsByDate.set(ev.date, list);
+      }
+      const firstDay = new Date(this.currentYear, this.currentMonth, 1);
+      const startDayOfWeek = (firstDay.getDay() + 6) % 7;
+      const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+      const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      for (let i = 0; i < startDayOfWeek; i++) {
+        calendarGrid.createDiv();
+      }
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${this.currentYear}-${String(this.currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const cell = calendarGrid.createDiv({ cls: "mailer-yougile-calendar-cell" });
+        if (dateStr === todayStr) {
+          cell.style.backgroundColor = "var(--interactive-accent)";
+          cell.style.color = "var(--text-on-accent)";
+        }
+        const dayNum = cell.createDiv({ text: String(day), cls: "mailer-bold mailer-mb-2" });
+        const dayEvents = eventsByDate.get(dateStr) || [];
+        for (const ev of dayEvents) {
+          const evEl = cell.createDiv({ cls: "mailer-yougile-calendar-event" });
+          evEl.setText(ev.title);
+          if (ev.completed) {
+            evEl.style.backgroundColor = "var(--color-green)";
+          }
+        }
+        cell.addEventListener("click", () => {
+          this.selectedDate = dateStr;
+          this.renderDayView(dateStr, dayEvents);
+        });
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("renderCalendar error:", msg, e);
+      const container = this.containerElContent;
+      if (container) {
+        container.empty();
+        const errEl = container.createDiv({ cls: "mailer-yougile-error" });
+        errEl.setText(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044F: ${msg}`);
+        errEl.createEl("button", { text: "\u{1F504} \u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" }).addEventListener("click", () => this.renderCalendar());
+      }
     }
   }
   getMonthYearLabel() {
@@ -6255,8 +6235,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
     const backBtn = container.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434 \u043A \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044E", cls: "mailer-yougile-refresh-btn" });
     backBtn.addEventListener("click", () => this.renderCalendar());
     container.createEl("h3", { text: `\u0420\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043D\u0430 ${dateStr}` });
-    const createForDayBtn = container.createEl("button", { text: "\u2795 \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435", cls: "mailer-yougile-refresh-btn" });
-    createForDayBtn.style.marginBottom = "12px";
+    const createForDayBtn = container.createEl("button", { text: "\u2795 \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435", cls: "mailer-yougile-refresh-btn mailer-mb-12" });
     createForDayBtn.addEventListener("click", () => this.showCreateFormWithDate(dateStr));
     if (dayEvents.length === 0) {
       container.createDiv({ text: "\u041D\u0435\u0442 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0439 \u043D\u0430 \u044D\u0442\u043E\u0442 \u0434\u0435\u043D\u044C", cls: "mailer-yougile-empty" });
@@ -6313,22 +6292,15 @@ var ScheduleView = class extends import_obsidian4.ItemView {
       metaEl.createDiv({ text: line });
     }
     if (ev.additionalInfo) {
-      const infoDiv = container.createDiv({ cls: "mailer-yougile-task-meta" });
-      infoDiv.style.marginTop = "12px";
-      infoDiv.style.borderTop = "1px solid var(--background-modifier-border)";
-      infoDiv.style.paddingTop = "8px";
+      const infoDiv = container.createDiv({ cls: "mailer-yougile-task-meta mailer-section-divider" });
       infoDiv.createDiv({ text: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F:" });
       infoDiv.createDiv({ text: ev.additionalInfo });
     }
     if (ev.reportHtml) {
-      const reportDiv = container.createDiv({ cls: "mailer-yougile-task-meta" });
-      reportDiv.style.marginTop = "12px";
-      reportDiv.style.borderTop = "1px solid var(--background-modifier-border)";
-      reportDiv.style.paddingTop = "8px";
+      const reportDiv = container.createDiv({ cls: "mailer-yougile-task-meta mailer-section-divider" });
       reportDiv.innerHTML = ev.reportHtml;
     }
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const editBtn = btnRow.createEl("button", { text: "\u270F\uFE0F \u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     editBtn.addEventListener("click", () => this.renderEventEditForm(ev));
     if (ev.completed) {
@@ -6372,9 +6344,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
     columnsInfo.setText(`\u041F\u0440\u043E\u0435\u043A\u0442: ${pTitle} \xB7 \u0414\u043E\u0441\u043A\u0430: ${bTitle}`);
     const columnLabel = container.createEl("label", { text: "\u041D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044F" });
     const columnSelect = container.createEl("select");
-    columnSelect.style.width = "100%";
-    columnSelect.style.boxSizing = "border-box";
-    columnSelect.style.marginBottom = "8px";
+    columnSelect.addClass("mailer-mb-8");
     const boardId = this.plugin.settings.calendarBoardId;
     let boardColumns = this.plugin.db.getColumns();
     if (boardId) boardColumns = boardColumns.filter((c) => c.boardId === boardId);
@@ -6394,8 +6364,6 @@ var ScheduleView = class extends import_obsidian4.ItemView {
     for (const f of fields) {
       const label = container.createEl("label", { text: f.label });
       const input = container.createEl("input", { attr: { type: f.type, placeholder: f.placeholder || "" } });
-      input.style.width = "100%";
-      input.style.boxSizing = "border-box";
       inputs[f.key] = input;
       if (f.key === "date" && prefillDate) {
         input.value = prefillDate;
@@ -6407,9 +6375,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
     const assigneeSelector = new AssigneeSelector(container, "\u041E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439", () => this.plugin.db.getUsers());
     const parentLabel = container.createEl("label", { text: "\u041C\u0430\u0442\u0435\u0440\u0438\u043D\u0441\u043A\u0430\u044F \u0437\u0430\u0434\u0430\u0447\u0430 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)" });
     const parentInput = container.createEl("input", { attr: { type: "text", placeholder: "\u041D\u0430\u0447\u043D\u0438\u0442\u0435 \u0432\u0432\u043E\u0434\u0438\u0442\u044C \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438..." } });
-    parentInput.style.width = "100%";
-    parentInput.style.boxSizing = "border-box";
-    parentInput.style.marginBottom = "8px";
+    parentInput.addClass("mailer-mb-8");
     const parentDatalist = container.createEl("datalist");
     parentDatalist.id = "schedule-parent-tasks";
     parentInput.setAttr("list", "schedule-parent-tasks");
@@ -6421,20 +6387,19 @@ var ScheduleView = class extends import_obsidian4.ItemView {
       taskIdByTitle.set(t.title, t.id);
       taskDeadlineByTitle.set(t.title, t.deadline);
     }
-    const autoCompleteWrapper = container.createDiv();
-    autoCompleteWrapper.style.cssText = "display:flex;align-items:center;margin-bottom:8px;font-size:var(--font-smaller);cursor:pointer;white-space:nowrap";
+    const autoCompleteWrapper = container.createDiv({ cls: "mailer-cb-flex" });
     const autoCompleteCb = autoCompleteWrapper.createEl("input", { attr: { type: "checkbox" } });
-    autoCompleteCb.style.cssText = "width:16px;height:16px;margin:0 4px 0 0;flex-shrink:0";
+    autoCompleteCb.style.width = "16px";
+    autoCompleteCb.style.height = "16px";
+    autoCompleteCb.style.margin = "0 4px 0 0";
+    autoCompleteCb.style.flexShrink = "0";
+    autoCompleteCb.style.cursor = "pointer";
     const autoCompleteSpan = autoCompleteWrapper.createEl("span");
     autoCompleteSpan.setText("\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C \u043C\u0430\u0442\u0435\u0440\u0438\u043D\u0441\u043A\u0443\u044E \u0437\u0430\u0434\u0430\u0447\u0443 \u043F\u0440\u0438 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0438 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044F");
     const additionalLabel = container.createEl("label", { text: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F \u0438 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435" });
-    const additionalTextarea = container.createEl("textarea");
-    additionalTextarea.style.width = "100%";
-    additionalTextarea.style.boxSizing = "border-box";
-    additionalTextarea.style.minHeight = "60px";
+    const additionalTextarea = container.createEl("textarea", { cls: "mailer-textarea" });
     additionalTextarea.placeholder = "\u041B\u044E\u0431\u0430\u044F \u0434\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F \u043E \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0438";
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const submitBtn = btnRow.createEl("button", { text: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => {
@@ -6557,17 +6522,13 @@ var ScheduleView = class extends import_obsidian4.ItemView {
     for (const f of fields) {
       const label = container.createEl("label", { text: f.label });
       const input = container.createEl("input", { attr: { type: f.type, placeholder: f.placeholder || "" } });
-      input.style.width = "100%";
-      input.style.boxSizing = "border-box";
       input.value = prefillValues[f.key] || "";
       inputs[f.key] = input;
     }
     const assigneeSelector = new AssigneeSelector(container, "\u041E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439", () => this.plugin.db.getUsers(), ev.responsibleName);
     const columnLabel = container.createEl("label", { text: "\u041D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044F" });
     const columnSelect = container.createEl("select");
-    columnSelect.style.width = "100%";
-    columnSelect.style.boxSizing = "border-box";
-    columnSelect.style.marginBottom = "8px";
+    columnSelect.addClass("mailer-mb-8");
     const boardId = this.plugin.settings.calendarBoardId;
     let boardColumns = this.plugin.db.getColumns();
     if (boardId) boardColumns = boardColumns.filter((c) => c.boardId === boardId);
@@ -6577,13 +6538,9 @@ var ScheduleView = class extends import_obsidian4.ItemView {
       if (col.id === ev.columnId) opt.selected = true;
     }
     const additionalLabel = container.createEl("label", { text: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F \u0438 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435" });
-    const additionalTextarea = container.createEl("textarea");
-    additionalTextarea.style.width = "100%";
-    additionalTextarea.style.boxSizing = "border-box";
-    additionalTextarea.style.minHeight = "60px";
+    const additionalTextarea = container.createEl("textarea", { cls: "mailer-textarea" });
     additionalTextarea.value = ev.additionalInfo;
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderEventDetail(ev));
@@ -6664,19 +6621,15 @@ var ScheduleView = class extends import_obsidian4.ItemView {
     backBtn.addEventListener("click", () => this.renderEventDetail(ev));
     container.createEl("h3", { text: `\u041E\u0442\u0447\u0451\u0442 \u043F\u043E \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044E: ${ev.title}` });
     const textLabel = container.createEl("label", { text: "\u041E\u043F\u0438\u0448\u0438\u0442\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B" });
-    const resultTextarea = container.createEl("textarea");
-    resultTextarea.style.width = "100%";
-    resultTextarea.style.boxSizing = "border-box";
-    resultTextarea.style.minHeight = "80px";
+    const resultTextarea = container.createEl("textarea", { cls: "mailer-report-textarea" });
     resultTextarea.placeholder = "\u041E\u043F\u0438\u0448\u0438\u0442\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u044F...";
     const fileLabel = container.createEl("label", { text: "\u041F\u0440\u0438\u043A\u0440\u0435\u043F\u0438\u0442\u044C \u0444\u0430\u0439\u043B\u044B (\u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F, \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B)" });
-    fileLabel.style.marginTop = "12px";
-    fileLabel.style.display = "block";
+    fileLabel.addClass("mailer-mt-12");
     const fileInput = container.createEl("input", { attr: { type: "file", multiple: "true" } });
-    fileInput.style.marginTop = "4px";
+    fileInput.addClass("mailer-mt-4");
     const fileListDiv = container.createDiv();
-    fileListDiv.style.marginTop = "8px";
-    fileListDiv.style.fontSize = "var(--font-smaller)";
+    fileListDiv.addClass("mailer-mt-8");
+    fileListDiv.addClass("mailer-yougile-task-meta");
     fileInput.addEventListener("change", () => {
       fileListDiv.empty();
       if (fileInput.files) {
@@ -6685,8 +6638,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
         }
       }
     });
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const submitBtn = btnRow.createEl("button", { text: "\u2705 \u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderEventDetail(ev));
@@ -6776,22 +6728,37 @@ var ScheduleView = class extends import_obsidian4.ItemView {
     });
   }
   async syncAndRender() {
+    if (!this.containerElContent) return;
     if (!this.plugin.settings.apiKeySecret || !this.plugin.getSecretValue(this.plugin.settings.apiKeySecret)) {
       this.containerElContent.empty();
       this.containerElContent.createDiv({ text: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430", cls: "mailer-yougile-empty" });
       return;
     }
+    this.containerElContent.empty();
+    const loadingEl = this.containerElContent.createDiv({ text: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F...", cls: "mailer-yougile-loading" });
     try {
       await this.plugin.db.sync();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       new import_obsidian4.Notice(`YouGile: \u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u2014 ${msg}`);
     }
-    this.renderCalendar();
+    loadingEl.detach();
+    try {
+      const ids = this.filterMode === "docs" ? this.plugin.settings.docsSelectedColumnIds : this.plugin.settings.calendarSelectedColumnIds;
+      this.selectedColumnIds = new Set((ids || "").split(",").filter(Boolean));
+      this.renderCalendar();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.containerElContent.empty();
+      const errEl = this.containerElContent.createDiv({ cls: "mailer-yougile-error" });
+      errEl.setText(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044F: ${msg}. \u041F\u043E\u0434\u0440\u043E\u0431\u043D\u0435\u0435 \u0432 \u043A\u043E\u043D\u0441\u043E\u043B\u0438 (Ctrl+Shift+I).`);
+      console.error("Calendar error:", e);
+      errEl.createEl("button", { text: "\u{1F504} \u041F\u043E\u043F\u0440\u043E\u0431\u043E\u0432\u0430\u0442\u044C \u0441\u043D\u043E\u0432\u0430", cls: "mailer-yougile-refresh-btn" }).addEventListener("click", () => this.syncAndRender());
+    }
   }
   openTaskInTasksView(taskId) {
     this.plugin.activateView();
-    setTimeout(() => {
+    window.setTimeout(() => {
       const leaf = this.plugin.app.workspace.getLeavesOfType(TASKS_VIEW_TYPE).first();
       const view = leaf == null ? void 0 : leaf.view;
       if (view instanceof TasksView) {
@@ -6923,10 +6890,9 @@ var DocumentsView = class extends import_obsidian5.ItemView {
     headerEl.style.justifyContent = "space-between";
     const titleEl = headerEl.createEl("h3", { text: "\u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B" });
     titleEl.style.margin = "0";
-    const actionRow = container.createDiv({ cls: "mailer-yougile-header" });
-    actionRow.style.marginBottom = "8px";
+    const actionRow = container.createDiv({ cls: "mailer-yougile-header mailer-mb-8" });
     const createBtn = actionRow.createEl("button", { text: "\u2795 \u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442", cls: "mailer-yougile-refresh-btn" });
-    const syncBtn = actionRow.createEl("button", { text: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    const syncBtn = actionRow.createEl("button", { text: "\u{1F504}", cls: "mailer-yougile-refresh-btn" });
     const exportHtmlBtn = actionRow.createEl("button", { text: "\u{1F4C4} \u042D\u043A\u0441\u043F\u043E\u0440\u0442 HTML", cls: "mailer-yougile-refresh-btn" });
     const exportCsvBtn = actionRow.createEl("button", { text: "\u{1F4CA} \u042D\u043A\u0441\u043F\u043E\u0440\u0442 CSV", cls: "mailer-yougile-refresh-btn" });
     createBtn.addEventListener("click", () => this.showCreateForm());
@@ -6934,10 +6900,8 @@ var DocumentsView = class extends import_obsidian5.ItemView {
     exportHtmlBtn.addEventListener("click", () => this.exportHtml());
     exportCsvBtn.addEventListener("click", () => this.exportCsv());
     const syncStatus = container.createDiv({ cls: "mailer-yougile-task-meta", text: this.plugin.db.hasUnsynchronizedActions() ? "\u26A0 \u041D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E" : "\u2705 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E" });
-    const searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044E..." } });
-    searchInput.style.width = "100%";
-    searchInput.style.boxSizing = "border-box";
-    searchInput.style.marginBottom = "8px";
+    const searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044E..." }, cls: "mailer-input" });
+    searchInput.classList.add("mailer-mb-8");
     searchInput.value = this.searchQuery;
     searchInput.addEventListener("input", () => {
       this.searchQuery = searchInput.value;
@@ -6948,8 +6912,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
     });
     const columns = this.getBoardColumns();
     if (columns.length > 0) {
-      const filterDiv = container.createDiv();
-      filterDiv.style.marginBottom = "8px";
+      const filterDiv = container.createDiv({ cls: "mailer-mb-8" });
       filterDiv.createDiv({ text: "\u041A\u043E\u043B\u043E\u043D\u043A\u0438:", cls: "mailer-yougile-task-meta" });
       for (const col of columns) {
         const wrapper = filterDiv.createEl("label");
@@ -6982,21 +6945,12 @@ var DocumentsView = class extends import_obsidian5.ItemView {
       }
     }
     const docs = this.getFilteredDocuments();
-    const table = container.createEl("table");
-    table.style.width = "100%";
-    table.style.borderCollapse = "collapse";
-    table.style.fontSize = "var(--font-smaller)";
+    const table = container.createEl("table", { cls: "mailer-table" });
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
     const headers = ["\u041D\u0430\u0438\u043C\u0435\u043D\u043E\u0432\u0430\u043D\u0438\u0435", "\u0422\u0438\u043F \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0430", "\u041A\u0443\u0440\u0430\u0442\u043E\u0440", "\u0421\u0440\u043E\u043A \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F", "\u0421\u0441\u044B\u043B\u043A\u0430"];
     for (const h of headers) {
-      const th = headerRow.createEl("th");
-      th.setText(h);
-      th.style.textAlign = "left";
-      th.style.padding = "6px 8px";
-      th.style.borderBottom = "2px solid var(--background-modifier-border)";
-      th.style.fontWeight = "bold";
-      th.style.whiteSpace = "nowrap";
+      headerRow.createEl("th", { cls: "mailer-th", text: h });
     }
     const tbody = table.createEl("tbody");
     if (docs.length === 0) {
@@ -7010,25 +6964,17 @@ var DocumentsView = class extends import_obsidian5.ItemView {
     }
     for (const doc of docs) {
       const row = tbody.createEl("tr");
-      row.style.cursor = "pointer";
-      row.style.borderBottom = "1px solid var(--background-modifier-border)";
+      row.addClass("mailer-clickable");
       row.addEventListener("mouseenter", () => {
         row.style.backgroundColor = "var(--background-modifier-hover)";
       });
       row.addEventListener("mouseleave", () => {
         row.style.backgroundColor = "";
       });
-      const titleCell = row.createEl("td");
-      titleCell.style.padding = "6px 8px";
-      titleCell.setText(doc.title);
-      const typeCell = row.createEl("td");
-      typeCell.style.padding = "6px 8px";
-      typeCell.setText(doc.docType);
-      const curatorCell = row.createEl("td");
-      curatorCell.style.padding = "6px 8px";
-      curatorCell.setText(doc.curatorName || "\u2014");
-      const deadlineCell = row.createEl("td");
-      deadlineCell.style.padding = "6px 8px";
+      const titleCell = row.createEl("td", { cls: "mailer-td", text: doc.title });
+      const typeCell = row.createEl("td", { cls: "mailer-td", text: doc.docType });
+      const curatorCell = row.createEl("td", { cls: "mailer-td", text: doc.curatorName || "\u2014" });
+      const deadlineCell = row.createEl("td", { cls: "mailer-td" });
       if (doc.deadline) {
         const d = new Date(doc.deadline);
         deadlineCell.setText(d.toLocaleDateString());
@@ -7048,12 +6994,11 @@ var DocumentsView = class extends import_obsidian5.ItemView {
       } else {
         deadlineCell.setText("\u2014");
       }
-      const linkCell = row.createEl("td");
-      linkCell.style.padding = "6px 8px";
+      const linkCell = row.createEl("td", { cls: "mailer-td" });
       if (doc.linkUrl) {
         const a = linkCell.createEl("a", { href: doc.linkUrl });
         a.setText(doc.linkFileName || "\u0421\u0441\u044B\u043B\u043A\u0430");
-        a.style.wordBreak = "break-all";
+        a.addClass("mailer-word-break");
       } else {
         linkCell.setText("\u2014");
       }
@@ -7081,10 +7026,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
       meta.createDiv({ text: l });
     }
     if (doc.linkUrl) {
-      const linkDiv = container.createDiv({ cls: "mailer-yougile-task-meta" });
-      linkDiv.style.marginTop = "12px";
-      linkDiv.style.borderTop = "1px solid var(--background-modifier-border)";
-      linkDiv.style.paddingTop = "8px";
+      const linkDiv = container.createDiv({ cls: "mailer-yougile-task-meta mailer-section-divider" });
       linkDiv.createDiv({ text: "\u0421\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442:" });
       const a = linkDiv.createEl("a", { href: doc.linkUrl });
       a.setText(doc.linkFileName || doc.linkUrl);
@@ -7099,50 +7041,31 @@ var DocumentsView = class extends import_obsidian5.ItemView {
       }
     }
     if (doc.remarks.length > 0) {
-      const remarksDiv = container.createDiv({ cls: "mailer-yougile-task-meta" });
-      remarksDiv.style.marginTop = "12px";
-      remarksDiv.style.borderTop = "1px solid var(--background-modifier-border)";
-      remarksDiv.style.paddingTop = "8px";
+      const remarksDiv = container.createDiv({ cls: "mailer-yougile-task-meta mailer-section-divider" });
       remarksDiv.createDiv({ text: `\u{1F4DD} \u0417\u0430\u043C\u0435\u0447\u0430\u043D\u0438\u044F (${doc.remarks.length}):` });
-      const remTable = remarksDiv.createEl("table");
-      remTable.style.width = "100%";
-      remTable.style.borderCollapse = "collapse";
-      remTable.style.fontSize = "var(--font-smaller)";
+      const remTable = remarksDiv.createEl("table", { cls: "mailer-table" });
       remTable.style.marginTop = "4px";
       const remThead = remTable.createEl("thead");
       const remHeaderRow = remThead.createEl("tr");
       const remHeaders = ["\u2116 \u043F/\u043F", "\u041D\u043E\u043C\u0435\u0440 \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u043D\u043E\u0433\u043E \u044D\u043B\u0435\u043C\u0435\u043D\u0442\u0430", "\u0422\u0435\u043A\u0443\u0449\u0430\u044F \u0440\u0435\u0434\u0430\u043A\u0446\u0438\u044F", "\u041F\u0440\u0435\u0434\u043B\u0430\u0433\u0430\u0435\u043C\u0430\u044F \u0440\u0435\u0434\u0430\u043A\u0446\u0438\u044F", "\u041E\u0431\u043E\u0441\u043D\u043E\u0432\u0430\u043D\u0438\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439", "\u0424\u0430\u0439\u043B\u044B", "\u0410\u0432\u0442\u043E\u0440"];
       for (const rh of remHeaders) {
-        const th = remHeaderRow.createEl("th");
-        th.setText(rh);
-        th.style.textAlign = "left";
-        th.style.padding = "4px 6px";
-        th.style.borderBottom = "1px solid var(--background-modifier-border)";
-        th.style.fontWeight = "bold";
-        th.style.whiteSpace = "nowrap";
+        remHeaderRow.createEl("th", { cls: "mailer-th-sm", text: rh });
       }
       const remTbody = remTable.createEl("tbody");
       for (let i = 0; i < doc.remarks.length; i++) {
         const r = doc.remarks[i];
         const row = remTbody.createEl("tr");
-        row.style.borderBottom = "1px solid var(--background-modifier-border)";
-        const numCell = row.createEl("td");
-        numCell.style.padding = "4px 6px";
+        const numCell = row.createEl("td", { cls: "mailer-td-sm" });
         numCell.setText(String(i + 1));
-        const elemCell = row.createEl("td");
-        elemCell.style.padding = "4px 6px";
+        const elemCell = row.createEl("td", { cls: "mailer-td-sm" });
         elemCell.setText(r.elementNumber || "\u2014");
-        const curCell = row.createEl("td");
-        curCell.style.padding = "4px 6px";
+        const curCell = row.createEl("td", { cls: "mailer-td-sm" });
         curCell.setText(r.currentEdition || "\u2014");
-        const propCell = row.createEl("td");
-        propCell.style.padding = "4px 6px";
+        const propCell = row.createEl("td", { cls: "mailer-td-sm" });
         propCell.setText(r.proposedEdition || "\u2014");
-        const justCell = row.createEl("td");
-        justCell.style.padding = "4px 6px";
+        const justCell = row.createEl("td", { cls: "mailer-td-sm" });
         justCell.setText(r.justification || "\u2014");
-        const fileCell = row.createEl("td");
-        fileCell.style.padding = "4px 6px";
+        const fileCell = row.createEl("td", { cls: "mailer-td-sm" });
         if (r.files && r.files.length > 0) {
           for (const f of r.files) {
             const a = fileCell.createEl("a", { href: f.url });
@@ -7152,22 +7075,17 @@ var DocumentsView = class extends import_obsidian5.ItemView {
         } else {
           fileCell.setText("\u2014");
         }
-        const authorCell = row.createEl("td");
-        authorCell.style.padding = "4px 6px";
+        const authorCell = row.createEl("td", { cls: "mailer-td-sm" });
         authorCell.setText(r.authorEmail || "\u2014");
       }
     }
     const relatedDocs = this.getRelatedDocuments(doc.taskId);
     if (relatedDocs.length > 0) {
-      const relatedDiv = container.createDiv({ cls: "mailer-yougile-task-meta" });
-      relatedDiv.style.marginTop = "12px";
-      relatedDiv.style.borderTop = "1px solid var(--background-modifier-border)";
-      relatedDiv.style.paddingTop = "8px";
+      const relatedDiv = container.createDiv({ cls: "mailer-yougile-task-meta mailer-section-divider" });
       relatedDiv.createDiv({ text: `\u{1F4CE} \u0421\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0435 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B (${relatedDocs.length}):` });
       for (const rd of relatedDocs) {
-        const rdRow = relatedDiv.createDiv();
+        const rdRow = relatedDiv.createDiv({ cls: "mailer-clickable" });
         rdRow.style.marginTop = "4px";
-        rdRow.style.cursor = "pointer";
         rdRow.addEventListener("click", () => this.renderDocumentDetail(rd));
         const rdTitle = rdRow.createEl("span");
         rdTitle.setText(rd.title);
@@ -7176,7 +7094,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
           rdRow.createEl("br");
           const rdLink = rdRow.createEl("a", { href: rd.linkUrl });
           rdLink.setText(rd.linkFileName || "\u0421\u0441\u044B\u043B\u043A\u0430");
-          rdLink.style.wordBreak = "break-all";
+          rdLink.addClass("mailer-word-break");
           const ext = rd.linkFileName.toLowerCase().split(".").pop() || "";
           const isImage = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(ext);
           if (isImage && rd.linkUrl.startsWith("http")) {
@@ -7193,8 +7111,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
         }
       }
     }
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const relatedBtn = btnRow.createEl("button", { text: "\u{1F517} \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0439 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442", cls: "mailer-yougile-refresh-btn" });
     relatedBtn.addEventListener("click", () => this.showCreateRelatedForm(doc));
     const remarkBtn = btnRow.createEl("button", { text: "\u{1F4DD} \u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0437\u0430\u043C\u0435\u0447\u0430\u043D\u0438\u044F \u043A \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0443", cls: "mailer-yougile-refresh-btn" });
@@ -7240,30 +7157,20 @@ var DocumentsView = class extends import_obsidian5.ItemView {
     const pTitle = ((_a = this.plugin.db.getProjects().find((p) => p.id === projectId)) == null ? void 0 : _a.title) || "\u2014";
     const bTitle = ((_b = this.plugin.db.getBoards().find((b) => b.id === boardId)) == null ? void 0 : _b.title) || "\u2014";
     container.createDiv({ cls: "mailer-yougile-task-meta", text: `\u041F\u0440\u043E\u0435\u043A\u0442: ${pTitle} \xB7 \u0414\u043E\u0441\u043A\u0430: ${bTitle}` });
-    const titleInput = container.createEl("input", { attr: { type: "text", placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043D\u0430\u0438\u043C\u0435\u043D\u043E\u0432\u0430\u043D\u0438\u0435 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0430" } });
-    titleInput.style.width = "100%";
-    titleInput.style.boxSizing = "border-box";
+    const titleInput = container.createEl("input", { attr: { type: "text", placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043D\u0430\u0438\u043C\u0435\u043D\u043E\u0432\u0430\u043D\u0438\u0435 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0430" }, cls: "mailer-input" });
     const typeLabel = container.createEl("label", { text: "\u0422\u0438\u043F \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0430" });
-    const typeSelect = container.createEl("select");
-    typeSelect.style.width = "100%";
-    typeSelect.style.boxSizing = "border-box";
-    typeSelect.style.marginBottom = "8px";
+    const typeSelect = container.createEl("select", { cls: "mailer-select" });
     const columns = this.getBoardColumns();
     for (const col of columns) {
       typeSelect.createEl("option", { value: col.id, text: col.title });
     }
     const curatorSelector = new AssigneeSelector(container, "\u041A\u0443\u0440\u0430\u0442\u043E\u0440", () => this.plugin.db.getUsers());
     const deadlineLabel = container.createEl("label", { text: "\u0421\u0440\u043E\u043A \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F" });
-    const deadlineInput = container.createEl("input", { attr: { type: "date" } });
-    deadlineInput.style.width = "100%";
-    deadlineInput.style.boxSizing = "border-box";
+    const deadlineInput = container.createEl("input", { attr: { type: "date" }, cls: "mailer-input" });
     deadlineInput.value = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const linkLabel = container.createEl("label", { text: "\u0421\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442 (\u0442\u043E\u043B\u044C\u043A\u043E https://kb.tn.ru/file \u0438\u043B\u0438 https://www.kb.tn.ru/file)" });
-    const linkUrlInput = container.createEl("input", { attr: { type: "url", placeholder: "https://kb.tn.ru/file/..." } });
-    linkUrlInput.style.width = "100%";
-    linkUrlInput.style.boxSizing = "border-box";
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const linkUrlInput = container.createEl("input", { attr: { type: "url", placeholder: "https://kb.tn.ru/file/..." }, cls: "mailer-input" });
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const submitBtn = btnRow.createEl("button", { text: "\u2705 \u0421\u043E\u0437\u0434\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderView());
@@ -7358,24 +7265,18 @@ var DocumentsView = class extends import_obsidian5.ItemView {
     const pTitle = ((_a = this.plugin.db.getProjects().find((p) => p.id === this.plugin.settings.docsProjectId)) == null ? void 0 : _a.title) || "\u2014";
     const bTitle = ((_b = this.plugin.db.getBoards().find((b) => b.id === this.plugin.settings.docsBoardId)) == null ? void 0 : _b.title) || "\u2014";
     container.createDiv({ cls: "mailer-yougile-task-meta", text: `\u041F\u0440\u043E\u0435\u043A\u0442: ${pTitle} \xB7 \u0414\u043E\u0441\u043A\u0430: ${bTitle}` });
-    const titleInput = container.createEl("input", { attr: { type: "text", placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043D\u0430\u0438\u043C\u0435\u043D\u043E\u0432\u0430\u043D\u0438\u0435 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0430" } });
-    titleInput.style.width = "100%";
-    titleInput.style.boxSizing = "border-box";
+    const titleInput = container.createEl("input", { attr: { type: "text", placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043D\u0430\u0438\u043C\u0435\u043D\u043E\u0432\u0430\u043D\u0438\u0435 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0430" }, cls: "mailer-input" });
     const relatedCuratorSelector = new AssigneeSelector(container, "\u041A\u0443\u0440\u0430\u0442\u043E\u0440", () => this.plugin.db.getUsers());
-    const inheritInfo = container.createDiv({ cls: "mailer-yougile-task-meta" });
+    const inheritInfo = container.createDiv({ cls: "mailer-yougile-task-meta mailer-mb-8" });
     if (parentDoc.deadline) {
       const d = new Date(parentDoc.deadline);
       inheritInfo.setText(`\u{1F4C5} \u0421\u0440\u043E\u043A \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043D\u0430\u0441\u043B\u0435\u0434\u0443\u0435\u0442\u0441\u044F \u043E\u0442 \u0440\u043E\u0434\u0438\u0442\u0435\u043B\u044F: ${d.toLocaleDateString()}`);
     } else {
       inheritInfo.setText("\u{1F4C5} \u0421\u0440\u043E\u043A \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043D\u0435 \u0437\u0430\u0434\u0430\u043D \u0443 \u0440\u043E\u0434\u0438\u0442\u0435\u043B\u044F");
     }
-    inheritInfo.style.marginBottom = "8px";
     const linkLabel = container.createEl("label", { text: "\u0421\u0441\u044B\u043B\u043A\u0430 \u043D\u0430 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442 (\u0442\u043E\u043B\u044C\u043A\u043E https://kb.tn.ru/file \u0438\u043B\u0438 https://www.kb.tn.ru/file)" });
-    const linkUrlInput = container.createEl("input", { attr: { type: "url", placeholder: "https://kb.tn.ru/file/..." } });
-    linkUrlInput.style.width = "100%";
-    linkUrlInput.style.boxSizing = "border-box";
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const linkUrlInput = container.createEl("input", { attr: { type: "url", placeholder: "https://kb.tn.ru/file/..." }, cls: "mailer-input" });
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const submitBtn = btnRow.createEl("button", { text: "\u2705 \u0421\u043E\u0437\u0434\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderDocumentDetail(parentDoc));
@@ -7463,29 +7364,16 @@ var DocumentsView = class extends import_obsidian5.ItemView {
     backBtn.addEventListener("click", () => this.renderDocumentDetail(doc));
     container.createEl("h3", { text: `\u0417\u0430\u043C\u0435\u0447\u0430\u043D\u0438\u044F \u043A \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0443: ${doc.title}` });
     const elemLabel = container.createEl("label", { text: "\u041D\u043E\u043C\u0435\u0440 \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u043D\u043E\u0433\u043E \u044D\u043B\u0435\u043C\u0435\u043D\u0442\u0430 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0430" });
-    const elemInput = container.createEl("input", { attr: { type: "text", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: 1.2.3" } });
-    elemInput.style.width = "100%";
-    elemInput.style.boxSizing = "border-box";
+    const elemInput = container.createEl("input", { attr: { type: "text", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: 1.2.3" }, cls: "mailer-input" });
     const curLabel = container.createEl("label", { text: "\u0422\u0435\u043A\u0443\u0449\u0430\u044F \u0440\u0435\u0434\u0430\u043A\u0446\u0438\u044F" });
-    const curInput = container.createEl("textarea");
-    curInput.style.width = "100%";
-    curInput.style.boxSizing = "border-box";
-    curInput.style.minHeight = "50px";
+    const curInput = container.createEl("textarea", { cls: "mailer-textarea" });
     const propLabel = container.createEl("label", { text: "\u041F\u0440\u0435\u0434\u043B\u0430\u0433\u0430\u0435\u043C\u0430\u044F \u0440\u0435\u0434\u0430\u043A\u0446\u0438\u044F" });
-    const propInput = container.createEl("textarea");
-    propInput.style.width = "100%";
-    propInput.style.boxSizing = "border-box";
-    propInput.style.minHeight = "50px";
+    const propInput = container.createEl("textarea", { cls: "mailer-textarea" });
     const justLabel = container.createEl("label", { text: "\u041E\u0431\u043E\u0441\u043D\u043E\u0432\u0430\u043D\u0438\u0435 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439" });
-    const justInput = container.createEl("textarea");
-    justInput.style.width = "100%";
-    justInput.style.boxSizing = "border-box";
-    justInput.style.minHeight = "50px";
+    const justInput = container.createEl("textarea", { cls: "mailer-textarea" });
     const fileLabel = container.createEl("label", { text: "\u041F\u0440\u0438\u043A\u0440\u0435\u043F\u0438\u0442\u044C \u0444\u0430\u0439\u043B \u043A \u0437\u0430\u043C\u0435\u0447\u0430\u043D\u0438\u044E" });
-    const fileInput = container.createEl("input", { attr: { type: "file" } });
-    fileInput.style.marginBottom = "8px";
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const fileInput = container.createEl("input", { attr: { type: "file" }, cls: "mailer-mb-8" });
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0437\u0430\u043C\u0435\u0447\u0430\u043D\u0438\u0435", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderDocumentDetail(doc));
@@ -26548,9 +26436,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
       return;
     }
     const searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u043D\u043E\u043C\u0435\u0440\u0443, \u0442\u0435\u043C\u0435, \u0442\u0435\u043A\u0441\u0442\u0443..." } });
-    searchInput.style.width = "100%";
-    searchInput.style.boxSizing = "border-box";
-    searchInput.style.marginBottom = "8px";
+    searchInput.addClass("mailer-mb-8");
     searchInput.value = this.searchQuery;
     searchInput.addEventListener("input", () => {
       this.searchQuery = searchInput.value;
@@ -26561,8 +26447,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
     });
     const columns = this.getBoardColumns();
     if (columns.length > 0) {
-      const filterDiv = container.createDiv();
-      filterDiv.style.marginBottom = "8px";
+      const filterDiv = container.createDiv({ cls: "mailer-mb-8" });
       filterDiv.createDiv({ text: "\u041A\u043E\u043B\u043E\u043D\u043A\u0438:", cls: "mailer-yougile-task-meta" });
       for (const col of columns) {
         const wrapper = filterDiv.createEl("label");
@@ -26594,12 +26479,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
         span.setText(" " + dirName);
       }
     }
-    const filterRow = container.createDiv();
-    filterRow.style.display = "flex";
-    filterRow.style.alignItems = "center";
-    filterRow.style.gap = "8px";
-    filterRow.style.marginBottom = "8px";
-    filterRow.style.flexWrap = "wrap";
+    const filterRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap mailer-mb-8" });
     let dateFilterTimeout = null;
     filterRow.createSpan({ text: "\u0414\u0430\u0442\u0430:" });
     const dateFromInput = filterRow.createEl("input", { attr: { type: "date" } });
@@ -26665,60 +26545,36 @@ var EmailsView = class extends import_obsidian7.ItemView {
       filtered = filtered.filter((e) => e.author === this.filterAuthor);
     }
     filtered.sort((a, b) => b.id - a.id);
-    const table = container.createEl("table");
-    table.style.width = "100%";
-    table.style.borderCollapse = "collapse";
-    table.style.fontSize = "var(--font-smaller)";
+    const table = container.createEl("table", { cls: "mailer-table" });
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
     const headers = ["\u2116 \u043F/\u043F", "\u041D\u043E\u043C\u0435\u0440 \u043F\u0438\u0441\u044C\u043C\u0430", "\u0414\u0430\u0442\u0430 \u043F\u0438\u0441\u044C\u043C\u0430", "\u0422\u0435\u043C\u0430 \u043F\u0438\u0441\u044C\u043C\u0430", "\u0410\u0432\u0442\u043E\u0440"];
     for (const h of headers) {
-      const th = headerRow.createEl("th");
+      const th = headerRow.createEl("th", { cls: "mailer-th" });
       th.setText(h);
-      th.style.textAlign = "left";
-      th.style.padding = "6px 8px";
-      th.style.borderBottom = "2px solid var(--background-modifier-border)";
-      th.style.fontWeight = "bold";
-      th.style.whiteSpace = "nowrap";
     }
     const tbody = table.createEl("tbody");
     if (filtered.length === 0) {
       const emptyRow = tbody.createEl("tr");
-      const td = emptyRow.createEl("td");
+      const td = emptyRow.createEl("td", { cls: "mailer-text-center mailer-p-24" });
       td.setAttr("colspan", "5");
       td.setText("\u041D\u0435\u0442 \u043F\u0438\u0441\u0435\u043C");
-      td.style.textAlign = "center";
-      td.style.padding = "24px";
-      td.style.color = "var(--text-muted)";
       return;
     }
     for (let i = 0; i < filtered.length; i++) {
       const email = filtered[i];
-      const row = tbody.createEl("tr");
-      row.style.cursor = "pointer";
-      row.style.borderBottom = "1px solid var(--background-modifier-border)";
-      row.addEventListener("mouseenter", () => {
-        row.style.backgroundColor = "var(--background-modifier-hover)";
-      });
-      row.addEventListener("mouseleave", () => {
-        row.style.backgroundColor = "";
-      });
+      const row = tbody.createEl("tr", { cls: "mailer-clickable mailer-row-hover" });
       row.addEventListener("click", () => this.renderEmailDetail(email));
-      const numCell = row.createEl("td");
-      numCell.style.padding = "6px 8px";
+      const numCell = row.createEl("td", { cls: "mailer-td" });
       numCell.setText(String(i + 1));
-      const numberCell = row.createEl("td");
-      numberCell.style.padding = "6px 8px";
+      const numberCell = row.createEl("td", { cls: "mailer-td" });
       numberCell.setText(email.number);
-      const dateCell = row.createEl("td");
-      dateCell.style.padding = "6px 8px";
+      const dateCell = row.createEl("td", { cls: "mailer-td" });
       dateCell.style.whiteSpace = "nowrap";
       dateCell.setText(new Date(email.date).toLocaleDateString());
-      const subjectCell = row.createEl("td");
-      subjectCell.style.padding = "6px 8px";
+      const subjectCell = row.createEl("td", { cls: "mailer-td" });
       subjectCell.setText(email.subject);
-      const authorCell = row.createEl("td");
-      authorCell.style.padding = "6px 8px";
+      const authorCell = row.createEl("td", { cls: "mailer-td" });
       authorCell.setText(email.author);
     }
   }
@@ -26735,8 +26591,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
     const backBtn = container.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434", cls: "mailer-yougile-refresh-btn" });
     backBtn.addEventListener("click", () => this.renderView());
     container.createEl("h3", { text: `${email.number} \u2014 ${email.subject}` });
-    const metaDiv = container.createDiv({ cls: "mailer-yougile-task-meta" });
-    metaDiv.style.marginBottom = "12px";
+    const metaDiv = container.createDiv({ cls: "mailer-yougile-task-meta mailer-mb-12" });
     const dirName = this.plugin.emailDb.getDirectionName(email.direction_id);
     metaDiv.createDiv({ text: `\u0410\u0432\u0442\u043E\u0440: ${email.author}` });
     metaDiv.createDiv({ text: `\u0414\u0430\u0442\u0430: ${new Date(email.date).toLocaleString()}` });
@@ -26747,8 +26602,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
     textDiv.style.whiteSpace = "pre-wrap";
     textDiv.style.fontSize = "var(--font-ui-small)";
     textDiv.setText(email.text);
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const editBtn = btnRow.createEl("button", { text: "\u270F\uFE0F \u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     editBtn.addEventListener("click", () => this.showEditForm(email));
     const exportBtn = btnRow.createEl("button", { text: "\u{1F4E5} \u042D\u043A\u0441\u043F\u043E\u0440\u0442 \u0432 Word", cls: "mailer-yougile-refresh-btn" });
@@ -26808,22 +26662,15 @@ var EmailsView = class extends import_obsidian7.ItemView {
     const numberLabel = container.createEl("label", { text: "\u0418\u0441\u0445\u043E\u0434\u044F\u0449\u0438\u0439 \u043D\u043E\u043C\u0435\u0440" });
     const numberInput = container.createEl("input", { attr: { type: "text" } });
     numberInput.value = email.number;
-    numberInput.style.width = "100%";
-    numberInput.style.boxSizing = "border-box";
     const subjectLabel = container.createEl("label", { text: "\u0422\u0435\u043C\u0430 \u043F\u0438\u0441\u044C\u043C\u0430" });
     const subjectInput = container.createEl("input", { attr: { type: "text" } });
     subjectInput.value = email.subject;
-    subjectInput.style.width = "100%";
-    subjectInput.style.boxSizing = "border-box";
     const textLabel = container.createEl("label", { text: "\u0421\u043E\u0434\u0435\u0440\u0436\u0438\u043C\u043E\u0435 \u043F\u0438\u0441\u044C\u043C\u0430" });
     const textInput = container.createEl("textarea");
     textInput.value = email.text;
-    textInput.style.width = "100%";
-    textInput.style.boxSizing = "border-box";
     textInput.style.minHeight = "150px";
     const filesLabel = container.createEl("label", { text: "\u041F\u0440\u0438\u043A\u0440\u0435\u043F\u043B\u0451\u043D\u043D\u044B\u0435 \u0444\u0430\u0439\u043B\u044B" });
-    const filesDiv = container.createDiv();
-    filesDiv.style.marginBottom = "8px";
+    const filesDiv = container.createDiv({ cls: "mailer-mb-8" });
     const fileInput = container.createEl("input", { attr: { type: "file", multiple: "true" } });
     fileInput.style.display = "none";
     const attachBtn = filesDiv.createEl("button", { text: "\u{1F4CE} \u041F\u0440\u0438\u043A\u0440\u0435\u043F\u0438\u0442\u044C \u0444\u0430\u0439\u043B", cls: "mailer-yougile-refresh-btn" });
@@ -26860,10 +26707,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
       fileInput.value = "";
     });
     const dirLabel = container.createEl("label", { text: "\u041D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435" });
-    const dirSelect = container.createEl("select");
-    dirSelect.style.width = "100%";
-    dirSelect.style.boxSizing = "border-box";
-    dirSelect.style.marginBottom = "12px";
+    const dirSelect = container.createEl("select", { cls: "mailer-mb-12" });
     const columns = this.getBoardColumns();
     const currentDirName = this.plugin.emailDb.getDirectionName(email.direction_id);
     for (const col of columns) {
@@ -26871,8 +26715,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
       const opt = dirSelect.createEl("option", { value: col.id, text: name2 });
       if (name2 === currentDirName) opt.selected = true;
     }
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderEmailDetail(email));
@@ -26988,22 +26831,15 @@ var EmailsView = class extends import_obsidian7.ItemView {
     container.createEl("h3", { text: "\u2709\uFE0F \u041D\u043E\u0432\u043E\u0435 \u043F\u0438\u0441\u044C\u043C\u043E" });
     const numberLabel = container.createEl("label", { text: "\u0418\u0441\u0445\u043E\u0434\u044F\u0449\u0438\u0439 \u043D\u043E\u043C\u0435\u0440" });
     const numberInput = container.createEl("input", { attr: { type: "text", placeholder: "\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: 009" } });
-    numberInput.style.width = "100%";
-    numberInput.style.boxSizing = "border-box";
     const subjectLabel = container.createEl("label", { text: "\u0422\u0435\u043C\u0430 \u043F\u0438\u0441\u044C\u043C\u0430" });
     const subjectInput = container.createEl("input", { attr: { type: "text", placeholder: "\u0422\u0435\u043C\u0430" } });
     subjectInput.value = initialSubject;
-    subjectInput.style.width = "100%";
-    subjectInput.style.boxSizing = "border-box";
     const textLabel = container.createEl("label", { text: "\u0421\u043E\u0434\u0435\u0440\u0436\u0438\u043C\u043E\u0435 \u043F\u0438\u0441\u044C\u043C\u0430" });
     const textInput = container.createEl("textarea");
     textInput.value = initialText;
-    textInput.style.width = "100%";
-    textInput.style.boxSizing = "border-box";
     textInput.style.minHeight = "100px";
     const filesLabel = container.createEl("label", { text: "\u041F\u0440\u0438\u043A\u0440\u0435\u043F\u043B\u0451\u043D\u043D\u044B\u0435 \u0444\u0430\u0439\u043B\u044B" });
-    const filesDiv = container.createDiv();
-    filesDiv.style.marginBottom = "8px";
+    const filesDiv = container.createDiv({ cls: "mailer-mb-8" });
     const fileInput = container.createEl("input", { attr: { type: "file", multiple: "true" } });
     fileInput.style.display = "none";
     const attachBtn = filesDiv.createEl("button", { text: "\u{1F4CE} \u041F\u0440\u0438\u043A\u0440\u0435\u043F\u0438\u0442\u044C \u0444\u0430\u0439\u043B", cls: "mailer-yougile-refresh-btn" });
@@ -27040,10 +26876,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
       fileInput.value = "";
     });
     const dirLabel = container.createEl("label", { text: "\u041D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435" });
-    const dirSelect = container.createEl("select");
-    dirSelect.style.width = "100%";
-    dirSelect.style.boxSizing = "border-box";
-    dirSelect.style.marginBottom = "12px";
+    const dirSelect = container.createEl("select", { cls: "mailer-mb-12" });
     const columns = this.getBoardColumns();
     const mappings = this.getDirectionMappings();
     for (const col of columns) {
@@ -27051,8 +26884,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
       const name2 = mapping ? mapping.directionName : col.title;
       dirSelect.createEl("option", { value: col.id, text: name2 });
     }
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mt-12" });
     const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderView());
@@ -27167,11 +26999,9 @@ var EmailsView = class extends import_obsidian7.ItemView {
       tag.style.fontSize = "var(--font-smaller)";
       tag.setText(`\u{1F4CE} ${f.name}`);
       if (onRemove) {
-        const removeBtn = tag.createEl("span");
+        const removeBtn = tag.createEl("span", { cls: "mailer-clickable mailer-bold" });
         removeBtn.setText(" \xD7");
-        removeBtn.style.cursor = "pointer";
         removeBtn.style.marginLeft = "4px";
-        removeBtn.style.fontWeight = "bold";
         removeBtn.style.color = "var(--text-error)";
         removeBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -27269,14 +27099,12 @@ var ChatAIEmailModal = class extends import_obsidian7.Modal {
     const infoBar = contentEl.createDiv({ cls: "mailer-yougile-sync-indicator" });
     const allEmails = this.plugin.emailDb.getAllEmails();
     infoBar.setText(`\u{1F4CA} \u0411\u0430\u0437\u0430 \u0437\u043D\u0430\u043D\u0438\u0439: ${allEmails.length} \u043F\u0438\u0441\u0435\u043C | \u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043D\u044B\u0445 \u0444\u0430\u0439\u043B\u043E\u0432: ${this.uploadedFiles.length}`);
-    this.chatContainer = contentEl.createDiv();
+    this.chatContainer = contentEl.createDiv({ cls: "mailer-mb-8" });
     this.chatContainer.style.maxHeight = "400px";
     this.chatContainer.style.overflowY = "auto";
-    this.chatContainer.style.marginBottom = "8px";
     const welcome = this.chatContainer.createDiv({ cls: "mailer-yougile-sync-indicator" });
     welcome.setText("\u{1F44B} \u0417\u0434\u0440\u0430\u0432\u0441\u0442\u0432\u0443\u0439\u0442\u0435! \u0417\u0430\u0434\u0430\u0439\u0442\u0435 \u043C\u043D\u0435 \u0432\u043E\u043F\u0440\u043E\u0441 \u043F\u043E \u0431\u0430\u0437\u0435 \u043F\u0438\u0441\u0435\u043C \u0438\u043B\u0438 \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u0435 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442 \u0434\u043B\u044F \u0430\u043D\u0430\u043B\u0438\u0437\u0430.");
-    const fileArea = contentEl.createDiv();
-    fileArea.style.marginBottom = "8px";
+    const fileArea = contentEl.createDiv({ cls: "mailer-mb-8" });
     const fileInput = fileArea.createEl("input", { attr: { type: "file", multiple: "true" } });
     fileInput.style.display = "none";
     fileInput.accept = ".txt,.json,.md,.csv";
@@ -27302,18 +27130,14 @@ var ChatAIEmailModal = class extends import_obsidian7.Modal {
       }
       fileInput.value = "";
     });
-    this.inputArea = contentEl.createEl("textarea", { attr: { placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0432\u043E\u043F\u0440\u043E\u0441... (Enter \u0434\u043B\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438, Shift+Enter \u0434\u043B\u044F \u043F\u0435\u0440\u0435\u043D\u043E\u0441\u0430)" } });
-    this.inputArea.style.width = "100%";
-    this.inputArea.style.boxSizing = "border-box";
-    this.inputArea.style.minHeight = "60px";
+    this.inputArea = contentEl.createEl("textarea", { attr: { placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0432\u043E\u043F\u0440\u043E\u0441... (Enter \u0434\u043B\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438, Shift+Enter \u0434\u043B\u044F \u043F\u0435\u0440\u0435\u043D\u043E\u0441\u0430)" }, cls: "mailer-textarea" });
     this.inputArea.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         this.sendMessage();
       }
     });
-    const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "8px";
+    const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
     const sendBtn = btnRow.createEl("button", { text: "\u2709\uFE0F \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     sendBtn.addEventListener("click", () => this.sendMessage());
     this.createBtn = btnRow.createEl("button", { text: "\u{1F4DD} \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u043F\u0438\u0441\u044C\u043C\u043E", cls: "mailer-yougile-refresh-btn" });
@@ -27396,9 +27220,7 @@ ${msg.role === "user" ? "\u{1F464} \u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0
     msgEl.style.backgroundColor = role === "user" ? "var(--background-modifier-hover)" : "var(--background-primary-alt)";
     msgEl.style.whiteSpace = "pre-wrap";
     msgEl.style.fontSize = "var(--font-smaller)";
-    const label = msgEl.createDiv();
-    label.style.fontWeight = "bold";
-    label.style.marginBottom = "2px";
+    const label = msgEl.createDiv({ cls: "mailer-bold mailer-mb-2" });
     label.setText(role === "user" ? "\u{1F464} \u0412\u044B" : "\u{1F916} AI");
     msgEl.createDiv().setText(content);
     this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
@@ -65553,6 +65375,7 @@ var DashboardView = class extends import_obsidian8.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.selectedProjectId = "";
+    this.selectedBoardId = "";
     this.selectedColumnId = "";
     this.selectedAssigneeId = "";
     this.dateFrom = "";
@@ -65608,6 +65431,9 @@ var DashboardView = class extends import_obsidian8.ItemView {
     if (this.selectedProjectId) {
       tasks = tasks.filter((t) => t.projectId === this.selectedProjectId);
     }
+    if (this.selectedBoardId) {
+      tasks = tasks.filter((t) => t.boardId === this.selectedBoardId);
+    }
     if (this.selectedColumnId) {
       tasks = tasks.filter((t) => t.columnId === this.selectedColumnId);
     }
@@ -65635,18 +65461,16 @@ var DashboardView = class extends import_obsidian8.ItemView {
     header.createEl("h3", { text: "\u{1F4CA} \u0414\u0430\u0448\u0431\u043E\u0440\u0434" });
     const refreshBtn = header.createEl("button", { text: "\u{1F504}", cls: "mailer-yougile-refresh-btn" });
     refreshBtn.addEventListener("click", () => this.syncAndRender());
-    const filterRow = container.createDiv();
-    filterRow.style.display = "flex";
-    filterRow.style.alignItems = "center";
-    filterRow.style.gap = "8px";
-    filterRow.style.marginBottom = "12px";
-    filterRow.style.flexWrap = "wrap";
+    const filterRow = container.createDiv({ cls: "mailer-yougile-header mailer-mb-8" });
     const projects = this.plugin.db.getProjects();
     const allTasks = this.plugin.db.getTasks();
-    const projectTasks = this.selectedProjectId ? allTasks.filter((t) => t.projectId === this.selectedProjectId) : allTasks;
-    filterRow.createSpan({ text: "\u041F\u0440\u043E\u0435\u043A\u0442:" });
-    const projectSelect = filterRow.createEl("select");
-    projectSelect.style.width = "160px";
+    const fgStyle = "display:flex;flex-direction:column;margin-right:8px";
+    const fLabelStyle = "font-size:var(--font-smaller);margin-bottom:2px";
+    const projectGroup = filterRow.createDiv();
+    projectGroup.style.cssText = fgStyle;
+    projectGroup.createEl("label", { text: "\u041F\u0440\u043E\u0435\u043A\u0442" }).style.cssText = fLabelStyle;
+    const projectSelect = projectGroup.createEl("select");
+    projectSelect.addClass("dropdown");
     projectSelect.createEl("option", { value: "", text: "\u2014 \u0432\u0441\u0435 \u2014" });
     for (const p of projects) {
       projectSelect.createEl("option", { value: p.id, text: p.title });
@@ -65654,14 +65478,32 @@ var DashboardView = class extends import_obsidian8.ItemView {
     projectSelect.value = this.selectedProjectId;
     projectSelect.addEventListener("change", () => {
       this.selectedProjectId = projectSelect.value;
+      this.selectedBoardId = "";
       this.selectedColumnId = "";
       this.renderView();
     });
+    const boardGroup = filterRow.createDiv();
+    boardGroup.style.cssText = fgStyle;
+    boardGroup.createEl("label", { text: "\u0414\u043E\u0441\u043A\u0430" }).style.cssText = fLabelStyle;
     const boards = this.plugin.db.getBoards().filter((b) => !this.selectedProjectId || b.projectId === this.selectedProjectId);
-    const allCols = this.plugin.db.getColumns().filter((c) => boards.some((b) => b.id === c.boardId));
-    filterRow.createSpan({ text: "\u041A\u043E\u043B\u043E\u043D\u043A\u0430:" });
-    const columnSelect = filterRow.createEl("select");
-    columnSelect.style.width = "160px";
+    const boardSelect = boardGroup.createEl("select");
+    boardSelect.addClass("dropdown");
+    boardSelect.createEl("option", { value: "", text: "\u2014 \u0432\u0441\u0435 \u2014" });
+    for (const b of boards) {
+      boardSelect.createEl("option", { value: b.id, text: b.title });
+    }
+    boardSelect.value = this.selectedBoardId;
+    boardSelect.addEventListener("change", () => {
+      this.selectedBoardId = boardSelect.value;
+      this.selectedColumnId = "";
+      this.renderView();
+    });
+    const colGroup = filterRow.createDiv();
+    colGroup.style.cssText = fgStyle;
+    colGroup.createEl("label", { text: "\u041A\u043E\u043B\u043E\u043D\u043A\u0430" }).style.cssText = fLabelStyle;
+    const allCols = this.plugin.db.getColumns().filter((c) => !this.selectedBoardId || c.boardId === this.selectedBoardId);
+    const columnSelect = colGroup.createEl("select");
+    columnSelect.addClass("dropdown");
     columnSelect.createEl("option", { value: "", text: "\u2014 \u0432\u0441\u0435 \u2014" });
     for (const c of allCols) {
       columnSelect.createEl("option", { value: c.id, text: c.title });
@@ -65671,10 +65513,12 @@ var DashboardView = class extends import_obsidian8.ItemView {
       this.selectedColumnId = columnSelect.value;
       this.renderView();
     });
+    const assigneeGroup = filterRow.createDiv();
+    assigneeGroup.style.cssText = fgStyle;
+    assigneeGroup.createEl("label", { text: "\u0418\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C" }).style.cssText = fLabelStyle;
     const allAssignees = [...new Set(allTasks.flatMap((t) => t.assigned || []))].filter(Boolean).sort();
-    filterRow.createSpan({ text: "\u0418\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C:" });
-    const assigneeSelect = filterRow.createEl("select");
-    assigneeSelect.style.width = "160px";
+    const assigneeSelect = assigneeGroup.createEl("select");
+    assigneeSelect.addClass("dropdown");
     assigneeSelect.createEl("option", { value: "", text: "\u2014 \u0432\u0441\u0435 \u2014" });
     for (const a of allAssignees) {
       const name2 = this.plugin.db.getUserName(a);
@@ -65685,21 +65529,28 @@ var DashboardView = class extends import_obsidian8.ItemView {
       this.selectedAssigneeId = assigneeSelect.value;
       this.renderView();
     });
+    const dateGroup = filterRow.createDiv();
+    dateGroup.style.cssText = fgStyle;
+    dateGroup.createEl("label", { text: "\u0414\u0430\u0442\u044B" }).style.cssText = fLabelStyle;
+    const dateInner = dateGroup.createDiv();
+    dateInner.style.display = "flex";
+    dateInner.style.alignItems = "center";
+    dateInner.style.gap = "4px";
     let dateFilterTimeout = null;
     const applyDateFilter = () => {
       if (dateFilterTimeout) clearTimeout(dateFilterTimeout);
       dateFilterTimeout = window.setTimeout(() => this.renderView(), 600);
     };
-    filterRow.createSpan({ text: "\u0441" });
-    const dateFromInput = filterRow.createEl("input", { attr: { type: "date" } });
+    dateInner.createSpan({ text: "\u0441" });
+    const dateFromInput = dateInner.createEl("input", { attr: { type: "date" } });
     dateFromInput.style.width = "130px";
     dateFromInput.value = this.dateFrom;
     dateFromInput.addEventListener("input", () => {
       this.dateFrom = dateFromInput.value;
       applyDateFilter();
     });
-    filterRow.createSpan({ text: "\u043F\u043E" });
-    const dateToInput = filterRow.createEl("input", { attr: { type: "date" } });
+    dateInner.createSpan({ text: "\u043F\u043E" });
+    const dateToInput = dateInner.createEl("input", { attr: { type: "date" } });
     dateToInput.style.width = "130px";
     dateToInput.value = this.dateTo;
     dateToInput.addEventListener("input", () => {
@@ -65711,9 +65562,18 @@ var DashboardView = class extends import_obsidian8.ItemView {
     const exportCsvBtn = filterRow.createEl("button", { text: "\u{1F4CA} CSV", cls: "mailer-yougile-refresh-btn" });
     exportCsvBtn.addEventListener("click", () => this.exportCsv());
     const subtaskWrapper = filterRow.createDiv();
-    subtaskWrapper.style.cssText = "display:flex;align-items:center;marginRight:12px;marginTop:4px;font-size:var(--font-smaller);cursor:pointer;white-space:nowrap";
+    subtaskWrapper.style.display = "inline-flex";
+    subtaskWrapper.style.alignItems = "center";
+    subtaskWrapper.style.marginRight = "12px";
+    subtaskWrapper.style.marginTop = "4px";
+    subtaskWrapper.style.fontSize = "var(--font-smaller)";
+    subtaskWrapper.style.cursor = "pointer";
+    subtaskWrapper.style.whiteSpace = "nowrap";
     const subtaskCb = subtaskWrapper.createEl("input", { attr: { type: "checkbox" } });
-    subtaskCb.style.cssText = "width:16px;height:16px;margin:0 4px 0 0;flex-shrink:0";
+    subtaskCb.style.width = "16px";
+    subtaskCb.style.height = "16px";
+    subtaskCb.style.margin = "0 4px 0 0";
+    subtaskCb.style.flexShrink = "0";
     subtaskCb.checked = this.includeSubtasks;
     subtaskCb.addEventListener("change", () => {
       this.includeSubtasks = subtaskCb.checked;
@@ -65722,9 +65582,18 @@ var DashboardView = class extends import_obsidian8.ItemView {
     const subtaskSpan = subtaskWrapper.createEl("span");
     subtaskSpan.setText("\u0423\u0447\u0438\u0442\u044B\u0432\u0430\u0442\u044C \u043F\u043E\u0434\u0437\u0430\u0434\u0430\u0447\u0438");
     const deadlineWrapper = filterRow.createDiv();
-    deadlineWrapper.style.cssText = "display:flex;align-items:center;marginRight:12px;marginTop:4px;font-size:var(--font-smaller);cursor:pointer;white-space:nowrap";
+    deadlineWrapper.style.display = "inline-flex";
+    deadlineWrapper.style.alignItems = "center";
+    deadlineWrapper.style.marginRight = "12px";
+    deadlineWrapper.style.marginTop = "4px";
+    deadlineWrapper.style.fontSize = "var(--font-smaller)";
+    deadlineWrapper.style.cursor = "pointer";
+    deadlineWrapper.style.whiteSpace = "nowrap";
     const deadlineCb = deadlineWrapper.createEl("input", { attr: { type: "checkbox" } });
-    deadlineCb.style.cssText = "width:16px;height:16px;margin:0 4px 0 0;flex-shrink:0";
+    deadlineCb.style.width = "16px";
+    deadlineCb.style.height = "16px";
+    deadlineCb.style.margin = "0 4px 0 0";
+    deadlineCb.style.flexShrink = "0";
     deadlineCb.checked = this.showDeadlines;
     deadlineCb.addEventListener("change", () => {
       this.showDeadlines = deadlineCb.checked;
@@ -65741,11 +65610,7 @@ var DashboardView = class extends import_obsidian8.ItemView {
     const overdue = tasks.filter((t) => !t.completed && t.deadline && t.deadline < Date.now()).length;
     const completed = tasks.filter((t) => t.completed).length;
     const withDeadline = tasks.filter((t) => t.deadline).length;
-    const cardsRow = container.createDiv();
-    cardsRow.style.display = "grid";
-    cardsRow.style.gridTemplateColumns = "repeat(auto-fit, minmax(140px, 1fr))";
-    cardsRow.style.gap = "12px";
-    cardsRow.style.marginBottom = "20px";
+    const cardsRow = container.createDiv({ cls: "mailer-cards-grid" });
     const items = [
       { label: "\u0412\u0441\u0435\u0433\u043E \u0437\u0430\u0434\u0430\u0447", value: total, color: "var(--text-normal)" },
       { label: "\u041F\u0440\u043E\u0441\u0440\u043E\u0447\u0435\u043D\u043E", value: overdue, color: "#e74c3c" },
@@ -65754,25 +65619,23 @@ var DashboardView = class extends import_obsidian8.ItemView {
     ];
     for (const m of items) {
       const card = cardsRow.createDiv();
-      card.style.cssText = "background:var(--background-primary-alt);border-radius:8px;padding:16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.1)";
+      card.addClass("mailer-card");
       const v = card.createEl("div");
-      v.style.cssText = `font-size:32px;font-weight:bold;color:${m.color}`;
+      v.addClass("mailer-card-value");
+      v.style.color = m.color;
       v.setText(String(m.value));
       const l = card.createDiv();
-      l.style.cssText = "font-size:var(--font-smaller);margin-top:4px;color:var(--text-muted)";
+      l.addClass("mailer-card-label");
       l.setText(m.label);
     }
   }
   chartBox(container, title) {
-    const box = container.createDiv();
-    box.style.cssText = "background:var(--background-primary-alt);border-radius:8px;padding:12px;position:relative";
-    const titleRow = box.createDiv();
-    titleRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px";
-    const titleEl = titleRow.createDiv();
-    titleEl.style.cssText = "font-weight:bold;font-size:var(--font-ui-small)";
+    const box = container.createDiv({ cls: "mailer-chart-box" });
+    const titleRow = box.createDiv({ cls: "mailer-chart-title-row" });
+    const titleEl = titleRow.createDiv({ cls: "mailer-chart-title" });
     titleEl.setText(title);
     const dlBtn = titleRow.createEl("button", { text: "\u{1F4BE}", cls: "mailer-yougile-refresh-btn" });
-    dlBtn.style.cssText = "font-size:12px;padding:2px 6px";
+    dlBtn.addClass("mailer-dl-btn");
     const curIdx = this.charts.length;
     this.charts.push(null);
     dlBtn.addEventListener("click", async () => {
@@ -65785,8 +65648,7 @@ var DashboardView = class extends import_obsidian8.ItemView {
     return { box, el };
   }
   renderCharts(container, tasks) {
-    const grid = container.createDiv();
-    grid.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:16px";
+    const grid = container.createDiv({ cls: "mailer-chart-grid" });
     const columnCount = /* @__PURE__ */ new Map();
     for (const t of tasks) {
       const key = t.columnTitle || "\u0411\u0435\u0437 \u043A\u043E\u043B\u043E\u043D\u043A\u0438";
@@ -65947,7 +65809,8 @@ var DashboardView = class extends import_obsidian8.ItemView {
       };
       img.src = pngData;
     } catch (e) {
-      new import_obsidian8.Notice(`\u274C \u041E\u0448\u0438\u0431\u043A\u0430 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0430: ${e}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      new import_obsidian8.Notice(`\u274C \u041E\u0448\u0438\u0431\u043A\u0430 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0430: ${msg}`);
     }
   }
   async exportAllCharts() {
@@ -66125,19 +65988,19 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
       return;
     }
     const table = container.createEl("table");
-    table.style.cssText = "width:100%;border-collapse:collapse;font-size:var(--font-smaller)";
+    table.addClass("mailer-table");
     const thead = table.createEl("thead");
     const headRow = thead.createEl("tr");
     const headers = ["\u041A\u043E\u043B\u043E\u043D\u043A\u0430", "\u0421\u0443\u0442\u044C \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044F", "\u041F\u0440\u043E\u0431\u043B\u0435\u043C\u0430", "\u041E\u0436\u0438\u0434\u0430\u0435\u043C\u044B\u0439 \u044D\u0444\u0444\u0435\u043A\u0442", "\u041F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442", "\u0410\u0432\u0442\u043E\u0440", "\u0421\u0442\u0430\u0442\u0443\u0441"];
     for (const h of headers) {
       const th = headRow.createEl("th");
       th.setText(h);
-      th.style.cssText = "text-align:left;padding:4px 8px;border-bottom:2px solid var(--background-modifier-border);white-space:nowrap";
+      th.addClass("mailer-th-sm");
     }
     const tbody = table.createEl("tbody");
     for (const item of items) {
       const row = tbody.createEl("tr");
-      row.style.cssText = "cursor:pointer";
+      row.addClass("mailer-clickable");
       row.addEventListener("click", () => this.showDetailView(item));
       const cells = [
         item.columnTitle,
@@ -66151,7 +66014,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
       for (const c of cells) {
         const td = row.createEl("td");
         td.setText(c);
-        td.style.cssText = "padding:4px 8px;border-bottom:1px solid var(--background-modifier-border)";
+        td.addClass("mailer-td-sm");
       }
     }
   }
@@ -66165,7 +66028,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
     const columnIds = this.getColumnIds();
     const colLabel = container.createEl("label", { text: "\u041A\u043E\u043B\u043E\u043D\u043A\u0430" });
     const colSelect = container.createEl("select");
-    colSelect.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:8px";
+    colSelect.addClass("mailer-select");
     for (const cid of columnIds) {
       const title = this.getColumnTitle(cid);
       colSelect.createEl("option", { value: cid, text: title });
@@ -66180,24 +66043,24 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
       const label = container.createEl("label", { text: f.label });
       if (f.multiline) {
         const ta = container.createEl("textarea");
-        ta.style.cssText = "width:100%;box-sizing:border-box;min-height:60px";
+        ta.addClass("mailer-textarea");
         inputs[f.key] = ta;
       } else {
         const inp = container.createEl("input", { attr: { type: "text" } });
-        inp.style.cssText = "width:100%;box-sizing:border-box";
+        inp.addClass("mailer-input");
         inputs[f.key] = inp;
       }
     }
     const priorityLabel = container.createEl("label", { text: "\u041F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442" });
     const prioritySelect = container.createEl("select");
-    prioritySelect.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:8px";
+    prioritySelect.addClass("mailer-select");
     const priorityOptions = ["\u041A\u0440\u0438\u0442\u0438\u0447\u043D\u044B\u0439", "\u0412\u044B\u0441\u043E\u043A\u0438\u0439", "\u0421\u0440\u0435\u0434\u043D\u0438\u0439", "\u041F\u0440\u043E\u0441\u0442\u043E \u0438\u0434\u0435\u044F"];
     for (const opt of priorityOptions) {
       const optEl = prioritySelect.createEl("option", { value: opt, text: opt });
       if (opt === "\u0421\u0440\u0435\u0434\u043D\u0438\u0439") optEl.selected = true;
     }
     const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    btnRow.addClass("mailer-mt-12");
     const submitBtn = btnRow.createEl("button", { text: "\u2705 \u0421\u043E\u0437\u0434\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderView());
@@ -66261,7 +66124,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
     backBtn.addEventListener("click", () => this.renderView());
     container.createEl("h3", { text: `\u{1F4A1} ${item.title}` });
     const detailContainer = container.createDiv();
-    detailContainer.style.cssText = "font-size:var(--font-smaller);line-height:1.6";
+    detailContainer.addClass("mailer-detail-text");
     const fields = [
       { label: "\u041A\u043E\u043B\u043E\u043D\u043A\u0430", value: item.columnTitle },
       { label: "\u0421\u0443\u0442\u044C \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044F", value: item.title },
@@ -66274,19 +66137,19 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
     for (const f of fields) {
       if (!f.value) continue;
       const row = detailContainer.createDiv();
-      row.style.cssText = "padding:2px 0";
+      row.addClass("mailer-detail-row");
       row.createEl("strong", { text: `${f.label}: ` });
       row.createSpan({ text: f.value });
     }
     const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "16px";
+    btnRow.addClass("mailer-mt-12");
     const editBtn = btnRow.createEl("button", { text: "\u270F\uFE0F \u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     editBtn.addEventListener("click", () => this.showEditForm(item));
     const completeBtn = btnRow.createEl("button", {
       text: item.completed ? "\u{1F504} \u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0437\u0430\u043D\u043E\u0432\u043E" : "\u2705 \u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C",
       cls: "mailer-yougile-refresh-btn"
     });
-    completeBtn.style.marginLeft = "8px";
+    completeBtn.addClass("mailer-btn-ml-8");
     completeBtn.addEventListener("click", async () => {
       completeBtn.setText("\u23F3");
       completeBtn.setAttr("disabled", "true");
@@ -66325,7 +66188,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
     const columnIds = this.getColumnIds();
     const colLabel = container.createEl("label", { text: "\u041A\u043E\u043B\u043E\u043D\u043A\u0430" });
     const colSelect = container.createEl("select");
-    colSelect.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:8px";
+    colSelect.addClass("mailer-select");
     for (const cid of columnIds) {
       const title = this.getColumnTitle(cid);
       const opt = colSelect.createEl("option", { value: cid, text: title });
@@ -66347,11 +66210,11 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
       let el;
       if (f.multiline) {
         const ta = container.createEl("textarea");
-        ta.style.cssText = "width:100%;box-sizing:border-box;min-height:60px";
+        ta.addClass("mailer-textarea");
         el = ta;
       } else {
         const inp = container.createEl("input", { attr: { type: "text" } });
-        inp.style.cssText = "width:100%;box-sizing:border-box";
+        inp.addClass("mailer-input");
         el = inp;
       }
       el.value = prefill[f.key] || "";
@@ -66359,7 +66222,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
     }
     const priorityLabel = container.createEl("label", { text: "\u041F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442" });
     const prioritySelect = container.createEl("select");
-    prioritySelect.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:8px";
+    prioritySelect.addClass("mailer-select");
     const priorityOptions = ["\u041A\u0440\u0438\u0442\u0438\u0447\u043D\u044B\u0439", "\u0412\u044B\u0441\u043E\u043A\u0438\u0439", "\u0421\u0440\u0435\u0434\u043D\u0438\u0439", "\u041F\u0440\u043E\u0441\u0442\u043E \u0438\u0434\u0435\u044F"];
     for (const opt of priorityOptions) {
       const optEl = prioritySelect.createEl("option", { value: opt, text: opt });
@@ -66367,7 +66230,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
     }
     const assigneeSelector = new AssigneeSelector(container, "\u0410\u0432\u0442\u043E\u0440", () => this.plugin.db.getUsers(), item.assigneeName);
     const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    btnRow.addClass("mailer-mt-12");
     const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderView());
@@ -66457,6 +66320,9 @@ var ContactsView = class extends import_obsidian10.ItemView {
     this.createViewActive = false;
     this.detailViewActive = false;
     this.viewingContact = null;
+    this.searchQuery = "";
+    this.searchTimeout = null;
+    this.selectedColumnIds = /* @__PURE__ */ new Set();
     this.plugin = plugin;
   }
   getViewType() {
@@ -66472,12 +66338,29 @@ var ContactsView = class extends import_obsidian10.ItemView {
     const container = this.contentEl;
     container.addClass("mailer-yougile-container");
     this.containerElContent = container.createDiv();
+    this.selectedColumnIds = new Set(this.plugin.settings.contactSelectedColumnIds.split(",").filter(Boolean));
     await this.syncAndRender();
   }
   onClose() {
   }
-  getContacts() {
-    return this.plugin.contactDb.getAllContacts();
+  getColumnTitle(columnId) {
+    const col = this.plugin.db.getColumns().find((c) => c.id === columnId);
+    return col ? col.title : columnId;
+  }
+  getContacts(filter) {
+    let contacts = this.plugin.contactDb.getAllContacts();
+    if (filter) {
+      if (this.searchQuery) {
+        const q = this.searchQuery.toLowerCase();
+        contacts = contacts.filter(
+          (c) => c.name.toLowerCase().includes(q) || c.phone.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.organization.toLowerCase().includes(q)
+        );
+      }
+      if (this.selectedColumnIds.size > 0) {
+        contacts = contacts.filter((c) => this.selectedColumnIds.has(c.orgType));
+      }
+    }
+    return contacts;
   }
   renderView() {
     const container = this.containerElContent;
@@ -66491,31 +66374,76 @@ var ContactsView = class extends import_obsidian10.ItemView {
     refreshBtn.addEventListener("click", () => this.syncAndRender());
     const createBtn = header.createEl("button", { text: "\u2795 \u041D\u043E\u0432\u044B\u0439 \u043A\u043E\u043D\u0442\u0430\u043A\u0442", cls: "mailer-yougile-refresh-btn" });
     createBtn.addEventListener("click", () => this.showCreateForm());
-    const contacts = this.getContacts();
+    const syncStatus = container.createDiv({ cls: "mailer-yougile-task-meta", text: this.plugin.db.hasUnsynchronizedActions() ? "\u26A0 \u041D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E" : "\u2705 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E" });
+    const searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u0438\u043C\u0435\u043D\u0438, \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0443, email..." } });
+    searchInput.addClass("mailer-input");
+    searchInput.addClass("mailer-mb-8");
+    searchInput.value = this.searchQuery;
+    searchInput.addEventListener("input", () => {
+      this.searchQuery = searchInput.value;
+      if (this.searchTimeout) clearTimeout(this.searchTimeout);
+      this.searchTimeout = window.setTimeout(() => this.renderView(), 300);
+    });
+    const contactBoardId = this.plugin.settings.contactBoardId;
+    const columns = this.plugin.db.getColumns().filter((c) => !contactBoardId || c.boardId === contactBoardId);
+    if (columns.length > 0) {
+      const filterDiv = container.createDiv({ cls: "mailer-mb-8" });
+      filterDiv.createDiv({ text: "\u0422\u0438\u043F \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u0438:", cls: "mailer-yougile-task-meta" });
+      for (const col of columns) {
+        const wrapper = filterDiv.createEl("label");
+        wrapper.style.display = "inline-flex";
+        wrapper.style.alignItems = "center";
+        wrapper.style.marginRight = "12px";
+        wrapper.style.marginTop = "4px";
+        wrapper.style.fontSize = "var(--font-smaller)";
+        wrapper.style.cursor = "pointer";
+        wrapper.style.whiteSpace = "nowrap";
+        const cb = wrapper.createEl("input", { attr: { type: "checkbox" } });
+        cb.style.width = "16px";
+        cb.style.height = "16px";
+        cb.style.margin = "0 4px 0 0";
+        cb.style.flexShrink = "0";
+        cb.checked = this.selectedColumnIds.size === 0 || this.selectedColumnIds.has(col.id);
+        if (cb.checked) this.selectedColumnIds.add(col.id);
+        const span = wrapper.createEl("span");
+        span.setText(col.title);
+        cb.addEventListener("change", () => {
+          if (cb.checked) {
+            this.selectedColumnIds.add(col.id);
+          } else {
+            this.selectedColumnIds.delete(col.id);
+          }
+          this.plugin.settings.contactSelectedColumnIds = Array.from(this.selectedColumnIds).join(",");
+          this.plugin.saveSettings();
+          this.renderView();
+        });
+      }
+    }
+    let contacts = this.getContacts(true);
     if (contacts.length === 0) {
       container.createDiv({ text: "\u041D\u0435\u0442 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043E\u0432", cls: "mailer-yougile-empty" });
       return;
     }
     const table = container.createEl("table");
-    table.style.cssText = "width:100%;border-collapse:collapse;font-size:var(--font-smaller)";
+    table.addClass("mailer-table");
     const thead = table.createEl("thead");
     const headRow = thead.createEl("tr");
-    const headers = ["\u0418\u043C\u044F", "\u0422\u0435\u043B\u0435\u0444\u043E\u043D", "Email", "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", "\u0414\u043E\u043B\u0436\u043D\u043E\u0441\u0442\u044C"];
+    const headers = ["\u0418\u043C\u044F", "\u0422\u0435\u043B\u0435\u0444\u043E\u043D", "Email", "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", "\u0414\u043E\u043B\u0436\u043D\u043E\u0441\u0442\u044C", "\u0422\u0438\u043F \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u0438"];
     for (const h of headers) {
       const th = headRow.createEl("th");
       th.setText(h);
-      th.style.cssText = "text-align:left;padding:4px 8px;border-bottom:2px solid var(--background-modifier-border);white-space:nowrap";
+      th.addClass("mailer-th");
     }
     const tbody = table.createEl("tbody");
     for (const c of contacts) {
       const row = tbody.createEl("tr");
-      row.style.cssText = "cursor:pointer";
+      row.addClass("mailer-clickable");
       row.addEventListener("click", () => this.showDetailView(c));
-      const cells = [c.name, c.phone, c.email, c.organization, c.position];
+      const cells = [c.name, c.phone, c.email, c.organization, c.position, this.getColumnTitle(c.orgType)];
       for (const cell of cells) {
         const td = row.createEl("td");
         td.setText(cell);
-        td.style.cssText = "padding:4px 8px;border-bottom:1px solid var(--background-modifier-border)";
+        td.addClass("mailer-td-sm");
       }
     }
   }
@@ -66528,7 +66456,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
     container.createEl("h3", { text: "\u041D\u043E\u0432\u044B\u0439 \u043A\u043E\u043D\u0442\u0430\u043A\u0442" });
     const typeLabel = container.createEl("label", { text: "\u0422\u0438\u043F \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
     const typeSelect = container.createEl("select");
-    typeSelect.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:8px";
+    typeSelect.addClass("mailer-select");
     const boardCols = this.plugin.db.getColumns().filter((c) => c.boardId === this.plugin.settings.contactBoardId);
     for (const col of boardCols) {
       typeSelect.createEl("option", { value: col.id, text: col.title });
@@ -66544,14 +66472,14 @@ var ContactsView = class extends import_obsidian10.ItemView {
     for (const f of fields) {
       const label = container.createEl("label", { text: f.label });
       const inp = container.createEl("input", { attr: { type: "text", placeholder: f.placeholder } });
-      inp.style.cssText = "width:100%;box-sizing:border-box";
+      inp.addClass("mailer-input");
       inputs[f.key] = inp;
     }
     const notesLabel = container.createEl("label", { text: "\u041F\u0440\u0438\u043C\u0435\u0447\u0430\u043D\u0438\u0435" });
     const notesInput = container.createEl("textarea");
-    notesInput.style.cssText = "width:100%;box-sizing:border-box;min-height:60px";
+    notesInput.addClass("mailer-textarea");
     const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    btnRow.addClass("mailer-mt-12");
     const submitBtn = btnRow.createEl("button", { text: "\u2705 \u0421\u043E\u0437\u0434\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.renderView());
@@ -66565,6 +66493,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
       submitBtn.setAttr("disabled", "true");
       cancelBtn.setAttr("disabled", "true");
       const now = (/* @__PURE__ */ new Date()).toISOString();
+      const orgType = typeSelect.value;
       const contact = {
         id: generateContactId(),
         name: name2,
@@ -66572,6 +66501,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
         email: inputs.email.value.trim(),
         organization: inputs.organization.value.trim(),
         position: inputs.position.value.trim(),
+        orgType,
         notes: notesInput.value.trim(),
         createdAt: now,
         updatedAt: now,
@@ -66585,6 +66515,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
         email: contact.email,
         organization: contact.organization,
         position: contact.position,
+        orgType: contact.orgType,
         notes: contact.notes
       }, null, 2);
       try {
@@ -66632,29 +66563,31 @@ var ContactsView = class extends import_obsidian10.ItemView {
     backBtn.addEventListener("click", () => this.renderView());
     container.createEl("h3", { text: `\u{1F464} ${contact.name}` });
     const editBtn = container.createEl("button", { text: "\u270F\uFE0F \u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
-    editBtn.style.marginBottom = "12px";
+    editBtn.addClass("mailer-mb-8");
     editBtn.addEventListener("click", () => this.showEditForm(contact));
     const detailContainer = container.createDiv();
-    detailContainer.style.cssText = "font-size:var(--font-smaller);line-height:1.6";
+    detailContainer.addClass("mailer-detail-text");
     const fields = [
       { label: "\u0422\u0435\u043B\u0435\u0444\u043E\u043D", value: contact.phone },
       { label: "Email", value: contact.email },
       { label: "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", value: contact.organization },
       { label: "\u0414\u043E\u043B\u0436\u043D\u043E\u0441\u0442\u044C", value: contact.position },
+      { label: "\u0422\u0438\u043F \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u0438", value: this.getColumnTitle(contact.orgType) },
       { label: "\u041F\u0440\u0438\u043C\u0435\u0447\u0430\u043D\u0438\u0435", value: contact.notes }
     ];
     for (const f of fields) {
       if (!f.value) continue;
       const row = detailContainer.createDiv({ cls: "mailer-yougile-header" });
-      row.style.cssText = "padding:2px 0";
+      row.addClass("mailer-detail-row");
       const label = row.createEl("strong");
       label.setText(`${f.label}: `);
       row.createSpan({ text: f.value });
     }
     const qrContainer = container.createDiv();
-    qrContainer.style.cssText = "margin-top:16px;text-align:center";
+    qrContainer.addClass("mailer-text-center", "mailer-mt-12");
     const qrLabel = qrContainer.createEl("label", { text: "QR-\u043A\u043E\u0434 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u0430" });
-    qrLabel.style.cssText = "display:block;margin-bottom:8px;font-weight:bold";
+    qrLabel.style.cssText = "display:block;font-weight:bold";
+    qrLabel.addClass("mailer-mb-8");
     const qrCanvas = qrContainer.createEl("canvas", { attr: { width: 250, height: 250 } });
     qrCanvas.style.cssText = "width:250px;height:250px;margin:0 auto";
     const vcard = [
@@ -66679,7 +66612,6 @@ var ContactsView = class extends import_obsidian10.ItemView {
     });
   }
   showEditForm(contact) {
-    var _a;
     this.detailViewActive = true;
     const container = this.containerElContent;
     container.empty();
@@ -66688,12 +66620,11 @@ var ContactsView = class extends import_obsidian10.ItemView {
     container.createEl("h3", { text: `\u270F\uFE0F ${contact.name}` });
     const typeLabel = container.createEl("label", { text: "\u0422\u0438\u043F \u043E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
     const typeSelect = container.createEl("select");
-    typeSelect.style.cssText = "width:100%;box-sizing:border-box;margin-bottom:8px";
+    typeSelect.addClass("mailer-select");
     const boardCols = this.plugin.db.getColumns().filter((c) => c.boardId === this.plugin.settings.contactBoardId);
-    const currentCol = (_a = this.plugin.db.getTasks().find((t) => t.id === contact.taskId)) == null ? void 0 : _a.columnId;
     for (const col of boardCols) {
       const opt = typeSelect.createEl("option", { value: col.id, text: col.title });
-      if (col.id === currentCol) opt.selected = true;
+      if (col.id === contact.orgType) opt.selected = true;
     }
     const fields = [
       { label: "\u0418\u043C\u044F", key: "name", placeholder: "\u0424\u0418\u041E" },
@@ -66713,16 +66644,16 @@ var ContactsView = class extends import_obsidian10.ItemView {
     for (const f of fields) {
       const label = container.createEl("label", { text: f.label });
       const inp = container.createEl("input", { attr: { type: "text", placeholder: f.placeholder } });
-      inp.style.cssText = "width:100%;box-sizing:border-box";
+      inp.addClass("mailer-input");
       inp.value = prefill[f.key] || "";
       inputs[f.key] = inp;
     }
     const notesLabel = container.createEl("label", { text: "\u041F\u0440\u0438\u043C\u0435\u0447\u0430\u043D\u0438\u0435" });
     const notesInput = container.createEl("textarea");
-    notesInput.style.cssText = "width:100%;box-sizing:border-box;min-height:60px";
+    notesInput.addClass("mailer-textarea");
     notesInput.value = contact.notes;
     const btnRow = container.createDiv({ cls: "mailer-yougile-header" });
-    btnRow.style.marginTop = "12px";
+    btnRow.addClass("mailer-mt-12");
     const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
     cancelBtn.addEventListener("click", () => this.showDetailView(contact));
@@ -66735,6 +66666,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
       saveBtn.setText("\u23F3");
       saveBtn.setAttr("disabled", "true");
       cancelBtn.setAttr("disabled", "true");
+      const orgType = typeSelect.value;
       const now = (/* @__PURE__ */ new Date()).toISOString();
       const updated = {
         name: name2,
@@ -66742,6 +66674,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
         email: inputs.email.value.trim(),
         organization: inputs.organization.value.trim(),
         position: inputs.position.value.trim(),
+        orgType,
         notes: notesInput.value.trim(),
         updatedAt: now
       };
@@ -66753,6 +66686,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
         email: updated.email,
         organization: updated.organization,
         position: updated.position,
+        orgType,
         notes: updated.notes
       }, null, 2);
       try {
@@ -66804,6 +66738,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
       new import_obsidian10.Notice(`YouGile: \u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u2014 ${msg}`);
     }
     this.plugin.contactDb.syncFromTasks(this.plugin.db.getTasks());
+    this.selectedColumnIds = new Set(this.plugin.settings.contactSelectedColumnIds.split(",").filter(Boolean));
     this.renderView();
   }
 };
@@ -66820,7 +66755,7 @@ function registerCommands(plugin) {
         return;
       }
       plugin.activateView();
-      setTimeout(() => {
+      window.setTimeout(() => {
         const leaf = plugin.app.workspace.getLeavesOfType(TASKS_VIEW_TYPE).first();
         const view = leaf == null ? void 0 : leaf.view;
         if (view instanceof TasksView) {
@@ -67404,7 +67339,7 @@ var ContactDatabase = class {
   }
   /** Синхронизирует задачи YouGile (type=contact) с локальной БД контактов */
   syncFromTasks(tasks) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
     let changed = false;
     for (const task of tasks) {
       if (!task.description) continue;
@@ -67426,7 +67361,8 @@ var ContactDatabase = class {
           existing.email = String((_c = parsed.email) != null ? _c : existing.email);
           existing.organization = String((_d = parsed.organization) != null ? _d : existing.organization);
           existing.position = String((_e = parsed.position) != null ? _e : existing.position);
-          existing.notes = String((_f = parsed.notes) != null ? _f : existing.notes);
+          existing.orgType = task.columnId || String((_f = parsed.orgType) != null ? _f : existing.orgType);
+          existing.notes = String((_g = parsed.notes) != null ? _g : existing.notes);
           existing.updatedAt = task.updatedAt || (/* @__PURE__ */ new Date()).toISOString();
           existing.sync_status = "synced";
           changed = true;
@@ -67434,12 +67370,13 @@ var ContactDatabase = class {
       } else {
         this.data.contacts.push({
           id: contactId,
-          name: String((_g = parsed.name) != null ? _g : task.title),
-          phone: String((_h = parsed.phone) != null ? _h : ""),
-          email: String((_i = parsed.email) != null ? _i : ""),
-          organization: String((_j = parsed.organization) != null ? _j : ""),
-          position: String((_k = parsed.position) != null ? _k : ""),
-          notes: String((_l = parsed.notes) != null ? _l : ""),
+          name: String((_h = parsed.name) != null ? _h : task.title),
+          phone: String((_i = parsed.phone) != null ? _i : ""),
+          email: String((_j = parsed.email) != null ? _j : ""),
+          organization: String((_k = parsed.organization) != null ? _k : ""),
+          position: String((_l = parsed.position) != null ? _l : ""),
+          orgType: task.columnId || String((_m = parsed.orgType) != null ? _m : ""),
+          notes: String((_n = parsed.notes) != null ? _n : ""),
           createdAt: task.timestamp ? new Date(task.timestamp).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
           updatedAt: task.updatedAt || (/* @__PURE__ */ new Date()).toISOString(),
           taskId: task.id,
@@ -67515,7 +67452,7 @@ var LLMService = class {
         const now = Date.now();
         const timeSinceLastRequest = now - this.lastRequestTime;
         if (timeSinceLastRequest < this.minRequestInterval) {
-          await new Promise((resolve) => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
+          await new Promise((resolve) => window.setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
         }
         this.lastRequestTime = Date.now();
         return await fn();
@@ -67524,7 +67461,7 @@ var LLMService = class {
         const err = error;
         if (((_a = err.message) == null ? void 0 : _a.includes("429")) || err.status === 429) {
           const delay = baseDelay * Math.pow(2, attempt);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await new Promise((resolve) => window.setTimeout(resolve, delay));
           continue;
         }
         throw error;

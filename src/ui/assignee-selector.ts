@@ -13,7 +13,7 @@ export class AssigneeSelector {
     this.getUsers = getUsers;
     this.container = container;
     const labelEl = container.createEl('label', { text: label });
-    labelEl.style.marginTop = '8px';
+    labelEl.addClass('mailer-mt-8');
 
     const users = getUsers();
     const wrapper = container.createDiv();
@@ -21,9 +21,13 @@ export class AssigneeSelector {
 
     for (const u of users) {
       const row = wrapper.createDiv();
-      row.style.cssText = 'display:flex;align-items:center;gap:4px;padding:2px 0;font-size:var(--font-smaller);cursor:pointer';
+      row.addClass('mailer-flex-row');
       const cb = row.createEl('input', { attr: { type: 'checkbox' } });
-      cb.style.cssText = 'width:14px;height:14px;margin:0;flex-shrink:0;cursor:pointer';
+      cb.style.width = '16px';
+      cb.style.height = '16px';
+      cb.style.margin = '0 4px 0 0';
+      cb.style.flexShrink = '0';
+      cb.style.cursor = 'pointer';
       cb.value = u.id;
       if (prefillName && (u.name === prefillName || u.email === prefillName)) cb.checked = true;
       this.checkboxes.set(u.id, cb);
@@ -37,12 +41,10 @@ export class AssigneeSelector {
     }
 
     const emailRow = container.createDiv();
-    emailRow.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:var(--font-smaller)';
+    emailRow.addClass('mailer-flex-row');
     const emailLabel = emailRow.createEl('span');
     emailLabel.setText('Или email:');
-    emailLabel.style.flexShrink = '0';
     this.emailInput = emailRow.createEl('input', { attr: { type: 'text', placeholder: 'user@example.com' } });
-    this.emailInput.style.cssText = 'flex:1;min-width:0';
     if (prefillName && !Array.from(this.checkboxes.values()).some(cb => cb.checked)) {
       this.emailInput.value = prefillName;
     }

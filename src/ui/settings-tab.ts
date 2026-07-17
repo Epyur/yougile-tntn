@@ -66,19 +66,13 @@ export class YouGileSettingTab extends PluginSettingTab {
             this.tryAutoAuth();
           }));
 
-      new Setting(body)
+      const passwordSetting = new Setting(body)
         .setName('Пароль')
-        .setDesc('Пароль от аккаунта YouGile (хранится защищённо)')
-        .addText(text => {
-          text.inputEl.type = 'password';
-          text
-            .setPlaceholder('••••••••')
-            .setValue('')
-            .onChange((value) => {
-              this.plugin.savePassword(value);
-              this.tryAutoAuth();
-            });
-          return text;
+        .setDesc('Пароль от аккаунта YouGile (хранится защищённо)');
+      new SecretComponent(this.app, passwordSetting.controlEl)
+        .onChange((value) => {
+          this.plugin.savePassword(value);
+          this.tryAutoAuth();
         });
 
       new Setting(body)
@@ -116,8 +110,6 @@ export class YouGileSettingTab extends PluginSettingTab {
       const projectSetting = new Setting(body).setName('Проект').setDesc('Проект для мероприятий');
       const projectSelect = projectSetting.descEl.parentElement!.createEl('select');
       projectSelect.addClass('dropdown');
-      projectSelect.style.maxWidth = '100%';
-      projectSelect.style.marginTop = '4px';
       this.populateProjectDropdown(projectSelect, this.plugin.settings.calendarProjectId);
       projectSelect.addEventListener('change', async () => {
         this.plugin.settings.calendarProjectId = projectSelect.value;
@@ -128,8 +120,6 @@ export class YouGileSettingTab extends PluginSettingTab {
       const boardSetting = new Setting(body).setName('Доска').setDesc('Доска для мероприятий');
       const boardSelect = boardSetting.descEl.parentElement!.createEl('select');
       boardSelect.addClass('dropdown');
-      boardSelect.style.maxWidth = '100%';
-      boardSelect.style.marginTop = '4px';
       this.populateBoardDropdown(boardSelect, this.plugin.settings.calendarProjectId, this.plugin.settings.calendarBoardId);
       boardSelect.addEventListener('change', async () => {
         this.plugin.settings.calendarBoardId = boardSelect.value;
@@ -142,8 +132,6 @@ export class YouGileSettingTab extends PluginSettingTab {
       const projectSetting = new Setting(body).setName('Проект').setDesc('Проект для документов');
       const projectSelect = projectSetting.descEl.parentElement!.createEl('select');
       projectSelect.addClass('dropdown');
-      projectSelect.style.maxWidth = '100%';
-      projectSelect.style.marginTop = '4px';
       this.populateProjectDropdown(projectSelect, this.plugin.settings.docsProjectId);
       projectSelect.addEventListener('change', async () => {
         this.plugin.settings.docsProjectId = projectSelect.value;
@@ -154,8 +142,6 @@ export class YouGileSettingTab extends PluginSettingTab {
       const boardSetting = new Setting(body).setName('Доска').setDesc('Доска для документов');
       const boardSelect = boardSetting.descEl.parentElement!.createEl('select');
       boardSelect.addClass('dropdown');
-      boardSelect.style.maxWidth = '100%';
-      boardSelect.style.marginTop = '4px';
       this.populateBoardDropdown(boardSelect, this.plugin.settings.docsProjectId, this.plugin.settings.docsBoardId);
       boardSelect.addEventListener('change', async () => {
         this.plugin.settings.docsBoardId = boardSelect.value;
@@ -171,8 +157,6 @@ export class YouGileSettingTab extends PluginSettingTab {
       const projectSetting = new Setting(body).setName('Проект').setDesc('Проект для писем');
       const projectSelect = projectSetting.descEl.parentElement!.createEl('select');
       projectSelect.addClass('dropdown');
-      projectSelect.style.maxWidth = '100%';
-      projectSelect.style.marginTop = '4px';
       this.populateProjectDropdown(projectSelect, this.plugin.settings.emailProjectId);
       projectSelect.addEventListener('change', async () => {
         this.plugin.settings.emailProjectId = projectSelect.value;
@@ -183,8 +167,6 @@ export class YouGileSettingTab extends PluginSettingTab {
       const boardSetting = new Setting(body).setName('Доска').setDesc('Доска для писем');
       const boardSelect = boardSetting.descEl.parentElement!.createEl('select');
       boardSelect.addClass('dropdown');
-      boardSelect.style.maxWidth = '100%';
-      boardSelect.style.marginTop = '4px';
       this.populateBoardDropdown(boardSelect, this.plugin.settings.emailProjectId, this.plugin.settings.emailBoardId);
       boardSelect.addEventListener('change', async () => {
         this.plugin.settings.emailBoardId = boardSelect.value;
@@ -216,21 +198,15 @@ export class YouGileSettingTab extends PluginSettingTab {
       // Sub-block 4.2
       this.renderSubheading(body, 'Настройки AI помощника');
 
-      new Setting(body)
+      const llmKeySetting = new Setting(body)
         .setName('API ключ')
-        .setDesc('API ключ для OpenAI-совместимого API')
-        .addText(text => {
-          text.inputEl.type = 'password';
-          text
-            .setPlaceholder('sk-...')
-            .setValue('')
-            .onChange((value) => {
-              const secretName = `yougile-llm-${Date.now()}`;
-              this.plugin.saveSecret(secretName, value);
-              this.plugin.settings.llmApiKeySecret = secretName;
-              this.plugin.saveSettings();
-            });
-          return text;
+        .setDesc('API ключ для OpenAI-совместимого API');
+      new SecretComponent(this.app, llmKeySetting.controlEl)
+        .onChange((value) => {
+          const secretName = `yougile-llm-${Date.now()}`;
+          this.plugin.saveSecret(secretName, value);
+          this.plugin.settings.llmApiKeySecret = secretName;
+          this.plugin.saveSettings();
         });
 
       new Setting(body)
@@ -307,8 +283,6 @@ export class YouGileSettingTab extends PluginSettingTab {
       const projectSetting = new Setting(body).setName('Проект').setDesc('Проект для контактов');
       const projectSelect = projectSetting.descEl.parentElement!.createEl('select');
       projectSelect.addClass('dropdown');
-      projectSelect.style.maxWidth = '100%';
-      projectSelect.style.marginTop = '4px';
       this.populateProjectDropdown(projectSelect, this.plugin.settings.contactProjectId);
       projectSelect.addEventListener('change', async () => {
         this.plugin.settings.contactProjectId = projectSelect.value;
@@ -319,8 +293,6 @@ export class YouGileSettingTab extends PluginSettingTab {
       const boardSetting = new Setting(body).setName('Доска').setDesc('Доска для контактов');
       const boardSelect = boardSetting.descEl.parentElement!.createEl('select');
       boardSelect.addClass('dropdown');
-      boardSelect.style.maxWidth = '100%';
-      boardSelect.style.marginTop = '4px';
       this.populateBoardDropdown(boardSelect, this.plugin.settings.contactProjectId, this.plugin.settings.contactBoardId);
       boardSelect.addEventListener('change', async () => {
         this.plugin.settings.contactBoardId = boardSelect.value;
@@ -360,10 +332,10 @@ export class YouGileSettingTab extends PluginSettingTab {
     renderBody: (body: HTMLElement) => void,
   ): void {
     const block = container.createDiv();
-    block.style.marginBottom = '8px';
+    block.addClass('mailer-mb-8');
 
     const header = block.createDiv();
-    header.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--background-modifier-border);cursor:pointer;user-select:none';
+    header.addClass('mailer-block-header');
 
     let bodyEl: HTMLElement | null = null;
     let collapsed = false;
@@ -371,12 +343,12 @@ export class YouGileSettingTab extends PluginSettingTab {
     if (collapsible) {
       const arrow = header.createSpan();
       arrow.setText('▼');
-      arrow.style.cssText = 'font-size:10px;width:14px;text-align:center;flex-shrink:0';
+      arrow.addClass('mailer-arrow');
 
       const toggleCollapse = () => {
         collapsed = !collapsed;
         arrow.setText(collapsed ? '▶' : '▼');
-        if (bodyEl) bodyEl.style.display = collapsed ? 'none' : '';
+        if (bodyEl) bodyEl.classList.toggle('mailer-hidden', collapsed);
       };
 
       header.addEventListener('click', (e) => {
@@ -386,49 +358,49 @@ export class YouGileSettingTab extends PluginSettingTab {
       });
 
       const titleSpan = header.createSpan();
-      titleSpan.style.cssText = 'font-weight:bold;font-size:var(--font-ui-medium);flex:1';
+      titleSpan.addClass('mailer-title-medium');
       titleSpan.setText(title);
 
       if (hasToggle) {
         const toggleKey = this.getToggleKey(title);
         const toggle = header.createEl('input', { attr: { type: 'checkbox' } });
-        toggle.style.cssText = 'width:16px;height:16px;cursor:pointer;flex-shrink:0';
-        toggle.checked = toggleKey ? (this.plugin.settings as any)[toggleKey] !== false : true;
+        toggle.addClass('mailer-cb');
+        toggle.checked = toggleKey ? (this.plugin.settings as unknown as Record<string, unknown>)[toggleKey] !== false : true;
         toggle.addEventListener('change', async (e) => {
           e.stopPropagation();
           if (toggleKey) {
-            (this.plugin.settings as any)[toggleKey] = toggle.checked;
+            (this.plugin.settings as unknown as Record<string, unknown>)[toggleKey] = toggle.checked;
             await this.plugin.saveSettings();
           }
-          if (bodyEl) bodyEl.style.display = toggle.checked ? '' : 'none';
+          if (bodyEl) bodyEl.classList.toggle('mailer-hidden', !toggle.checked);
           if (!toggle.checked) collapsed = true;
         });
         if (!toggle.checked) collapsed = true;
       }
 
       bodyEl = block.createDiv();
-      bodyEl.style.marginLeft = '18px';
-      if (collapsed) bodyEl.style.display = 'none';
+      bodyEl.addClass('mailer-ml-18');
+      if (collapsed) bodyEl.addClass('mailer-hidden');
       renderBody(bodyEl);
     } else {
       const titleSpan = header.createSpan();
-      titleSpan.style.cssText = 'font-weight:bold;font-size:var(--font-ui-medium);flex:1';
+      titleSpan.addClass('mailer-title-medium');
       titleSpan.setText(title);
 
       if (hasToggle) {
         const toggleKey = this.getToggleKey(title);
         const toggle = header.createEl('input', { attr: { type: 'checkbox' } });
-        toggle.style.cssText = 'width:16px;height:16px;cursor:pointer;flex-shrink:0';
-        toggle.checked = toggleKey ? (this.plugin.settings as any)[toggleKey] !== false : true;
+        toggle.addClass('mailer-cb');
+        toggle.checked = toggleKey ? (this.plugin.settings as unknown as Record<string, unknown>)[toggleKey] !== false : true;
         toggle.addEventListener('change', async () => {
           if (toggleKey) {
-            (this.plugin.settings as any)[toggleKey] = toggle.checked;
+            (this.plugin.settings as unknown as Record<string, unknown>)[toggleKey] = toggle.checked;
             await this.plugin.saveSettings();
           }
-          if (bodyEl) bodyEl.style.display = toggle.checked ? '' : 'none';
+          if (bodyEl) bodyEl.classList.toggle('mailer-hidden', !toggle.checked);
         });
         bodyEl = block.createDiv();
-        if (!toggle.checked) bodyEl.style.display = 'none';
+        if (!toggle.checked) bodyEl.addClass('mailer-hidden');
         renderBody(bodyEl);
       } else {
         bodyEl = block.createDiv();
@@ -439,7 +411,7 @@ export class YouGileSettingTab extends PluginSettingTab {
 
   private renderSubheading(container: HTMLElement, title: string): void {
     const el = container.createDiv();
-    el.style.cssText = 'font-weight:600;font-size:var(--font-smaller);color:var(--text-muted);padding:8px 0 4px;border-bottom:1px dashed var(--background-modifier-border);margin-top:8px';
+    el.addClass('mailer-subheading');
     el.setText(title);
   }
 

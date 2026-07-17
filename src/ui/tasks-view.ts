@@ -1,7 +1,7 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { CachedTask } from '../types/cache';
-import type { YouGileTaskFull } from '../types/yougile';
+import type { YouGileTaskFull, CreateTaskPayload } from '../types/yougile';
 import { AssigneeSelector } from './assignee-selector';
 
 function stripHtml(html: string): string {
@@ -72,12 +72,16 @@ export class TasksView extends ItemView {
     this.selectProject.addEventListener('change', () => {
       this.plugin.settings.selectedProjectId = this.selectProject.value;
       this.plugin.saveSettings();
+      this.populateFilters();
       this.renderFromCache();
     });
 
     this.selectBoard = filtersEl.createEl('select');
     this.selectBoard.addClass('dropdown');
-    this.selectBoard.addEventListener('change', () => this.renderFromCache());
+    this.selectBoard.addEventListener('change', () => {
+      this.populateFilters();
+      this.renderFromCache();
+    });
 
     this.selectColumn = filtersEl.createEl('select');
     this.selectColumn.addClass('dropdown');
@@ -108,12 +112,11 @@ export class TasksView extends ItemView {
     createBtn.addEventListener('click', () => this.showCreateForm());
 
     this.searchInput = container.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск по задачам...' } });
-    this.searchInput.style.width = '100%';
-    this.searchInput.style.boxSizing = 'border-box';
-    this.searchInput.style.marginBottom = '8px';
+    this.searchInput.addClass('mailer-input');
+    this.searchInput.addClass('mailer-mb-8');
     this.searchInput.addEventListener('input', () => this.renderFromCache());
 
-    const refreshBtn = headerEl.createEl('button', { text: 'Обновить', cls: 'mailer-yougile-refresh-btn' });
+    const refreshBtn = headerEl.createEl('button', { text: '🔄', cls: 'mailer-yougile-refresh-btn' });
     refreshBtn.addEventListener('click', () => this.syncAndRender());
 
     this.containerElContent = container.createDiv();
@@ -154,7 +157,8 @@ export class TasksView extends ItemView {
     }
     selP.value = savedProject || this.plugin.settings.selectedProjectId;
 
-    const boards = this.plugin.db.getBoards();
+    const selectedProjectId = this.selectProject.value;
+    const boards = this.plugin.db.getBoards().filter(b => !selectedProjectId || b.projectId === selectedProjectId);
     const selB = this.selectBoard;
     selB.empty();
     selB.createEl('option', { value: '', text: 'Все доски' });
@@ -242,7 +246,7 @@ export class TasksView extends ItemView {
       try {
         switch (action.type) {
           case 'create-task': {
-            const created = await this.plugin.client.createTask(action.payload as any);
+            const created = await this.plugin.client.createTask(action.payload as unknown as CreateTaskPayload);
             if (action.payload.completed) {
               await this.plugin.client.updateTask(created.id, { completed: true });
             }
@@ -258,7 +262,7 @@ export class TasksView extends ItemView {
         }
         this.plugin.db.removeOfflineAction(action.id);
         new Notice(`YouGile: Офлайн-действие "${action.type}" синхронизировано`);
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           break;
         }
@@ -355,7 +359,6 @@ export class TasksView extends ItemView {
       const indi = this.getDeadlineIndicator(task);
       if (indi.color) {
         const indiEl = taskEl.createSpan({ text: indi.symbol });
-        indiEl.style.marginRight = '6px';
       }
 
       const bodyEl = taskEl.createDiv({ cls: 'mailer-yougile-task-body' });
@@ -550,8 +553,7 @@ export class TasksView extends ItemView {
     const infoInput = addInfoRow.createEl('textarea', {
       attr: { placeholder: 'Введите текст дополнения...', rows: '3' },
     });
-    infoInput.style.width = '100%';
-    infoInput.style.boxSizing = 'border-box';
+    infoInput.addClass('mailer-textarea');
     const addInfoSubmitBtn = addInfoRow.createEl('button', { text: 'Добавить информацию', cls: 'mailer-yougile-refresh-btn' });
     addInfoSubmitBtn.addEventListener('click', async () => {
       const text = infoInput.value.trim();
@@ -566,7 +568,7 @@ export class TasksView extends ItemView {
         });
         new Notice('YouGile: Информация добавлена');
         this.renderTaskDetail(this.detailTaskId);
-      } catch (e) {
+      } catch (e: unknown) {
         console.error('YouGile add-info error:', e);
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -591,7 +593,7 @@ export class TasksView extends ItemView {
         await this.plugin.client.updateTask(this.detailTaskId, { completed });
         new Notice(completed ? 'YouGile: Задача завершена' : 'YouGile: Задача возобновлена');
         this.renderTaskDetail(this.detailTaskId);
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
             type: 'toggle-completed',
@@ -638,7 +640,7 @@ export class TasksView extends ItemView {
         await this.plugin.client.updateTask(this.detailTaskId, { description: updatedDesc });
         new Notice('YouGile: Файл прикреплён');
         this.renderTaskDetail(this.detailTaskId);
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
             type: 'upload-file',
@@ -711,18 +713,16 @@ export class TasksView extends ItemView {
 
     const nameLabel = container.createEl('label', { text: 'Название задачи' });
     const nameInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Введите название' } });
-    nameInput.style.width = '100%';
-    nameInput.style.boxSizing = 'border-box';
+    nameInput.addClass('mailer-input');
 
     const descLabel = container.createEl('label', { text: 'Описание' });
     const descInput = container.createEl('textarea', { attr: { placeholder: 'Описание задачи (опционально)', rows: '3' } });
-    descInput.style.width = '100%';
-    descInput.style.boxSizing = 'border-box';
+    descInput.addClass('mailer-textarea');
 
     const projects = this.plugin.db.getProjects();
     const projectLabel = container.createEl('label', { text: 'Проект' });
     const projectSelect = container.createEl('select');
-    projectSelect.style.width = '100%';
+    projectSelect.addClass('mailer-select');
     projectSelect.createEl('option', { value: '', text: '— выберите проект —' });
     for (const p of projects) {
       projectSelect.createEl('option', { value: p.id, text: p.title });
@@ -733,12 +733,12 @@ export class TasksView extends ItemView {
 
     const boardLabel = container.createEl('label', { text: 'Доска' });
     const boardSelect = container.createEl('select');
-    boardSelect.style.width = '100%';
+    boardSelect.addClass('mailer-select');
     boardSelect.createEl('option', { value: '', text: '— выберите доску —' });
 
     const columnLabel = container.createEl('label', { text: 'Колонка' });
     const columnSelect = container.createEl('select');
-    columnSelect.style.width = '100%';
+    columnSelect.addClass('mailer-select');
     columnSelect.createEl('option', { value: '', text: '— выберите колонку —' });
 
     projectSelect.addEventListener('change', () => {
@@ -777,8 +777,7 @@ export class TasksView extends ItemView {
 
     const deadlineLabel = container.createEl('label', { text: 'Дедлайн (дата, опционально)' });
     const deadlineInput = container.createEl('input', { attr: { type: 'date' } });
-    deadlineInput.style.width = '100%';
-    deadlineInput.style.boxSizing = 'border-box';
+    deadlineInput.addClass('mailer-input');
 
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
 
@@ -794,7 +793,7 @@ export class TasksView extends ItemView {
       submitBtn.setAttr('disabled', 'true');
       try {
         const assigned = assigneeSelector.getSelectedIds();
-        const payload: Record<string, unknown> = {
+        const payload: CreateTaskPayload = {
           title,
           description: descInput.value.trim() || undefined,
           columnId: selectedColumnId || undefined,
@@ -803,11 +802,11 @@ export class TasksView extends ItemView {
         if (deadlineVal) {
           payload.deadline = { deadline: new Date(deadlineVal).getTime(), withTime: false };
         }
-        await this.plugin.client.createTask(payload as any);
+        await this.plugin.client.createTask(payload);
         new Notice('Задача создана');
         this.createViewActive = false;
         this.syncAndRender();
-      } catch (e) {
+      } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
             type: 'create-task',
@@ -911,10 +910,9 @@ export class TasksView extends ItemView {
     }
 
     const inputRow = container.createDiv();
-    inputRow.style.width = '100%';
+    inputRow.addClass('mailer-fullwidth');
     const inputEl = inputRow.createEl('textarea', { attr: { placeholder: 'Сообщение...', rows: '2' } });
-    inputEl.style.width = '100%';
-    inputEl.style.boxSizing = 'border-box';
+    inputEl.addClass('mailer-textarea');
     const sendBtn = inputRow.createEl('button', { text: 'Отправить' });
     sendBtn.addEventListener('click', async () => {
       const text = inputEl.value.trim();

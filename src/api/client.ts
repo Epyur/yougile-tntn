@@ -63,7 +63,7 @@ export class YouGileClient {
     let response;
     try {
       response = await requestUrl(params);
-    } catch (e) {
+    } catch (e: unknown) {
       const statusMatch = e instanceof Error && e.message.match(/status (\d+)/);
       const status = statusMatch ? parseInt(statusMatch[1], 10) : 0;
       const body = e instanceof Error ? e.message.slice(0, 500) : String(e);
@@ -144,7 +144,7 @@ export class YouGileClient {
   async updateTask(id: string, payload: Record<string, unknown>): Promise<void> {
     try {
       await this.request<void>('PUT', `/tasks/${encodeURIComponent(id)}`, payload);
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('YouGile updateTask error:', e);
       throw e;
     }
@@ -153,7 +153,7 @@ export class YouGileClient {
   async updateTaskRaw(id: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       return await this.request<Record<string, unknown>>('PUT', `/tasks/${encodeURIComponent(id)}`, payload);
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('YouGile updateTask error:', e);
       throw e;
     }
@@ -216,7 +216,7 @@ export class YouGileClient {
       const json = response.json as { result: string; url: string; fullUrl: string };
       console.log('YouGile upload success:', json);
       return json;
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('YouGile upload error:', e);
       throw e;
     }

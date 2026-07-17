@@ -99,6 +99,7 @@ export class ContactDatabase {
           existing.email = String(parsed.email ?? existing.email);
           existing.organization = String(parsed.organization ?? existing.organization);
           existing.position = String(parsed.position ?? existing.position);
+          existing.orgType = task.columnId || String(parsed.orgType ?? existing.orgType);
           existing.notes = String(parsed.notes ?? existing.notes);
           existing.updatedAt = task.updatedAt || new Date().toISOString();
           existing.sync_status = 'synced';
@@ -112,6 +113,7 @@ export class ContactDatabase {
           email: String(parsed.email ?? ''),
           organization: String(parsed.organization ?? ''),
           position: String(parsed.position ?? ''),
+          orgType: task.columnId || String(parsed.orgType ?? ''),
           notes: String(parsed.notes ?? ''),
           createdAt: task.timestamp ? new Date(task.timestamp).toISOString() : new Date().toISOString(),
           updatedAt: task.updatedAt || new Date().toISOString(),

@@ -56,7 +56,7 @@ export class LLMService {
         const now = Date.now();
         const timeSinceLastRequest = now - this.lastRequestTime;
         if (timeSinceLastRequest < this.minRequestInterval) {
-          await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
+          await new Promise(resolve => window.setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
         }
         this.lastRequestTime = Date.now();
         return await fn();
@@ -65,7 +65,7 @@ export class LLMService {
         const err = error as { message?: string; status?: number };
         if (err.message?.includes('429') || err.status === 429) {
           const delay = baseDelay * Math.pow(2, attempt);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise(resolve => window.setTimeout(resolve, delay));
           continue;
         }
         throw error;
