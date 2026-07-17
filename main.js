@@ -67544,6 +67544,11 @@ var CHANGELOG = {
     '\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u0431\u0430\u0433 "e.isShown is not a function" \u2014 \u043C\u043E\u0434\u0430\u043B\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u043E\u0442\u043A\u0440\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0447\u0435\u0440\u0435\u0437 onLayoutReady',
     "\u041E\u0431\u043D\u043E\u0432\u043B\u0451\u043D AGENTS.md \u0441 \u043F\u0440\u0430\u0432\u0438\u043B\u0430\u043C\u0438 \u0432\u0435\u0440\u0441\u0438\u043E\u043D\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u044F \u0438 \u043A\u043E\u043C\u043C\u0438\u0442\u043E\u0432",
     "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u043F\u043E\u043B\u0435\u0439 \u043C\u043E\u0434\u0443\u043B\u044F \u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044F \u0441 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u043C\u0438"
+  ],
+  "0.2.2": [
+    `\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u0431\u0430\u0433 "Attempting to register an existing view type" \u043F\u043E\u0441\u043B\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u043F\u043B\u0430\u0433\u0438\u043D\u0430 updater'\u043E\u043C`,
+    "Updater: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u043F\u0443\u0442\u044C \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u044F \u0444\u0430\u0439\u043B\u043E\u0432 (TARGET_DIR vs TARGET_ID)",
+    "Updater: \u043E\u0447\u0438\u0441\u0442\u043A\u0430 require.cache \u043F\u0435\u0440\u0435\u0434 enablePlugin \u0434\u043B\u044F \u043F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439"
   ]
 };
 var ChangelogModal = class extends import_obsidian13.Modal {
@@ -67594,22 +67599,22 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
     await this.contactDb.init();
     this.llmService = new LLMService(this);
     this.addSettingTab(new YouGileSettingTab(this.app, this));
-    this.registerView(TASKS_VIEW_TYPE, (leaf) => new TasksView(leaf, this));
+    this.safeRegisterView(TASKS_VIEW_TYPE, (leaf) => new TasksView(leaf, this));
     if (this.settings.moduleCalendarEnabled) {
-      this.registerView(SCHEDULE_VIEW_TYPE, (leaf) => new ScheduleView(leaf, this));
+      this.safeRegisterView(SCHEDULE_VIEW_TYPE, (leaf) => new ScheduleView(leaf, this));
     }
     if (this.settings.moduleDocumentsEnabled) {
-      this.registerView(DOCUMENTS_VIEW_TYPE, (leaf) => new DocumentsView(leaf, this));
+      this.safeRegisterView(DOCUMENTS_VIEW_TYPE, (leaf) => new DocumentsView(leaf, this));
     }
     if (this.settings.moduleEmailsEnabled) {
-      this.registerView(EMAILS_VIEW_TYPE, (leaf) => new EmailsView(leaf, this));
+      this.safeRegisterView(EMAILS_VIEW_TYPE, (leaf) => new EmailsView(leaf, this));
     }
     if (this.settings.moduleDashboardEnabled) {
-      this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
+      this.safeRegisterView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
     }
-    this.registerView(SUGGESTIONS_VIEW_TYPE, (leaf) => new SuggestionsView(leaf, this));
+    this.safeRegisterView(SUGGESTIONS_VIEW_TYPE, (leaf) => new SuggestionsView(leaf, this));
     if (this.settings.moduleContactsEnabled) {
-      this.registerView(CONTACTS_VIEW_TYPE, (leaf) => new ContactsView(leaf, this));
+      this.safeRegisterView(CONTACTS_VIEW_TYPE, (leaf) => new ContactsView(leaf, this));
     }
     this.addRibbonIcon("list-todo", "YouGile", () => {
       this.activateView();
@@ -67643,6 +67648,12 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
       });
     }
     registerCommands(this);
+  }
+  safeRegisterView(type, viewCreator) {
+    try {
+      this.registerView(type, viewCreator);
+    } catch (e) {
+    }
   }
   onunload() {
     this.app.workspace.detachLeavesOfType(TASKS_VIEW_TYPE);

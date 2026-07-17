@@ -1,4 +1,4 @@
-import { App, Plugin, Notice, Modal, Setting } from 'obsidian';
+import { App, Plugin, Notice, Modal, Setting, WorkspaceLeaf } from 'obsidian';
 import { YouGileSettings, DEFAULT_SETTINGS } from './types/settings';
 import { YouGileClient } from './api/client';
 import { YouGileSettingTab } from './ui/settings-tab';
@@ -33,6 +33,11 @@ const CHANGELOG: Record<string, string[]> = {
     'Исправлен баг "e.isShown is not a function" — модалка обновления открывается через onLayoutReady',
     'Обновлён AGENTS.md с правилами версионирования и коммитов',
     'Синхронизация полей модуля Предложения с настройками',
+  ],
+  '0.2.2': [
+    'Исправлен баг "Attempting to register an existing view type" после перезапуска плагина updater\'ом',
+    'Updater: исправлен путь скачивания файлов (TARGET_DIR vs TARGET_ID)',
+    'Updater: очистка require.cache перед enablePlugin для применения изменений',
   ],
 };
 
@@ -106,22 +111,22 @@ export default class YouGilePlugin extends Plugin {
 
     this.addSettingTab(new YouGileSettingTab(this.app, this));
 
-    this.registerView(TASKS_VIEW_TYPE, (leaf) => new TasksView(leaf, this));
+    this.safeRegisterView(TASKS_VIEW_TYPE, (leaf) => new TasksView(leaf, this));
     if (this.settings.moduleCalendarEnabled) {
-      this.registerView(SCHEDULE_VIEW_TYPE, (leaf) => new ScheduleView(leaf, this));
+      this.safeRegisterView(SCHEDULE_VIEW_TYPE, (leaf) => new ScheduleView(leaf, this));
     }
     if (this.settings.moduleDocumentsEnabled) {
-      this.registerView(DOCUMENTS_VIEW_TYPE, (leaf) => new DocumentsView(leaf, this));
+      this.safeRegisterView(DOCUMENTS_VIEW_TYPE, (leaf) => new DocumentsView(leaf, this));
     }
     if (this.settings.moduleEmailsEnabled) {
-      this.registerView(EMAILS_VIEW_TYPE, (leaf) => new EmailsView(leaf, this));
+      this.safeRegisterView(EMAILS_VIEW_TYPE, (leaf) => new EmailsView(leaf, this));
     }
     if (this.settings.moduleDashboardEnabled) {
-      this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
+      this.safeRegisterView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
     }
-    this.registerView(SUGGESTIONS_VIEW_TYPE, (leaf) => new SuggestionsView(leaf, this));
+    this.safeRegisterView(SUGGESTIONS_VIEW_TYPE, (leaf) => new SuggestionsView(leaf, this));
     if (this.settings.moduleContactsEnabled) {
-      this.registerView(CONTACTS_VIEW_TYPE, (leaf) => new ContactsView(leaf, this));
+      this.safeRegisterView(CONTACTS_VIEW_TYPE, (leaf) => new ContactsView(leaf, this));
     }
 
     this.addRibbonIcon('list-todo', 'YouGile', () => {
@@ -161,6 +166,14 @@ export default class YouGilePlugin extends Plugin {
     }
 
     registerCommands(this);
+  }
+
+  private safeRegisterView(type: string, viewCreator: (leaf: WorkspaceLeaf) => any): void {
+    try {
+      this.registerView(type as any, viewCreator as any);
+    } catch {
+      // view type already registered (e.g. after updater disablePlugin/enablePlugin)
+    }
   }
 
   onunload(): void {
