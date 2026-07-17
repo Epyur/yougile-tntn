@@ -6,6 +6,7 @@ import { DOCUMENTS_VIEW_TYPE } from './ui/documents-view';
 import { EMAILS_VIEW_TYPE } from './ui/emails-view';
 import { DASHBOARD_VIEW_TYPE } from './ui/dashboard-view';
 import { SUGGESTIONS_VIEW_TYPE, SuggestionsView } from './ui/suggestions-view';
+import { CONTACTS_VIEW_TYPE } from './ui/contacts-view';
 
 export function registerCommands(plugin: YouGilePlugin): void {
   plugin.addCommand({
@@ -93,6 +94,16 @@ export function registerCommands(plugin: YouGilePlugin): void {
     checkCallback: (checking: boolean) => {
       if (checking) return true;
       plugin.activateSuggestionsView();
+    },
+  });
+
+  plugin.addCommand({
+    id: 'open-contacts',
+    name: 'Открыть контакты',
+    checkCallback: (checking: boolean) => {
+      if (!plugin.settings.moduleContactsEnabled) return false;
+      if (checking) return true;
+      plugin.activateContactsView();
     },
   });
 }

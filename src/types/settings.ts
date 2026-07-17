@@ -31,6 +31,10 @@ export interface YouGileSettings {
   moduleDocumentsEnabled: boolean;
   moduleEmailsEnabled: boolean;
   moduleDashboardEnabled: boolean;
+  moduleContactsEnabled: boolean;
+  contactProjectId: string;
+  contactBoardId: string;
+  contactDbPath: string;
 }
 
 export const DEFAULT_SETTINGS: YouGileSettings = {
@@ -60,4 +64,8 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   moduleDocumentsEnabled: true,
   moduleEmailsEnabled: true,
   moduleDashboardEnabled: true,
+  moduleContactsEnabled: true,
+  contactProjectId: '',
+  contactBoardId: '',
+  contactDbPath: 'contacts_data.json',
 };

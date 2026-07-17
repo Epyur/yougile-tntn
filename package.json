@@ -24,6 +24,7 @@
   "dependencies": {
     "apexcharts": "^5.16.0",
     "docx": "^9.7.1",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "qrcode": "^1.5.4"
   }
 }

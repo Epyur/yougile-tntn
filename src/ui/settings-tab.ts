@@ -298,7 +298,44 @@ export class YouGileSettingTab extends PluginSettingTab {
           }));
     });
 
-    // ===== Block 5: Дашборд =====
+    // ===== Block 5: Контакты =====
+    this.renderCollapsibleBlock(containerEl, 'Управление контактами', true, true, (body) => {
+      const projectSetting = new Setting(body).setName('Проект').setDesc('Проект для контактов');
+      const projectSelect = projectSetting.descEl.parentElement!.createEl('select');
+      projectSelect.addClass('dropdown');
+      projectSelect.style.maxWidth = '100%';
+      projectSelect.style.marginTop = '4px';
+      this.populateProjectDropdown(projectSelect, this.plugin.settings.contactProjectId);
+      projectSelect.addEventListener('change', async () => {
+        this.plugin.settings.contactProjectId = projectSelect.value;
+        await this.plugin.saveSettings();
+        this.populateBoardDropdown(boardSelect, this.plugin.settings.contactProjectId, this.plugin.settings.contactBoardId);
+      });
+
+      const boardSetting = new Setting(body).setName('Доска').setDesc('Доска для контактов');
+      const boardSelect = boardSetting.descEl.parentElement!.createEl('select');
+      boardSelect.addClass('dropdown');
+      boardSelect.style.maxWidth = '100%';
+      boardSelect.style.marginTop = '4px';
+      this.populateBoardDropdown(boardSelect, this.plugin.settings.contactProjectId, this.plugin.settings.contactBoardId);
+      boardSelect.addEventListener('change', async () => {
+        this.plugin.settings.contactBoardId = boardSelect.value;
+        await this.plugin.saveSettings();
+      });
+
+      new Setting(body)
+        .setName('Путь к базе контактов')
+        .setDesc('Путь к файлу contacts_data.json относительно хранилища Obsidian')
+        .addText(text => text
+          .setPlaceholder('contacts_data.json')
+          .setValue(this.plugin.settings.contactDbPath)
+          .onChange(async (value) => {
+            this.plugin.settings.contactDbPath = value || 'contacts_data.json';
+            await this.plugin.saveSettings();
+          }));
+    });
+
+    // ===== Block 6: Дашборд =====
     this.renderCollapsibleBlock(containerEl, 'Модуль дашборда', false, true, (body) => {
       new Setting(body)
         .setName('Дашборд')
@@ -408,6 +445,7 @@ export class YouGileSettingTab extends PluginSettingTab {
       'Календарь и расписание мероприятий': 'moduleCalendarEnabled',
       'Управление документами': 'moduleDocumentsEnabled',
       'Управление письмами': 'moduleEmailsEnabled',
+      'Управление контактами': 'moduleContactsEnabled',
       'Модуль дашборда': 'moduleDashboardEnabled',
     };
     return map[blockTitle] || '';

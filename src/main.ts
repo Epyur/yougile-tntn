@@ -8,9 +8,11 @@ import { DOCUMENTS_VIEW_TYPE, DocumentsView } from './ui/documents-view';
 import { EMAILS_VIEW_TYPE, EmailsView } from './ui/emails-view';
 import { DASHBOARD_VIEW_TYPE, DashboardView } from './ui/dashboard-view';
 import { SUGGESTIONS_VIEW_TYPE, SuggestionsView } from './ui/suggestions-view';
+import { CONTACTS_VIEW_TYPE, ContactsView } from './ui/contacts-view';
 import { registerCommands } from './commands';
 import { LocalDatabase } from './database/db';
 import { EmailDatabase } from './database/email-db';
+import { ContactDatabase } from './database/contact-db';
 import { LLMService } from './services/llm-service';
 
 const PASSWORD_SECRET_ID = 'yougile-password';
@@ -20,6 +22,7 @@ export default class YouGilePlugin extends Plugin {
   client!: YouGileClient;
   db!: LocalDatabase;
   emailDb!: EmailDatabase;
+  contactDb!: ContactDatabase;
   llmService!: LLMService;
 
   async onload(): Promise<void> {
@@ -37,6 +40,9 @@ export default class YouGilePlugin extends Plugin {
 
     this.emailDb = new EmailDatabase(this.app, this.settings.emailDbPath);
     await this.emailDb.init();
+
+    this.contactDb = new ContactDatabase(this.app, this.settings.contactDbPath);
+    await this.contactDb.init();
 
     this.llmService = new LLMService(this);
 
@@ -56,6 +62,9 @@ export default class YouGilePlugin extends Plugin {
       this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
     }
     this.registerView(SUGGESTIONS_VIEW_TYPE, (leaf) => new SuggestionsView(leaf, this));
+    if (this.settings.moduleContactsEnabled) {
+      this.registerView(CONTACTS_VIEW_TYPE, (leaf) => new ContactsView(leaf, this));
+    }
 
     this.addRibbonIcon('list-todo', 'YouGile', () => {
       this.activateView();
@@ -87,6 +96,11 @@ export default class YouGilePlugin extends Plugin {
     this.addRibbonIcon('lightbulb', 'Предложения', () => {
       this.activateSuggestionsView();
     });
+    if (this.settings.moduleContactsEnabled) {
+      this.addRibbonIcon('user', 'Контакты', () => {
+        this.activateContactsView();
+      });
+    }
 
     registerCommands(this);
   }
@@ -98,6 +112,7 @@ export default class YouGilePlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(EMAILS_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(DASHBOARD_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(SUGGESTIONS_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(CONTACTS_VIEW_TYPE);
   }
 
   async loadSettings(): Promise<void> {
@@ -236,6 +251,20 @@ export default class YouGilePlugin extends Plugin {
       leaf = workspace.getRightLeaf(false) ?? undefined;
       if (leaf) {
         await leaf.setViewState({ type: SUGGESTIONS_VIEW_TYPE, active: true });
+      }
+    }
+    if (leaf) {
+      workspace.revealLeaf(leaf);
+    }
+  }
+
+  async activateContactsView(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(CONTACTS_VIEW_TYPE).first();
+    if (!leaf) {
+      leaf = workspace.getRightLeaf(false) ?? undefined;
+      if (leaf) {
+        await leaf.setViewState({ type: CONTACTS_VIEW_TYPE, active: true });
       }
     }
     if (leaf) {
