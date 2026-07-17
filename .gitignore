@@ -1,8 +1,5 @@
 node_modules/
-main.js
 main.js.map
-manifest.json
-styles.css
 data.json
 *.log
 .rules

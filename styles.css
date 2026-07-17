@@ -1,0 +1,144 @@
+.mailer-yougile-container {
+  padding: 12px;
+}
+
+.mailer-yougile-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mailer-yougile-refresh-btn {
+  cursor: pointer;
+}
+
+.mailer-yougile-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-muted);
+}
+
+.mailer-yougile-task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+}
+
+.mailer-yougile-task-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.mailer-yougile-task-title {
+  flex: 1;
+  font-size: var(--font-ui-small);
+  line-height: 1.4;
+  color: var(--text-normal);
+}
+
+.mailer-yougile-task-title.completed {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.mailer-yougile-task-meta {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.mailer-yougile-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.mailer-yougile-error {
+  padding: 12px;
+  color: var(--text-error);
+  background-color: var(--background-modifier-error);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.mailer-yougile-task-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.mailer-yougile-container select.dropdown {
+  max-width: 140px;
+  font-size: var(--font-smaller);
+}
+
+.mailer-yougile-container input,
+.mailer-yougile-container textarea,
+.mailer-yougile-container select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mailer-yougile-container label {
+  display: block;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+}
+
+.mailer-yougile-fullwidth {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.mailer-yougile-sync-indicator {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background-color: var(--background-modifier-hover);
+}
+
+.mailer-yougile-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.mailer-yougile-calendar-day-header {
+  text-align: center;
+  font-weight: bold;
+  padding: 4px;
+  font-size: var(--font-smaller);
+}
+
+.mailer-yougile-calendar-cell {
+  border: 1px solid var(--background-modifier-border);
+  padding: 4px;
+  min-height: 70px;
+  cursor: pointer;
+  font-size: var(--font-smaller);
+  overflow: hidden;
+}
+
+.mailer-yougile-calendar-cell:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.mailer-yougile-calendar-event {
+  font-size: 10px;
+  padding: 1px 2px;
+  margin-bottom: 1px;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}

@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-yougile",
+  "name": "YouGile Integration",
+  "version": "0.1.0",
+  "minAppVersion": "1.11.4",
+  "description": "Интеграция с YouGile для управления задачами.",
+  "author": "",
+  "isDesktopOnly": true
+}
