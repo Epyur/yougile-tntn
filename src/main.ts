@@ -1,4 +1,4 @@
-import { Plugin, Notice } from 'obsidian';
+import { App, Plugin, Notice, Modal, Setting } from 'obsidian';
 import { YouGileSettings, DEFAULT_SETTINGS } from './types/settings';
 import { YouGileClient } from './api/client';
 import { YouGileSettingTab } from './ui/settings-tab';
@@ -16,6 +16,49 @@ import { ContactDatabase } from './database/contact-db';
 import { LLMService } from './services/llm-service';
 
 const PASSWORD_SECRET_ID = 'yougile-password';
+
+const CHANGELOG: Record<string, string[]> = {
+  '0.2.0': [
+    'Исправлена загрузка календаря (пустая страница из-за addClass с пробелами)',
+    'Добавлен фильтр по доске в дашборд',
+    'Добавлены подписи над фильтрами дашборда',
+    'Добавлен поиск и фильтр по колонкам в Контакты',
+    'Тип организации теперь хранится как ID колонки (динамическое разрешение названия)',
+    'Исправлен каскад фильтров в Задачах (доски фильтруются по выбранному проекту)',
+    'Все чекбоксы переведены на inline-стили (стабильное отображение в любых темах Obsidian)',
+    'Кнопки "Обновить" унифицированы на 🔄',
+    'Добавлено уведомление об обновлении (это окно) с историей изменений',
+  ],
+};
+
+class ChangelogModal extends Modal {
+  private version: string;
+  private changes: string[];
+
+  constructor(app: App, version: string, changes: string[]) {
+    super(app);
+    this.version = version;
+    this.changes = changes;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.createEl('h2', { text: `✅ YouGile Integration обновлён до v${this.version}` });
+    contentEl.createEl('hr');
+    const list = contentEl.createEl('ul');
+    for (const change of this.changes) {
+      list.createEl('li', { text: change });
+    }
+    contentEl.createEl('hr');
+    new Setting(contentEl)
+      .addButton(btn => btn.setButtonText('OK').setCta().onClick(() => this.close()));
+  }
+
+  onClose(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+}
 
 export default class YouGilePlugin extends Plugin {
   settings!: YouGileSettings;
@@ -38,6 +81,13 @@ export default class YouGilePlugin extends Plugin {
     await this.db.init();
     await this.db.sync();
     this.normalizeProjectBoardSettings();
+
+    const currentVersion = this.manifest.version;
+    if (this.settings.shownVersion !== currentVersion && CHANGELOG[currentVersion]) {
+      this.settings.shownVersion = currentVersion;
+      await this.saveSettings();
+      new ChangelogModal(this.app, currentVersion, CHANGELOG[currentVersion]).open();
+    }
 
     this.emailDb = new EmailDatabase(this.app, this.settings.emailDbPath);
     await this.emailDb.init();

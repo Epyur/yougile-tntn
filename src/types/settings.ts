@@ -36,6 +36,7 @@ export interface YouGileSettings {
   contactBoardId: string;
   contactSelectedColumnIds: string;
   contactDbPath: string;
+  shownVersion: string;
 }
 
 export const DEFAULT_SETTINGS: YouGileSettings = {
@@ -70,4 +71,5 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   contactBoardId: 'Контакты',
   contactSelectedColumnIds: '',
   contactDbPath: 'contacts_data.json',
+  shownVersion: '',
 };
