@@ -2,6 +2,7 @@ import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { CachedTask } from '../types/cache';
 import { TASKS_VIEW_TYPE, TasksView } from './tasks-view';
+import { AssigneeSelector } from './assignee-selector';
 
 function stripHtml(html: string): string {
   const el = document.createElement('div');
@@ -32,6 +33,8 @@ interface CalendarEvent {
   columnId: string;
   additionalInfo: string;
   reportHtml: string;
+  parentTaskId: string;
+  parentAutoComplete: boolean;
 }
 
 function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
@@ -46,6 +49,8 @@ function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
   let additionalInfo = '';
   let reportHtml = '';
   let descriptionRaw = task.description;
+  let parentTaskId = '';
+  let parentAutoComplete = false;
 
   if (task.description) {
     const reportIdx = task.description.indexOf('<!--REPORT-->');
@@ -63,6 +68,8 @@ function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
           startTime = parsed.startTime || '';
           endTime = parsed.endTime || '';
           additionalInfo = parsed.additionalInfo || '';
+          parentTaskId = parsed.parentTaskId || '';
+          parentAutoComplete = parsed.parentAutoComplete === true;
           descriptionRaw = JSON.stringify(parsed, null, 2);
         }
       } catch {
@@ -97,6 +104,8 @@ function parseCalendarEvent(task: CachedTask): CalendarEvent | null {
     columnId: task.columnId,
     additionalInfo,
     reportHtml,
+    parentTaskId,
+    parentAutoComplete,
   };
 }
 
@@ -115,14 +124,18 @@ function parseDescriptionToMd(event: CalendarEvent): string {
   return lines.join('\n');
 }
 
-function buildEventDescription(title: string, place: string, targetAudience: string, startTime: string, endTime: string, additionalInfo: string): string {
-  const data: Record<string, string> = {};
+function buildEventDescription(title: string, place: string, targetAudience: string, startTime: string, endTime: string, additionalInfo: string, parentTaskId?: string, parentAutoComplete?: boolean): string {
+  const data: Record<string, unknown> = {};
   data.title = title;
   data.place = place;
   data.targetAudience = targetAudience;
   data.startTime = startTime;
   data.endTime = endTime;
   data.additionalInfo = additionalInfo;
+  if (parentTaskId) {
+    data.parentTaskId = parentTaskId;
+    data.parentAutoComplete = parentAutoComplete === true;
+  }
   return JSON.stringify(data, null, 2);
 }
 
@@ -556,7 +569,6 @@ export class ScheduleView extends ItemView {
       { label: 'Название мероприятия', key: 'title', type: 'text', placeholder: 'Введите название' },
       { label: 'Место проведения', key: 'place', type: 'text', placeholder: 'Адрес или место' },
       { label: 'Целевая аудитория', key: 'targetAudience', type: 'text', placeholder: 'Кому предназначено' },
-      { label: 'Ответственный (email)', key: 'responsible', type: 'text', placeholder: 'user@example.com' },
       { label: 'Дата проведения', key: 'date', type: 'date' },
       { label: 'Время начала', key: 'startTime', type: 'time' },
       { label: 'Время окончания', key: 'endTime', type: 'time' },
@@ -577,6 +589,34 @@ export class ScheduleView extends ItemView {
         input.value = new Date().toISOString().slice(0, 10);
       }
     }
+
+    const assigneeSelector = new AssigneeSelector(container, 'Ответственный', () => this.plugin.db.getUsers());
+
+    // Parent task selector
+    const parentLabel = container.createEl('label', { text: 'Материнская задача (необязательно)' });
+    const parentInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Начните вводить название задачи...' } });
+    parentInput.style.width = '100%';
+    parentInput.style.boxSizing = 'border-box';
+    parentInput.style.marginBottom = '8px';
+    const parentDatalist = container.createEl('datalist');
+    parentDatalist.id = 'schedule-parent-tasks';
+    parentInput.setAttr('list', 'schedule-parent-tasks');
+    const allParentTasks = this.plugin.db.getTasks()
+      .sort((a, b) => a.title.localeCompare(b.title));
+    const taskIdByTitle = new Map<string, string>();
+    const taskDeadlineByTitle = new Map<string, number | undefined>();
+    for (const t of allParentTasks) {
+      parentDatalist.createEl('option', { value: t.title });
+      taskIdByTitle.set(t.title, t.id);
+      taskDeadlineByTitle.set(t.title, t.deadline);
+    }
+
+    const autoCompleteWrapper = container.createDiv();
+    autoCompleteWrapper.style.cssText = 'display:flex;align-items:center;margin-bottom:8px;font-size:var(--font-smaller);cursor:pointer;white-space:nowrap';
+    const autoCompleteCb = autoCompleteWrapper.createEl('input', { attr: { type: 'checkbox' } });
+    autoCompleteCb.style.cssText = 'width:16px;height:16px;margin:0 4px 0 0;flex-shrink:0';
+    const autoCompleteSpan = autoCompleteWrapper.createEl('span');
+    autoCompleteSpan.setText('Завершить материнскую задачу при завершении мероприятия');
 
     const additionalLabel = container.createEl('label', { text: 'Дополнительная информация и описание' });
     const additionalTextarea = container.createEl('textarea');
@@ -611,22 +651,28 @@ export class ScheduleView extends ItemView {
       const additionalInfo = additionalTextarea.value.trim();
       if (!dateVal) { new Notice('Дата проведения обязательна'); return; }
 
+      const parentTaskTitle = parentInput.value.trim();
+      const parentTaskId = parentTaskTitle ? taskIdByTitle.get(parentTaskTitle) : undefined;
+      const parentAutoComplete = autoCompleteCb.checked;
+
       submitBtn.setText('⏳');
       submitBtn.setAttr('disabled', 'true');
 
-      const description = buildEventDescription(title, place, targetAudience, startTime, endTime, additionalInfo);
+      const description = buildEventDescription(title, place, targetAudience, startTime, endTime, additionalInfo, parentTaskId, parentAutoComplete);
 
-      let assignedIds: string[] = [];
-      if (responsibleEmail) {
-        const users = this.plugin.db.getUsers();
-        const emailToId = new Map(users.map(u => [u.email || u.name || u.id, u.id]));
-        const uid = emailToId.get(responsibleEmail);
-        if (uid) assignedIds = [uid];
-      }
+      const assignedIds = assigneeSelector.getSelectedIds();
 
       const deadlineMs = new Date(`${dateVal}T${endTime || '23:59'}`).getTime();
 
       const selectedColumnId = columnSelect.value;
+
+      // Check if event date is within parent deadline
+      if (parentTaskId && parentAutoComplete) {
+        const parentDeadline = taskDeadlineByTitle.get(parentTaskTitle);
+        if (parentDeadline && deadlineMs > parentDeadline) {
+          new Notice(`⚠️ Внимание: дата мероприятия (${dateVal}) выходит за пределы дедлайна материнской задачи`);
+        }
+      }
 
       try {
         const payload: Record<string, unknown> = {
@@ -636,21 +682,42 @@ export class ScheduleView extends ItemView {
           assigned: assignedIds.length > 0 ? assignedIds : undefined,
           deadline: { deadline: deadlineMs, withTime: true },
         };
-        await this.plugin.client.createTask(payload as any);
+        const result = await this.plugin.client.createTask(payload as any);
+
+        // If parent task selected, add new task as its subtask
+        if (parentTaskId && result?.id) {
+          try {
+            const parentTask = await this.plugin.client.getTaskById(parentTaskId);
+            const existingSubtasks = parentTask?.subtasks ?? [];
+            await this.plugin.client.updateTask(parentTaskId, {
+              subtasks: [...existingSubtasks, result.id],
+            });
+          } catch (e2) {
+            new Notice('Мероприятие создано, но не удалось привязать к материнской задаче');
+          }
+        }
+
         new Notice('Мероприятие создано');
         this.syncAndRender();
       } catch (e) {
         if (isNetworkError(e)) {
+          const offlinePayload: Record<string, unknown> = {
+            title,
+            description,
+            columnId: selectedColumnId || undefined,
+            assigned: assignedIds.length > 0 ? assignedIds : undefined,
+            deadline: { deadline: deadlineMs, withTime: true },
+          };
           this.plugin.db.addToOfflineQueue({
             type: 'create-task',
-            payload: {
-              title,
-              description,
-              columnId: selectedColumnId || undefined,
-              assigned: assignedIds.length > 0 ? assignedIds : undefined,
-              deadline: { deadline: deadlineMs, withTime: true },
-            },
+            payload: offlinePayload,
           });
+          if (parentTaskId) {
+            this.plugin.db.addToOfflineQueue({
+              type: 'update-task',
+              payload: { id: parentTaskId, subtaskTitle: title },
+            });
+          }
           new Notice('Нет соединения. Мероприятие будет создано позже.');
           this.syncAndRender();
         } else {
@@ -678,7 +745,6 @@ export class ScheduleView extends ItemView {
       { label: 'Название мероприятия', key: 'title', type: 'text', placeholder: 'Введите название' },
       { label: 'Место проведения', key: 'place', type: 'text', placeholder: 'Адрес или место' },
       { label: 'Целевая аудитория', key: 'targetAudience', type: 'text', placeholder: 'Кому предназначено' },
-      { label: 'Ответственный (email)', key: 'responsible', type: 'text', placeholder: 'user@example.com' },
       { label: 'Дата проведения', key: 'date', type: 'date' },
       { label: 'Время начала', key: 'startTime', type: 'time' },
       { label: 'Время окончания', key: 'endTime', type: 'time' },
@@ -689,7 +755,6 @@ export class ScheduleView extends ItemView {
       title: ev.title,
       place: ev.place,
       targetAudience: ev.targetAudience,
-      responsible: ev.responsibleName,
       date: ev.date,
       startTime: ev.startTime,
       endTime: ev.endTime,
@@ -703,6 +768,8 @@ export class ScheduleView extends ItemView {
       input.value = prefillValues[f.key] || '';
       inputs[f.key] = input;
     }
+
+    const assigneeSelector = new AssigneeSelector(container, 'Ответственный', () => this.plugin.db.getUsers(), ev.responsibleName);
 
     const columnLabel = container.createEl('label', { text: 'Направление мероприятия' });
     const columnSelect = container.createEl('select');
@@ -737,7 +804,6 @@ export class ScheduleView extends ItemView {
       if (!title) { new Notice('Название мероприятия обязательно'); return; }
       const place = inputs.place.value.trim();
       const targetAudience = inputs.targetAudience.value.trim();
-      const responsibleEmail = inputs.responsible.value.trim();
       const dateVal = inputs.date.value;
       const startTime = inputs.startTime.value;
       const endTime = inputs.endTime.value;
@@ -749,13 +815,7 @@ export class ScheduleView extends ItemView {
 
       const description = buildEventDescription(title, place, targetAudience, startTime, endTime, additionalInfo);
 
-      let assignedIds: string[] = [];
-      if (responsibleEmail) {
-        const users = this.plugin.db.getUsers();
-        const emailToId = new Map(users.map(u => [u.email || u.name || u.id, u.id]));
-        const uid = emailToId.get(responsibleEmail);
-        if (uid) assignedIds = [uid];
-      }
+      const assignedIds = assigneeSelector.getSelectedIds();
 
       const deadlineMs = new Date(`${dateVal}T${endTime || '23:59'}`).getTime();
       const selectedColumnId = columnSelect.value;
@@ -908,6 +968,16 @@ export class ScheduleView extends ItemView {
           description: `${existingJson}\n<!--REPORT-->${reportHtml}`,
           completed: true,
         });
+
+        // Auto-complete parent task if configured
+        if (ev.parentTaskId && ev.parentAutoComplete) {
+          try {
+            await this.plugin.client.updateTask(ev.parentTaskId, { completed: true });
+          } catch {
+            new Notice('⚠️ Не удалось завершить материнскую задачу');
+          }
+        }
+
         new Notice('Мероприятие завершено');
         this.syncAndRender();
       } catch (e) {
@@ -920,6 +990,12 @@ export class ScheduleView extends ItemView {
               completed: true,
             },
           });
+          if (ev.parentTaskId && ev.parentAutoComplete) {
+            this.plugin.db.addToOfflineQueue({
+              type: 'update-task',
+              payload: { id: ev.parentTaskId, completed: true },
+            });
+          }
           new Notice('Нет соединения. Отчёт будет сохранён позже.');
           this.syncAndRender();
         } else {

@@ -1,5 +1,6 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
+import { AssigneeSelector } from './assignee-selector';
 
 function isNetworkError(e: unknown): boolean {
   if (e instanceof TypeError && e.message === 'Failed to fetch') return true;
@@ -541,10 +542,7 @@ export class DocumentsView extends ItemView {
       typeSelect.createEl('option', { value: col.id, text: col.title });
     }
 
-    const curatorLabel = container.createEl('label', { text: 'Куратор (email)' });
-    const curatorInput = container.createEl('input', { attr: { type: 'text', placeholder: 'user@example.com' } });
-    curatorInput.style.width = '100%';
-    curatorInput.style.boxSizing = 'border-box';
+    const curatorSelector = new AssigneeSelector(container, 'Куратор', () => this.plugin.db.getUsers());
 
     const deadlineLabel = container.createEl('label', { text: 'Срок действия' });
     const deadlineInput = container.createEl('input', { attr: { type: 'date' } });
@@ -597,13 +595,22 @@ export class DocumentsView extends ItemView {
     submitBtn.addEventListener('click', async () => {
       const title = titleInput.value.trim();
       if (!title) { new Notice('Введите наименование документа'); return; }
-      const curatorEmail = curatorInput.value.trim();
       const deadlineVal = deadlineInput.value;
       if (!deadlineVal) { new Notice('Укажите срок действия'); return; }
 
       submitBtn.setText('⏳');
       submitBtn.setAttr('disabled', 'true');
       cancelBtn.setAttr('disabled', 'true');
+
+      const assignedIds = curatorSelector.getSelectedIds();
+      const curatorEmail = (() => {
+        const users = this.plugin.db.getUsers();
+        for (const id of assignedIds) {
+          const u = users.find(u2 => u2.id === id);
+          if (u?.email) return u.email;
+        }
+        return '';
+      })();
 
       let linkUrl = linkUrlInput.value.trim();
       let fileName = '';
@@ -645,14 +652,6 @@ export class DocumentsView extends ItemView {
 
       const selectedColumnId = typeSelect.value;
       const deadlineMs = new Date(`${deadlineVal}T23:59:59`).getTime();
-
-      let assignedIds: string[] = [];
-      if (curatorEmail) {
-        const users = this.plugin.db.getUsers();
-        const emailToId = new Map(users.map(u => [u.email || u.name || u.id, u.id]));
-        const uid = emailToId.get(curatorEmail);
-        if (uid) assignedIds = [uid];
-      }
 
       try {
         const payload: Record<string, unknown> = {
@@ -707,10 +706,7 @@ export class DocumentsView extends ItemView {
     titleInput.style.width = '100%';
     titleInput.style.boxSizing = 'border-box';
 
-    const curatorLabel = container.createEl('label', { text: 'Куратор (email)' });
-    const curatorInput = container.createEl('input', { attr: { type: 'text', placeholder: 'user@example.com' } });
-    curatorInput.style.width = '100%';
-    curatorInput.style.boxSizing = 'border-box';
+    const relatedCuratorSelector = new AssigneeSelector(container, 'Куратор', () => this.plugin.db.getUsers());
 
     const inheritInfo = container.createDiv({ cls: 'mailer-yougile-task-meta' });
     if (parentDoc.deadline) {
@@ -766,12 +762,21 @@ export class DocumentsView extends ItemView {
     submitBtn.addEventListener('click', async () => {
       const title = titleInput.value.trim();
       if (!title) { new Notice('Введите наименование документа'); return; }
-      const curatorEmail = curatorInput.value.trim();
       const deadlineMs = parentDoc.deadline || Date.now() + 365 * 86400000;
 
       submitBtn.setText('⏳');
       submitBtn.setAttr('disabled', 'true');
       cancelBtn.setAttr('disabled', 'true');
+
+      const assignedIds = relatedCuratorSelector.getSelectedIds();
+      const curatorEmail = (() => {
+        const users = this.plugin.db.getUsers();
+        for (const id of assignedIds) {
+          const u = users.find(u2 => u2.id === id);
+          if (u?.email) return u.email;
+        }
+        return '';
+      })();
 
       let linkUrl = linkUrlInput.value.trim();
       let fileName = '';
@@ -813,14 +818,6 @@ export class DocumentsView extends ItemView {
       }, null, 2);
 
       const selectedColumnId = parentDoc.docTypeId;
-
-      let assignedIds: string[] = [];
-      if (curatorEmail) {
-        const users = this.plugin.db.getUsers();
-        const emailToId = new Map(users.map(u => [u.email || u.name || u.id, u.id]));
-        const uid = emailToId.get(curatorEmail);
-        if (uid) assignedIds = [uid];
-      }
 
       try {
         const payload: Record<string, unknown> = {

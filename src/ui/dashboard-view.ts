@@ -13,7 +13,10 @@ export class DashboardView extends ItemView {
   private selectedAssigneeId = '';
   private dateFrom = '';
   private dateTo = '';
+  private includeSubtasks = false;
+  private showDeadlines = true;
   private charts: ApexCharts[] = [];
+  private renderTimeoutId: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -32,18 +35,35 @@ export class DashboardView extends ItemView {
   }
 
   onClose(): void {
+    this.cancelRender();
     this.destroyCharts();
+  }
+
+  private cancelRender(): void {
+    if (this.renderTimeoutId !== null) {
+      clearTimeout(this.renderTimeoutId);
+      this.renderTimeoutId = null;
+    }
   }
 
   private destroyCharts(): void {
     for (const chart of this.charts) {
-      chart.destroy();
+      if (chart) chart.destroy();
     }
     this.charts = [];
   }
 
-  private getFilteredTasks(): CachedTask[] {
+  private getFilteredTasks(topLevelOnly: boolean): CachedTask[] {
     let tasks = this.plugin.db.getTasks();
+    if (topLevelOnly) {
+      const subtaskIds = new Set<string>();
+      for (const t of tasks) {
+        for (const s of t.subtasks) {
+          subtaskIds.add(s.id);
+        }
+      }
+      tasks = tasks.filter(t => !subtaskIds.has(t.id));
+    }
     if (this.selectedProjectId) {
       tasks = tasks.filter(t => t.projectId === this.selectedProjectId);
     }
@@ -67,6 +87,7 @@ export class DashboardView extends ItemView {
   }
 
   private renderView(): void {
+    this.cancelRender();
     const container = this.containerElContent;
     container.empty();
     this.destroyCharts();
@@ -154,7 +175,31 @@ export class DashboardView extends ItemView {
     const exportCsvBtn = filterRow.createEl('button', { text: '📊 CSV', cls: 'mailer-yougile-refresh-btn' });
     exportCsvBtn.addEventListener('click', () => this.exportCsv());
 
-    const tasks = this.getFilteredTasks();
+    const subtaskWrapper = filterRow.createDiv();
+    subtaskWrapper.style.cssText = 'display:flex;align-items:center;marginRight:12px;marginTop:4px;font-size:var(--font-smaller);cursor:pointer;white-space:nowrap';
+    const subtaskCb = subtaskWrapper.createEl('input', { attr: { type: 'checkbox' } });
+    subtaskCb.style.cssText = 'width:16px;height:16px;margin:0 4px 0 0;flex-shrink:0';
+    subtaskCb.checked = this.includeSubtasks;
+    subtaskCb.addEventListener('change', () => {
+      this.includeSubtasks = subtaskCb.checked;
+      this.renderView();
+    });
+    const subtaskSpan = subtaskWrapper.createEl('span');
+    subtaskSpan.setText('Учитывать подзадачи');
+
+    const deadlineWrapper = filterRow.createDiv();
+    deadlineWrapper.style.cssText = 'display:flex;align-items:center;marginRight:12px;marginTop:4px;font-size:var(--font-smaller);cursor:pointer;white-space:nowrap';
+    const deadlineCb = deadlineWrapper.createEl('input', { attr: { type: 'checkbox' } });
+    deadlineCb.style.cssText = 'width:16px;height:16px;margin:0 4px 0 0;flex-shrink:0';
+    deadlineCb.checked = this.showDeadlines;
+    deadlineCb.addEventListener('change', () => {
+      this.showDeadlines = deadlineCb.checked;
+      this.renderView();
+    });
+    const deadlineSpan = deadlineWrapper.createEl('span');
+    deadlineSpan.setText('Показать дедлайны');
+
+    const tasks = this.getFilteredTasks(!this.includeSubtasks);
     this.renderMetricCards(container, tasks);
     this.renderCharts(container, tasks);
   }
@@ -190,7 +235,7 @@ export class DashboardView extends ItemView {
     }
   }
 
-  private chartBox(container: HTMLElement, title: string, chartIdx: number): { box: HTMLElement; el: HTMLElement } {
+  private chartBox(container: HTMLElement, title: string): { box: HTMLElement; el: HTMLElement } {
     const box = container.createDiv();
     box.style.cssText = 'background:var(--background-primary-alt);border-radius:8px;padding:12px;position:relative';
 
@@ -204,14 +249,13 @@ export class DashboardView extends ItemView {
     const dlBtn = titleRow.createEl('button', { text: '💾', cls: 'mailer-yougile-refresh-btn' });
     dlBtn.style.cssText = 'font-size:12px;padding:2px 6px';
     const curIdx = this.charts.length;
+    this.charts.push(null as unknown as ApexCharts);
     dlBtn.addEventListener('click', async () => {
       const chart = this.charts[curIdx];
       if (chart) {
         await this.exportSingleChart(chart, title);
       }
     });
-    // push placeholder, will be set after chart creation
-    this.charts.push(null as unknown as ApexCharts);
 
     const el = box.createDiv();
     return { box, el };
@@ -230,27 +274,64 @@ export class DashboardView extends ItemView {
     const colLabels = [...columnCount.keys()];
     const colValues = [...columnCount.values()];
 
-    const c1 = this.chartBox(grid, 'Задачи по колонкам', 0);
+    const c1 = this.chartBox(grid, 'Задачи по колонкам');
     // Chart 2: Status (horizontal bar)
     const completedCount = tasks.filter(t => t.completed).length;
     const activeCount = tasks.length - completedCount;
-    const c2 = this.chartBox(grid, 'Статус задач', 1);
+    const c2 = this.chartBox(grid, 'Статус задач');
 
     // Chart 3: Tasks per day (area)
-    const now = new Date();
-    const dayCount = new Map<string, number>();
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      dayCount.set(d.toLocaleDateString(), 0);
+    const dayCreatedCount = new Map<string, number>();
+    const dayCompletedCount = new Map<string, number>();
+    if (this.dateFrom || this.dateTo) {
+      const from = this.dateFrom ? new Date(this.dateFrom) : new Date(Date.now() - 30 * 86400000);
+      const to = this.dateTo ? new Date(this.dateTo) : new Date();
+      from.setHours(0, 0, 0, 0);
+      to.setHours(23, 59, 59, 999);
+      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        dayCreatedCount.set(d.toLocaleDateString(), 0);
+        dayCompletedCount.set(d.toLocaleDateString(), 0);
+      }
+    } else {
+      const allTasks = this.plugin.db.getTasks();
+      const minTs = allTasks.reduce((m, t) => Math.min(m, t.timestamp), Infinity);
+      const from = new Date(isFinite(minTs) ? minTs : Date.now());
+      from.setHours(0, 0, 0, 0);
+      const to = new Date();
+      to.setHours(23, 59, 59, 999);
+      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        dayCreatedCount.set(d.toLocaleDateString(), 0);
+        dayCompletedCount.set(d.toLocaleDateString(), 0);
+      }
     }
     for (const t of tasks) {
       const key = new Date(t.timestamp).toLocaleDateString();
-      if (dayCount.has(key)) dayCount.set(key, (dayCount.get(key) || 0) + 1);
+      if (dayCreatedCount.has(key)) dayCreatedCount.set(key, (dayCreatedCount.get(key) || 0) + 1);
+      if (t.completed) {
+        dayCompletedCount.set(key, (dayCompletedCount.get(key) || 0) + 1);
+      }
     }
-    const dayLabels = [...dayCount.keys()];
-    const dayValues = [...dayCount.values()];
-    const c3 = this.chartBox(grid, 'Создано задач по дням (30 дней)', 2);
+    const dayLabels = [...dayCreatedCount.keys()];
+    const dayCreatedValues = [...dayCreatedCount.values()];
+    const dayCompletedValues = [...dayCompletedCount.values()];
+
+    // collect deadline dates within chart range for annotations
+    const deadlineDates = new Set<string>();
+    if (this.showDeadlines) {
+      for (const t of tasks) {
+        if (t.deadline && dayCreatedCount.has(new Date(t.deadline).toLocaleDateString())) {
+          deadlineDates.add(new Date(t.deadline).toLocaleDateString());
+        }
+      }
+    }
+    const deadlineAnnotations = [...deadlineDates].map(d => ({
+      x: d,
+      strokeDashArray: 4,
+      borderColor: '#e74c3c',
+      label: { show: false },
+    }));
+
+    const c3 = this.chartBox(grid, 'Динамика озадачивания');
 
     // Chart 4: Deadline distribution
     const dt = tasks.filter(t => t.deadline);
@@ -258,7 +339,7 @@ export class DashboardView extends ItemView {
     const week = dt.filter(t => !t.completed && t.deadline! >= Date.now() && t.deadline! < Date.now() + 7 * 86400000).length;
     const month = dt.filter(t => !t.completed && t.deadline! >= Date.now() + 7 * 86400000).length;
     const done = dt.filter(t => t.completed).length;
-    const c4 = this.chartBox(grid, 'Дедлайны', 3);
+    const c4 = this.chartBox(grid, 'Дедлайны');
 
     const isDark = document.body.classList.contains('theme-dark');
     const textColor = isDark ? '#ccc' : '#333';
@@ -266,7 +347,8 @@ export class DashboardView extends ItemView {
 
     const fontSmall = isDark ? '#aaa' : '#666';
 
-    setTimeout(() => {
+    this.renderTimeoutId = window.setTimeout(() => {
+      this.renderTimeoutId = null;
       try {
         const chartOpts: Partial<ApexCharts> = {
           chart: { type: 'donut', height: 240, foreColor: textColor, toolbar: { show: true, tools: { download: true, selection: false, zoom: false, zoomin: false, zoomout: false, pan: false, reset: false } } },
@@ -299,15 +381,20 @@ export class DashboardView extends ItemView {
 
         const chart3 = new ApexCharts(c3.el, {
           chart: { type: 'area', height: 240, foreColor: textColor, toolbar: { show: true, tools: { download: true, selection: false, zoom: false, zoomin: false, zoomout: false, pan: false, reset: false } }, zoom: { enabled: false } },
-          series: [{ name: 'Задачи', data: dayValues }],
+          series: [
+            { name: 'Поступило задач', data: dayCreatedValues },
+            { name: 'Задач решено', data: dayCompletedValues },
+          ],
           xaxis: { categories: dayLabels, labels: { rotate: -45, style: { colors: textColor, fontSize: '9px' } } },
           yaxis: { forceNiceScale: true, labels: { style: { colors: textColor }, formatter: (v: number) => Math.floor(v).toString() } },
-          colors: ['#3498db'],
+          colors: ['#3498db', '#2ecc71'],
           fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.7, opacityTo: 0.3 } },
           stroke: { curve: 'smooth', width: 2 },
           dataLabels: { enabled: false },
           grid: { borderColor: gridColor },
+          annotations: { xaxis: deadlineAnnotations },
           tooltip: { y: { formatter: (v: number) => `${Math.floor(v)} задач` } },
+          legend: { position: 'bottom', fontSize: '12px', labels: { colors: textColor } },
         });
         chart3.render();
         this.charts[2] = chart3;
@@ -367,7 +454,7 @@ export class DashboardView extends ItemView {
   }
 
   private async exportCsv(): Promise<void> {
-    const tasks = this.getFilteredTasks();
+    const tasks = this.getFilteredTasks(!this.includeSubtasks);
     const sep = ';';
     const esc = (s: string | undefined | null): string => {
       if (!s) return '';

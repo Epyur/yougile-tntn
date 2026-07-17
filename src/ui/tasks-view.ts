@@ -2,6 +2,7 @@ import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { CachedTask } from '../types/cache';
 import type { YouGileTaskFull } from '../types/yougile';
+import { AssigneeSelector } from './assignee-selector';
 
 function stripHtml(html: string): string {
   const el = document.createElement('div');
@@ -772,10 +773,7 @@ export class TasksView extends ItemView {
       selectedColumnId = columnSelect.value;
     });
 
-    const assigneeLabel = container.createEl('label', { text: 'Исполнители (email через запятую)' });
-    const assigneeInput = container.createEl('input', { attr: { type: 'text', placeholder: 'user@example.com, user2@example.com' } });
-    assigneeInput.style.width = '100%';
-    assigneeInput.style.boxSizing = 'border-box';
+    const assigneeSelector = new AssigneeSelector(container, 'Исполнители', () => this.plugin.db.getUsers());
 
     const deadlineLabel = container.createEl('label', { text: 'Дедлайн (дата, опционально)' });
     const deadlineInput = container.createEl('input', { attr: { type: 'date' } });
@@ -795,14 +793,7 @@ export class TasksView extends ItemView {
       submitBtn.setText('⏳');
       submitBtn.setAttr('disabled', 'true');
       try {
-        const assigned: string[] = [];
-        const emails = assigneeInput.value.split(',').map(s => s.trim()).filter(Boolean);
-        const users = this.plugin.db.getUsers();
-        const emailToId = new Map(users.map(u => [u.email || u.name || u.id, u.id]));
-        for (const email of emails) {
-          const uid = emailToId.get(email);
-          if (uid) assigned.push(uid);
-        }
+        const assigned = assigneeSelector.getSelectedIds();
         const payload: Record<string, unknown> = {
           title,
           description: descInput.value.trim() || undefined,
