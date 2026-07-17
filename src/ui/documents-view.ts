@@ -550,40 +550,10 @@ export class DocumentsView extends ItemView {
     deadlineInput.style.boxSizing = 'border-box';
     deadlineInput.value = new Date().toISOString().slice(0, 10);
 
-    const linkLabel = container.createEl('label', { text: 'Ссылка на документ' });
-    const linkTypeRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    linkTypeRow.style.marginBottom = '4px';
-    const urlRadio = linkTypeRow.createEl('label');
-    urlRadio.style.fontSize = 'var(--font-smaller)';
-    urlRadio.style.display = 'inline-flex';
-    urlRadio.style.alignItems = 'center';
-    urlRadio.style.marginRight = '12px';
-    const urlRadioBtn = urlRadio.createEl('input', { attr: { type: 'radio', name: 'linkType', value: 'url' } });
-    urlRadioBtn.checked = true;
-    urlRadio.append(' URL');
-
-    const fileRadio = linkTypeRow.createEl('label');
-    fileRadio.style.fontSize = 'var(--font-smaller)';
-    fileRadio.style.display = 'inline-flex';
-    fileRadio.style.alignItems = 'center';
-    const fileRadioBtn = fileRadio.createEl('input', { attr: { type: 'radio', name: 'linkType', value: 'file' } });
-    fileRadio.append(' Файл');
-
-    const linkUrlInput = container.createEl('input', { attr: { type: 'url', placeholder: 'https://...' } });
+    const linkLabel = container.createEl('label', { text: 'Ссылка на документ (только https://kb.tn.ru/file или https://www.kb.tn.ru/file)' });
+    const linkUrlInput = container.createEl('input', { attr: { type: 'url', placeholder: 'https://kb.tn.ru/file/...' } });
     linkUrlInput.style.width = '100%';
     linkUrlInput.style.boxSizing = 'border-box';
-
-    const fileInput = container.createEl('input', { attr: { type: 'file' } });
-    fileInput.style.display = 'none';
-
-    urlRadioBtn.addEventListener('change', () => {
-      linkUrlInput.style.display = '';
-      fileInput.style.display = 'none';
-    });
-    fileRadioBtn.addEventListener('change', () => {
-      linkUrlInput.style.display = 'none';
-      fileInput.style.display = '';
-    });
 
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
     btnRow.style.marginTop = '12px';
@@ -612,31 +582,16 @@ export class DocumentsView extends ItemView {
         return '';
       })();
 
-      let linkUrl = linkUrlInput.value.trim();
-      let fileName = '';
-
-      if (fileRadioBtn.checked && fileInput.files?.[0]) {
-        const file = fileInput.files[0];
-        try {
-          const buffer = await file.arrayBuffer();
-          const result = await this.plugin.client.uploadFile(buffer, file.name);
-          linkUrl = result.fullUrl;
-          fileName = file.name;
-        } catch (e) {
-          if (!isNetworkError(e)) {
-            new Notice(`Ошибка загрузки: ${e instanceof Error ? e.message : String(e)}`);
-            submitBtn.setText('✅ Создать');
-            submitBtn.removeAttribute('disabled');
-            cancelBtn.removeAttribute('disabled');
-            return;
-          }
-        }
-      } else if (urlRadioBtn.checked && linkUrl) {
-        fileName = linkUrl;
-      }
-
+      const linkUrl = linkUrlInput.value.trim();
       if (!linkUrl) {
-        new Notice('Укажите ссылку на документ или прикрепите файл');
+        new Notice('Укажите ссылку на документ');
+        submitBtn.setText('✅ Создать');
+        submitBtn.removeAttribute('disabled');
+        cancelBtn.removeAttribute('disabled');
+        return;
+      }
+      if (!linkUrl.startsWith('https://kb.tn.ru/file') && !linkUrl.startsWith('https://www.kb.tn.ru/file')) {
+        new Notice('Ссылка должна начинаться с https://kb.tn.ru/file или https://www.kb.tn.ru/file');
         submitBtn.setText('✅ Создать');
         submitBtn.removeAttribute('disabled');
         cancelBtn.removeAttribute('disabled');
@@ -646,7 +601,7 @@ export class DocumentsView extends ItemView {
       const description = JSON.stringify({
         type: 'document',
         link: linkUrl,
-        fileName: fileName,
+        fileName: linkUrl,
         curatorEmail: curatorEmail,
       }, null, 2);
 
@@ -717,40 +672,10 @@ export class DocumentsView extends ItemView {
     }
     inheritInfo.style.marginBottom = '8px';
 
-    const linkLabel = container.createEl('label', { text: 'Ссылка на документ' });
-    const linkTypeRow = container.createDiv({ cls: 'mailer-yougile-header' });
-    linkTypeRow.style.marginBottom = '4px';
-    const urlRadio = linkTypeRow.createEl('label');
-    urlRadio.style.fontSize = 'var(--font-smaller)';
-    urlRadio.style.display = 'inline-flex';
-    urlRadio.style.alignItems = 'center';
-    urlRadio.style.marginRight = '12px';
-    const urlRadioBtn = urlRadio.createEl('input', { attr: { type: 'radio', name: 'linkTypeRel', value: 'url' } });
-    urlRadioBtn.checked = true;
-    urlRadio.append(' URL');
-
-    const fileRadio = linkTypeRow.createEl('label');
-    fileRadio.style.fontSize = 'var(--font-smaller)';
-    fileRadio.style.display = 'inline-flex';
-    fileRadio.style.alignItems = 'center';
-    const fileRadioBtn = fileRadio.createEl('input', { attr: { type: 'radio', name: 'linkTypeRel', value: 'file' } });
-    fileRadio.append(' Файл');
-
-    const linkUrlInput = container.createEl('input', { attr: { type: 'url', placeholder: 'https://...' } });
+    const linkLabel = container.createEl('label', { text: 'Ссылка на документ (только https://kb.tn.ru/file или https://www.kb.tn.ru/file)' });
+    const linkUrlInput = container.createEl('input', { attr: { type: 'url', placeholder: 'https://kb.tn.ru/file/...' } });
     linkUrlInput.style.width = '100%';
     linkUrlInput.style.boxSizing = 'border-box';
-
-    const fileInput = container.createEl('input', { attr: { type: 'file' } });
-    fileInput.style.display = 'none';
-
-    urlRadioBtn.addEventListener('change', () => {
-      linkUrlInput.style.display = '';
-      fileInput.style.display = 'none';
-    });
-    fileRadioBtn.addEventListener('change', () => {
-      linkUrlInput.style.display = 'none';
-      fileInput.style.display = '';
-    });
 
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
     btnRow.style.marginTop = '12px';
@@ -778,31 +703,16 @@ export class DocumentsView extends ItemView {
         return '';
       })();
 
-      let linkUrl = linkUrlInput.value.trim();
-      let fileName = '';
-
-      if (fileRadioBtn.checked && fileInput.files?.[0]) {
-        const file = fileInput.files[0];
-        try {
-          const buffer = await file.arrayBuffer();
-          const result = await this.plugin.client.uploadFile(buffer, file.name);
-          linkUrl = result.fullUrl;
-          fileName = file.name;
-        } catch (e) {
-          if (!isNetworkError(e)) {
-            new Notice(`Ошибка загрузки: ${e instanceof Error ? e.message : String(e)}`);
-            submitBtn.setText('✅ Создать');
-            submitBtn.removeAttribute('disabled');
-            cancelBtn.removeAttribute('disabled');
-            return;
-          }
-        }
-      } else if (urlRadioBtn.checked && linkUrl) {
-        fileName = linkUrl;
-      }
-
+      const linkUrl = linkUrlInput.value.trim();
       if (!linkUrl) {
-        new Notice('Укажите ссылку на документ или прикрепите файл');
+        new Notice('Укажите ссылку на документ');
+        submitBtn.setText('✅ Создать');
+        submitBtn.removeAttribute('disabled');
+        cancelBtn.removeAttribute('disabled');
+        return;
+      }
+      if (!linkUrl.startsWith('https://kb.tn.ru/file') && !linkUrl.startsWith('https://www.kb.tn.ru/file')) {
+        new Notice('Ссылка должна начинаться с https://kb.tn.ru/file или https://www.kb.tn.ru/file');
         submitBtn.setText('✅ Создать');
         submitBtn.removeAttribute('disabled');
         cancelBtn.removeAttribute('disabled');
@@ -813,7 +723,7 @@ export class DocumentsView extends ItemView {
         type: 'document',
         parentId: parentDoc.taskId,
         link: linkUrl,
-        fileName: fileName,
+        fileName: linkUrl,
         curatorEmail: curatorEmail,
       }, null, 2);
 

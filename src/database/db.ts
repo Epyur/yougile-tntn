@@ -192,17 +192,33 @@ export class LocalDatabase {
         const cols = await this.plugin.client.getColumns();
         allColumns = cols.map(col => ({ id: col.id, title: col.title, boardId: col.boardId }));
       } catch {
-        // fallback: collect columns from tasks
+        // fallback: try per-board column fetch
         const columnIds = new Set<string>();
-        for (const rt of remoteTasks) {
-          if (rt.columnId) columnIds.add(rt.columnId);
-        }
-        for (const colId of columnIds) {
+        for (const board of allBoards) {
           try {
-            const col = await this.plugin.client.getColumnById(colId);
-            allColumns.push({ id: col.id, title: col.title, boardId: col.boardId });
+            const boardCols = await this.plugin.client.getColumns(board.id);
+            for (const col of boardCols) {
+              if (!columnIds.has(col.id)) {
+                columnIds.add(col.id);
+                allColumns.push({ id: col.id, title: col.title, boardId: col.boardId });
+              }
+            }
           } catch {
-            // individual column fetch may fail
+            // per-board column fetch may fail
+          }
+        }
+        if (allColumns.length === 0) {
+          // ultimate fallback: collect columns from tasks
+          for (const rt of remoteTasks) {
+            if (rt.columnId) columnIds.add(rt.columnId);
+          }
+          for (const colId of columnIds) {
+            try {
+              const col = await this.plugin.client.getColumnById(colId);
+              allColumns.push({ id: col.id, title: col.title, boardId: col.boardId });
+            } catch {
+              // individual column fetch may fail
+            }
           }
         }
       }

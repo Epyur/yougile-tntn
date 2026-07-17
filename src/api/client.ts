@@ -6,6 +6,7 @@ import {
   YouGileProject,
   YouGileBoard,
   YouGileColumn,
+  YouGileColumnListResponse,
   YouGileUser,
   YouGileGroupChat,
   YouGileChatMessage,
@@ -114,9 +115,21 @@ export class YouGileClient {
     return result.content ?? [];
   }
 
-  async getColumns(): Promise<YouGileColumn[]> {
-    const result = await this.request<{ content: YouGileColumn[] }>('GET', '/columns');
-    return result.content ?? [];
+  async getColumns(boardId?: string): Promise<YouGileColumn[]> {
+    const allColumns: YouGileColumn[] = [];
+    let offset = 0;
+    const limit = 100;
+    while (true) {
+      const paramsObj: Record<string, string> = { limit: String(limit), offset: String(offset) };
+      if (boardId) paramsObj.board = boardId;
+      const qs = new URLSearchParams(paramsObj).toString();
+      const result = await this.request<YouGileColumnListResponse>('GET', `/columns?${qs}`);
+      const items = result.content ?? [];
+      allColumns.push(...items);
+      if (!result.paging?.next || items.length < limit) break;
+      offset += limit;
+    }
+    return allColumns;
   }
 
   async getColumnById(columnId: string): Promise<YouGileColumn> {
@@ -131,6 +144,15 @@ export class YouGileClient {
   async updateTask(id: string, payload: Record<string, unknown>): Promise<void> {
     try {
       await this.request<void>('PUT', `/tasks/${encodeURIComponent(id)}`, payload);
+    } catch (e) {
+      console.error('YouGile updateTask error:', e);
+      throw e;
+    }
+  }
+
+  async updateTaskRaw(id: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    try {
+      return await this.request<Record<string, unknown>>('PUT', `/tasks/${encodeURIComponent(id)}`, payload);
     } catch (e) {
       console.error('YouGile updateTask error:', e);
       throw e;
