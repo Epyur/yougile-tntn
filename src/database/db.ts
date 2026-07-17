@@ -169,6 +169,8 @@ export class LocalDatabase {
 
       const remoteTasks = await this.plugin.client.getTasks();
 
+      const taskMap = new Map(remoteTasks.map(t => [t.id, t]));
+
       const allSubtaskIds = new Set<string>();
       for (const rt of remoteTasks) {
         if (rt.subtasks) {
@@ -179,11 +181,16 @@ export class LocalDatabase {
       }
       const subtaskCache = new Map<string, string>();
       for (const sid of allSubtaskIds) {
-        try {
-          const st = await this.plugin.client.getTaskById(sid);
-          subtaskCache.set(sid, st.title || sid);
-        } catch {
-          subtaskCache.set(sid, sid);
+        const known = taskMap.get(sid);
+        if (known && known.title) {
+          subtaskCache.set(sid, known.title);
+        } else {
+          try {
+            const st = await this.plugin.client.getTaskById(sid);
+            subtaskCache.set(sid, st.title || sid);
+          } catch {
+            subtaskCache.set(sid, sid);
+          }
         }
       }
 

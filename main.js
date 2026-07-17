@@ -67046,6 +67046,7 @@ var LocalDatabase = class {
         console.warn("YouGile: failed to load boards", e instanceof Error ? e.message : String(e));
       }
       const remoteTasks = await this.plugin.client.getTasks();
+      const taskMap = new Map(remoteTasks.map((t) => [t.id, t]));
       const allSubtaskIds = /* @__PURE__ */ new Set();
       for (const rt of remoteTasks) {
         if (rt.subtasks) {
@@ -67056,11 +67057,16 @@ var LocalDatabase = class {
       }
       const subtaskCache = /* @__PURE__ */ new Map();
       for (const sid of allSubtaskIds) {
-        try {
-          const st = await this.plugin.client.getTaskById(sid);
-          subtaskCache.set(sid, st.title || sid);
-        } catch (e) {
-          subtaskCache.set(sid, sid);
+        const known = taskMap.get(sid);
+        if (known && known.title) {
+          subtaskCache.set(sid, known.title);
+        } else {
+          try {
+            const st = await this.plugin.client.getTaskById(sid);
+            subtaskCache.set(sid, st.title || sid);
+          } catch (e) {
+            subtaskCache.set(sid, sid);
+          }
         }
       }
       let allColumns = [];
