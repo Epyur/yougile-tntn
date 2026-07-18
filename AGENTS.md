@@ -74,8 +74,9 @@ src/
 
 ## Ключевые решения
 
-- **Письма хранятся локально** в `mailer_data.json` + дублируются в YouGile как задачи (`type: "email"` в description JSON)
-- **Контакты хранятся локально** в `contacts_data.json` + дублируются как задачи (`type: "contact"`, `completed: true`)
+- **Все БД хранятся** в папке `yourbase/` относительно корня хранилища: `yourbase/yougile_cache.json`, `yourbase/mailer_data.json`, `yourbase/contacts_data.json`; пути жёстко прописаны в коде, не настраиваются
+- **Письма хранятся локально** в `yourbase/mailer_data.json` + дублируются в YouGile как задачи (`type: "email"` в description JSON)
+- **Контакты хранятся локально** в `yourbase/contacts_data.json` + дублируются как задачи (`type: "contact"`, `completed: true`)
 - **Assigned** в задачах — UUID пользователя, найденный по `settings.login` через `db.getUsers()`
 - **Файлы** загружаются на YouGile через `POST /upload-file`, URL хранится в `email.images[]`
 - **Офлайн-очередь** для create/update email + upload file; при синке `taskId` сохраняется в локальную БД
@@ -95,6 +96,9 @@ src/
 - **Уведомление об обновлении**: при первом запуске после обновления показывается модалка со списком изменений; версия сохраняется в `settings.shownVersion`, повторно не показывается до следующего обновления
 - **onLayoutReady для модалки обновления**: модалка открывается через `onLayoutReady()`, чтобы избежать TypeError "e.isShown is not a function" — Obsidian ожидает, что `isShown` будет методом Component'а, но в Modal это boolean-свойство; открытие после готовности layout исключает попадание модалки в component tree во время инициализации
 - **Updater plugin** (``C:\Obsidian\mailers\.obsidian\plugins\updater\`) не является источником ошибки `isShown` — в нём нет вызовов `isShown()`; его код сводится к fetch → сравнение версий → download → disablePlugin/enablePlugin
+- **safeRegisterView**: Обёртка для `registerView()` с `try-catch` — предотвращает ошибку "Attempting to register an existing view type" при перезапуске плагина через updater (view-типы не очищаются из реестра при disablePlugin)
+- **Updater: разделение TARGET_DIR/TARGET_ID**: Для путей к файлам используется `TARGET_DIR` (имя папки плагина `yougile-tntn`), для disablePlugin/enablePlugin — `TARGET_ID` (ID плагина из манифеста `obsidian-yougile`), чтобы файлы скачивались в правильную директорию
+- **Updater: очистка require.cache**: Перед enablePlugin удаляется закешированный модуль `main.js` через `delete require.cache[resolve(path)]`, чтобы загружался новый код с диска
 
 ## Настройки плагина
 
@@ -105,8 +109,8 @@ src/
 | Базовые настройки | companyId, логин, пароль, API-ключ, доска по умолч. | нет (всегда включён) |
 | Календарь | проект, доска (dropdown) | `moduleCalendarEnabled` |
 | Документы | проект, доска (dropdown) | `moduleDocumentsEnabled` |
-| Письма | проект, доска, путь к БД, автор, AI-ключ, URL, модель, системный промпт, DOCX-шаблон/папка | `moduleEmailsEnabled` |
-| Контакты | проект, доска, путь к БД | `moduleContactsEnabled` |
+| Письма | проект, доска, автор, AI-ключ, URL, модель, системный промпт, DOCX-шаблон/папка | `moduleEmailsEnabled` |
+| Контакты | проект, доска | `moduleContactsEnabled` |
 | Дашборд | без настроек | `moduleDashboardEnabled` |
 
 ## Правила версионирования и коммитов

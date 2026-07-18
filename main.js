@@ -4506,7 +4506,6 @@ var DEFAULT_SETTINGS = {
   emailProjectId: "\u041F\u0438\u0441\u044C\u043C\u0430 \u0442\u0435\u0445\u043D\u0438\u0447\u0435\u0441\u043A\u043E\u0439 \u0434\u0438\u0440\u0435\u043A\u0446\u0438\u0438",
   emailBoardId: "\u041F\u0438\u0441\u044C\u043C\u0430 \u0422\u0435\u0445\u043D\u0438\u0447\u0435\u0441\u043A\u043E\u0439 \u0434\u0438\u0440\u0435\u043A\u0446\u0438\u0438",
   emailSelectedColumnIds: "",
-  emailDbPath: "mailer_data.json",
   emailDefaultAuthor: "\u041A\u0440\u0430\u0432\u0447\u0435\u043D\u043A\u043E \u0410.\u0410.",
   llmApiKeySecret: "",
   llmApiUrl: "https://ask.chadgpt.ru/api/v1/chat/completions",
@@ -4522,7 +4521,6 @@ var DEFAULT_SETTINGS = {
   contactProjectId: "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B \u0434\u0438\u0440\u0435\u043A\u0446\u0438\u0438",
   contactBoardId: "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B",
   contactSelectedColumnIds: "",
-  contactDbPath: "contacts_data.json",
   shownVersion: ""
 };
 
@@ -4851,10 +4849,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.plugin.settings.emailBoardId = boardSelect.value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian2.Setting(body).setName("\u041F\u0443\u0442\u044C \u043A \u0431\u0430\u0437\u0435 \u043F\u0438\u0441\u0435\u043C").setDesc("\u041F\u0443\u0442\u044C \u043A \u0444\u0430\u0439\u043B\u0443 mailer_data.json \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0435\u043B\u044C\u043D\u043E \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0430 Obsidian").addText((text) => text.setPlaceholder("mailer_data.json").setValue(this.plugin.settings.emailDbPath).onChange(async (value) => {
-        this.plugin.settings.emailDbPath = value || "mailer_data.json";
-        await this.plugin.saveSettings();
-      }));
       new import_obsidian2.Setting(body).setName("\u0410\u0432\u0442\u043E\u0440 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E").setDesc("\u0424\u0418\u041E \u0430\u0432\u0442\u043E\u0440\u0430 \u0434\u043B\u044F \u043D\u043E\u0432\u044B\u0445 \u043F\u0438\u0441\u0435\u043C").addText((text) => text.setPlaceholder("\u041A\u0440\u0430\u0432\u0447\u0435\u043D\u043A\u043E \u0410.\u0410.").setValue(this.plugin.settings.emailDefaultAuthor).onChange(async (value) => {
         this.plugin.settings.emailDefaultAuthor = value || "\u041A\u0440\u0430\u0432\u0447\u0435\u043D\u043A\u043E \u0410.\u0410.";
         await this.plugin.saveSettings();
@@ -4914,10 +4908,6 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.plugin.settings.contactBoardId = boardSelect.value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian2.Setting(body).setName("\u041F\u0443\u0442\u044C \u043A \u0431\u0430\u0437\u0435 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043E\u0432").setDesc("\u041F\u0443\u0442\u044C \u043A \u0444\u0430\u0439\u043B\u0443 contacts_data.json \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0435\u043B\u044C\u043D\u043E \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0430 Obsidian").addText((text) => text.setPlaceholder("contacts_data.json").setValue(this.plugin.settings.contactDbPath).onChange(async (value) => {
-        this.plugin.settings.contactDbPath = value || "contacts_data.json";
-        await this.plugin.saveSettings();
-      }));
     });
     this.renderCollapsibleBlock(containerEl, "\u041C\u043E\u0434\u0443\u043B\u044C \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430", false, true, (body) => {
       new import_obsidian2.Setting(body).setName("\u0414\u0430\u0448\u0431\u043E\u0440\u0434").setDesc("\u041F\u0430\u043D\u0435\u043B\u044C \u043C\u0435\u0442\u0440\u0438\u043A \u0438 \u0433\u0440\u0430\u0444\u0438\u043A\u043E\u0432 ApexCharts. \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043D\u0435 \u0442\u0440\u0435\u0431\u0443\u044E\u0442\u0441\u044F.").addButton((btn) => btn.setButtonText("\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0434\u0430\u0448\u0431\u043E\u0440\u0434").onClick(() => {
@@ -66840,7 +66830,7 @@ function registerCommands(plugin) {
 }
 
 // src/database/db.ts
-var DATA_FILE = "yougile_cache.json";
+var DATA_FILE = "yourbase/yougile_cache.json";
 var LocalDatabase = class {
   constructor(app, plugin) {
     this.data = {
@@ -67124,24 +67114,18 @@ var LocalDatabase = class {
 };
 
 // src/database/email-db.ts
+var DB_PATH = "yourbase/mailer_data.json";
 var EmailDatabase = class {
-  constructor(app, dbPath) {
+  constructor(app) {
     this.data = { emails: [], directions: [] };
     this.app = app;
-    this.dbPath = dbPath;
-  }
-  setDbPath(path) {
-    this.dbPath = path;
-  }
-  getDbPath() {
-    return this.dbPath;
   }
   async init() {
     const adapter = this.app.vault.adapter;
     try {
-      const exists = await adapter.exists(this.dbPath);
+      const exists = await adapter.exists(DB_PATH);
       if (exists) {
-        const content = await adapter.read(this.dbPath);
+        const content = await adapter.read(DB_PATH);
         const parsed = JSON.parse(content);
         this.data = {
           emails: Array.isArray(parsed.emails) ? parsed.emails : [],
@@ -67153,7 +67137,7 @@ var EmailDatabase = class {
   }
   async save() {
     try {
-      await this.app.vault.adapter.write(this.dbPath, JSON.stringify(this.data, null, 2));
+      await this.app.vault.adapter.write(DB_PATH, JSON.stringify(this.data, null, 2));
     } catch (e) {
       console.error("YouGile: failed to save email db");
     }
@@ -67161,19 +67145,11 @@ var EmailDatabase = class {
   getAllEmails() {
     return this.data.emails;
   }
-  getEmail(id) {
+  getEmailById(id) {
     return this.data.emails.find((e) => e.id === id);
   }
-  getEmailByTaskId(taskId) {
-    return this.data.emails.find((e) => e.taskId === taskId);
-  }
   addEmail(email) {
-    const idx = this.data.emails.findIndex((e) => e.id === email.id);
-    if (idx !== -1) {
-      this.data.emails[idx] = email;
-    } else {
-      this.data.emails.push(email);
-    }
+    this.data.emails.push(email);
     this.save();
   }
   updateEmail(id, updates) {
@@ -67183,121 +67159,73 @@ var EmailDatabase = class {
       this.save();
     }
   }
-  getDirections() {
+  deleteEmail(id) {
+    this.data.emails = this.data.emails.filter((e) => e.id !== id);
+    this.save();
+  }
+  getAllDirections() {
     return this.data.directions;
   }
   addDirection(dir) {
-    const idx = this.data.directions.findIndex((d) => d.id === dir.id);
-    if (idx !== -1) {
-      this.data.directions[idx] = dir;
-    } else {
-      this.data.directions.push(dir);
-    }
+    this.data.directions.push(dir);
     this.save();
   }
-  getDirectionName(id) {
-    const dir = this.data.directions.find((d) => d.id === id);
-    return (dir == null ? void 0 : dir.name) || `\u041D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 ${id}`;
+  removeDirection(columnId) {
+    this.data.directions = this.data.directions.filter((d) => d.columnId !== columnId);
+    this.save();
   }
-  /** Синхронизирует задачи YouGile с локальной БД писем */
   syncFromTasks(tasks) {
-    var _a, _b, _c, _d, _e;
-    let changed = false;
-    for (const task of tasks) {
-      if (!task.description) continue;
-      const desc = task.description.trim();
-      if (!desc.startsWith("{")) continue;
-      let parsed;
+    const emailTasks = tasks.filter((t) => {
       try {
-        parsed = JSON.parse(desc);
+        const desc = JSON.parse(t.description || "{}");
+        return desc.type === "email";
       } catch (e) {
-        continue;
+        return false;
       }
-      if (parsed.type !== "email") continue;
-      const emailId = typeof parsed.emailId === "number" ? parsed.emailId : this.hashTaskId(task.id);
-      const existing = this.data.emails.find((e) => e.id === emailId);
-      const number = String((_a = parsed.number) != null ? _a : "");
-      const subject = String((_b = parsed.subject) != null ? _b : task.title.replace(/^\[Письмо\]\s*/, ""));
-      const text = String((_c = parsed.text) != null ? _c : "");
-      const author = String((_d = parsed.author) != null ? _d : "");
-      const date = String(((_e = parsed.date) != null ? _e : task.timestamp) ? new Date(task.timestamp).toISOString() : (/* @__PURE__ */ new Date()).toISOString());
-      const directionId = typeof parsed.direction_id === "number" ? parsed.direction_id : 0;
-      if (parsed.directionName) {
-        const dirName = String(parsed.directionName);
-        if (!this.data.directions.find((d) => d.name === dirName)) {
-          this.data.directions.push({
-            id: directionId || Date.now(),
-            name: dirName,
-            description: "",
-            created_at: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    for (const task of emailTasks) {
+      try {
+        const desc = JSON.parse(task.description || "{}");
+        const existing = this.data.emails.find((e) => e.taskId === task.id);
+        if (existing) {
+          existing.title = task.title;
+          existing.completed = task.completed;
+        } else {
+          this.data.emails.push({
+            id: task.id,
+            taskId: task.id,
+            title: task.title,
+            date: desc.date || "",
+            appNumber: desc.appNumber || "",
+            topic: desc.topic || "",
+            content: desc.content || "",
+            images: desc.images || [],
+            directionName: desc.directionName || "",
+            author: desc.author || "",
+            completed: task.completed,
+            textNumber: desc.textNumber || ""
           });
-          changed = true;
         }
-      }
-      if (existing) {
-        if (task.updatedAt !== existing.lastSyncTime) {
-          existing.number = number;
-          existing.subject = subject;
-          existing.text = text;
-          existing.author = author;
-          existing.date = date;
-          existing.direction_id = directionId;
-          existing.taskId = task.id;
-          existing.lastSyncTime = task.updatedAt || (/* @__PURE__ */ new Date()).toISOString();
-          existing.sync_status = "synced";
-          changed = true;
-        }
-      } else {
-        this.data.emails.push({
-          id: emailId,
-          number,
-          subject,
-          text,
-          author,
-          date,
-          direction_id: directionId,
-          images: [],
-          mdFilePath: "",
-          mdFileHash: "",
-          lastSyncTime: task.updatedAt || (/* @__PURE__ */ new Date()).toISOString(),
-          sync_status: "synced",
-          created_at: date,
-          taskId: task.id
-        });
-        changed = true;
+      } catch (e) {
       }
     }
-    if (changed) this.save();
-  }
-  hashTaskId(id) {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = (hash << 5) - hash + id.charCodeAt(i);
-      hash |= 0;
-    }
-    return Math.abs(hash);
+    this.save();
   }
 };
 
 // src/database/contact-db.ts
+var DB_PATH2 = "yourbase/contacts_data.json";
 var ContactDatabase = class {
-  constructor(app, dbPath) {
+  constructor(app) {
     this.data = { contacts: [] };
     this.app = app;
-    this.dbPath = dbPath;
-  }
-  setDbPath(path) {
-    this.dbPath = path;
-  }
-  getDbPath() {
-    return this.dbPath;
   }
   async init() {
     const adapter = this.app.vault.adapter;
     try {
-      const exists = await adapter.exists(this.dbPath);
+      const exists = await adapter.exists(DB_PATH2);
       if (exists) {
-        const content = await adapter.read(this.dbPath);
+        const content = await adapter.read(DB_PATH2);
         const parsed = JSON.parse(content);
         this.data = {
           contacts: Array.isArray(parsed.contacts) ? parsed.contacts : []
@@ -67308,7 +67236,7 @@ var ContactDatabase = class {
   }
   async save() {
     try {
-      await this.app.vault.adapter.write(this.dbPath, JSON.stringify(this.data, null, 2));
+      await this.app.vault.adapter.write(DB_PATH2, JSON.stringify(this.data, null, 2));
     } catch (e) {
       console.error("YouGile: failed to save contact db");
     }
@@ -67316,19 +67244,11 @@ var ContactDatabase = class {
   getAllContacts() {
     return this.data.contacts;
   }
-  getContact(id) {
+  getContactById(id) {
     return this.data.contacts.find((c) => c.id === id);
   }
-  getContactByTaskId(taskId) {
-    return this.data.contacts.find((c) => c.taskId === taskId);
-  }
   addContact(contact) {
-    const idx = this.data.contacts.findIndex((c) => c.id === contact.id);
-    if (idx !== -1) {
-      this.data.contacts[idx] = contact;
-    } else {
-      this.data.contacts.push(contact);
-    }
+    this.data.contacts.push(contact);
     this.save();
   }
   updateContact(id, updates) {
@@ -67338,63 +67258,51 @@ var ContactDatabase = class {
       this.save();
     }
   }
-  /** Синхронизирует задачи YouGile (type=contact) с локальной БД контактов */
-  syncFromTasks(tasks) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
-    let changed = false;
-    for (const task of tasks) {
-      if (!task.description) continue;
-      const desc = task.description.trim();
-      if (!desc.startsWith("{")) continue;
-      let parsed;
-      try {
-        parsed = JSON.parse(desc);
-      } catch (e) {
-        continue;
-      }
-      if (parsed.type !== "contact") continue;
-      const contactId = typeof parsed.contactId === "number" ? parsed.contactId : this.hashTaskId(task.id);
-      const existing = this.data.contacts.find((c) => c.id === contactId);
-      if (existing) {
-        if (task.updatedAt !== existing.updatedAt) {
-          existing.name = String((_a = parsed.name) != null ? _a : existing.name);
-          existing.phone = String((_b = parsed.phone) != null ? _b : existing.phone);
-          existing.email = String((_c = parsed.email) != null ? _c : existing.email);
-          existing.organization = String((_d = parsed.organization) != null ? _d : existing.organization);
-          existing.position = String((_e = parsed.position) != null ? _e : existing.position);
-          existing.orgType = task.columnId || String((_f = parsed.orgType) != null ? _f : existing.orgType);
-          existing.notes = String((_g = parsed.notes) != null ? _g : existing.notes);
-          existing.updatedAt = task.updatedAt || (/* @__PURE__ */ new Date()).toISOString();
-          existing.sync_status = "synced";
-          changed = true;
-        }
-      } else {
-        this.data.contacts.push({
-          id: contactId,
-          name: String((_h = parsed.name) != null ? _h : task.title),
-          phone: String((_i = parsed.phone) != null ? _i : ""),
-          email: String((_j = parsed.email) != null ? _j : ""),
-          organization: String((_k = parsed.organization) != null ? _k : ""),
-          position: String((_l = parsed.position) != null ? _l : ""),
-          orgType: task.columnId || String((_m = parsed.orgType) != null ? _m : ""),
-          notes: String((_n = parsed.notes) != null ? _n : ""),
-          createdAt: task.timestamp ? new Date(task.timestamp).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
-          updatedAt: task.updatedAt || (/* @__PURE__ */ new Date()).toISOString(),
-          taskId: task.id,
-          sync_status: "synced"
-        });
-        changed = true;
-      }
-    }
-    if (changed) this.save();
+  deleteContact(id) {
+    this.data.contacts = this.data.contacts.filter((c) => c.id !== id);
+    this.save();
   }
-  hashTaskId(id) {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = (hash << 5) - hash + id.charCodeAt(i);
-      hash |= 0;
+  syncFromTasks(tasks) {
+    const contactTasks = tasks.filter((t) => {
+      try {
+        const desc = JSON.parse(t.description || "{}");
+        return desc.type === "contact";
+      } catch (e) {
+        return false;
+      }
+    });
+    for (const task of contactTasks) {
+      try {
+        const parsed = JSON.parse(task.description || "{}");
+        const existing = this.data.contacts.find((c) => c.taskId === task.id);
+        const orgType = task.columnId || parsed.orgType || "";
+        if (existing) {
+          existing.name = task.title;
+          existing.orgType = orgType;
+          existing.phone = parsed.phone || "";
+          existing.email = parsed.email || "";
+          existing.organization = parsed.organization || "";
+          existing.position = parsed.position || "";
+          existing.note = parsed.note || "";
+          existing.completed = task.completed;
+        } else {
+          this.data.contacts.push({
+            id: task.id,
+            taskId: task.id,
+            name: task.title,
+            orgType,
+            phone: parsed.phone || "",
+            email: parsed.email || "",
+            organization: parsed.organization || "",
+            position: parsed.position || "",
+            note: parsed.note || "",
+            completed: task.completed
+          });
+        }
+      } catch (e) {
+      }
     }
-    return Math.abs(hash);
+    this.save();
   }
 };
 
@@ -67549,6 +67457,11 @@ var CHANGELOG = {
     `\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u0431\u0430\u0433 "Attempting to register an existing view type" \u043F\u043E\u0441\u043B\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u043F\u043B\u0430\u0433\u0438\u043D\u0430 updater'\u043E\u043C`,
     "Updater: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u043F\u0443\u0442\u044C \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u044F \u0444\u0430\u0439\u043B\u043E\u0432 (TARGET_DIR vs TARGET_ID)",
     "Updater: \u043E\u0447\u0438\u0441\u0442\u043A\u0430 require.cache \u043F\u0435\u0440\u0435\u0434 enablePlugin \u0434\u043B\u044F \u043F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439"
+  ],
+  "0.2.3": [
+    "\u0412\u0441\u0435 \u0431\u0430\u0437\u044B \u0434\u0430\u043D\u043D\u044B\u0445 \u043F\u0435\u0440\u0435\u043D\u0435\u0441\u0435\u043D\u044B \u0432 \u043F\u0430\u043F\u043A\u0443 yourbase/ \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0435\u043B\u044C\u043D\u043E \u043A\u043E\u0440\u043D\u044F \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0430",
+    "\u041F\u0443\u0442\u0438 \u043A \u0411\u0414 \u0436\u0451\u0441\u0442\u043A\u043E \u043F\u0440\u043E\u043F\u0438\u0441\u0430\u043D\u044B \u0432 \u043A\u043E\u0434\u0435 (yourbase/yougile_cache.json, yourbase/mailer_data.json, yourbase/contacts_data.json)",
+    '\u0423\u0434\u0430\u043B\u0435\u043D\u044B \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 "\u041F\u0443\u0442\u044C \u043A \u0431\u0430\u0437\u0435 \u043F\u0438\u0441\u0435\u043C" \u0438 "\u041F\u0443\u0442\u044C \u043A \u0431\u0430\u0437\u0435 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043E\u0432"'
   ]
 };
 var ChangelogModal = class extends import_obsidian13.Modal {
@@ -67593,9 +67506,9 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
         new ChangelogModal(this.app, currentVersion, CHANGELOG[currentVersion]).open();
       });
     }
-    this.emailDb = new EmailDatabase(this.app, this.settings.emailDbPath);
+    this.emailDb = new EmailDatabase(this.app);
     await this.emailDb.init();
-    this.contactDb = new ContactDatabase(this.app, this.settings.contactDbPath);
+    this.contactDb = new ContactDatabase(this.app);
     await this.contactDb.init();
     this.llmService = new LLMService(this);
     this.addSettingTab(new YouGileSettingTab(this.app, this));
@@ -67673,9 +67586,6 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
     const apiKey = this.getSecretValue(this.settings.apiKeySecret);
     if (apiKey) {
       this.client.setApiKey(apiKey);
-    }
-    if (this.emailDb) {
-      this.emailDb.setDbPath(this.settings.emailDbPath);
     }
   }
   normalizeProjectBoardSettings() {

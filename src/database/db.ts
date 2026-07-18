@@ -3,7 +3,7 @@ import { CacheData, CachedTask, CachedProject, CachedBoard, CachedColumn, Offlin
 import type { YouGileUser } from '../types/yougile';
 import type YouGilePlugin from '../main';
 
-const DATA_FILE = 'yougile_cache.json';
+const DATA_FILE = 'yourbase/yougile_cache.json';
 
 export class LocalDatabase {
   private app: App;

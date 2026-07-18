@@ -39,6 +39,11 @@ const CHANGELOG: Record<string, string[]> = {
     'Updater: исправлен путь скачивания файлов (TARGET_DIR vs TARGET_ID)',
     'Updater: очистка require.cache перед enablePlugin для применения изменений',
   ],
+  '0.2.3': [
+    'Все базы данных перенесены в папку yourbase/ относительно корня хранилища',
+    'Пути к БД жёстко прописаны в коде (yourbase/yougile_cache.json, yourbase/mailer_data.json, yourbase/contacts_data.json)',
+    'Удалены настройки "Путь к базе писем" и "Путь к базе контактов"',
+  ],
 };
 
 class ChangelogModal extends Modal {
@@ -101,10 +106,10 @@ export default class YouGilePlugin extends Plugin {
       });
     }
 
-    this.emailDb = new EmailDatabase(this.app, this.settings.emailDbPath);
+    this.emailDb = new EmailDatabase(this.app);
     await this.emailDb.init();
 
-    this.contactDb = new ContactDatabase(this.app, this.settings.contactDbPath);
+    this.contactDb = new ContactDatabase(this.app);
     await this.contactDb.init();
 
     this.llmService = new LLMService(this);
@@ -196,9 +201,6 @@ export default class YouGilePlugin extends Plugin {
     const apiKey = this.getSecretValue(this.settings.apiKeySecret);
     if (apiKey) {
       this.client.setApiKey(apiKey);
-    }
-    if (this.emailDb) {
-      this.emailDb.setDbPath(this.settings.emailDbPath);
     }
   }
 

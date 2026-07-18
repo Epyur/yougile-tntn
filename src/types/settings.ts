@@ -19,7 +19,6 @@ export interface YouGileSettings {
   emailProjectId: string;
   emailBoardId: string;
   emailSelectedColumnIds: string;
-  emailDbPath: string;
   emailDefaultAuthor: string;
   llmApiKeySecret: string;
   llmApiUrl: string;
@@ -35,7 +34,6 @@ export interface YouGileSettings {
   contactProjectId: string;
   contactBoardId: string;
   contactSelectedColumnIds: string;
-  contactDbPath: string;
   shownVersion: string;
 }
 
@@ -54,7 +52,6 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   emailProjectId: 'Письма технической дирекции',
   emailBoardId: 'Письма Технической дирекции',
   emailSelectedColumnIds: '',
-  emailDbPath: 'mailer_data.json',
   emailDefaultAuthor: 'Кравченко А.А.',
   llmApiKeySecret: '',
   llmApiUrl: 'https://ask.chadgpt.ru/api/v1/chat/completions',
@@ -70,6 +67,5 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   contactProjectId: 'Контакты дирекции',
   contactBoardId: 'Контакты',
   contactSelectedColumnIds: '',
-  contactDbPath: 'contacts_data.json',
   shownVersion: '',
 };

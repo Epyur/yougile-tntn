@@ -174,17 +174,6 @@ export class YouGileSettingTab extends PluginSettingTab {
       });
 
       new Setting(body)
-        .setName('Путь к базе писем')
-        .setDesc('Путь к файлу mailer_data.json относительно хранилища Obsidian')
-        .addText(text => text
-          .setPlaceholder('mailer_data.json')
-          .setValue(this.plugin.settings.emailDbPath)
-          .onChange(async (value) => {
-            this.plugin.settings.emailDbPath = value || 'mailer_data.json';
-            await this.plugin.saveSettings();
-          }));
-
-      new Setting(body)
         .setName('Автор по умолчанию')
         .setDesc('ФИО автора для новых писем')
         .addText(text => text
@@ -299,16 +288,6 @@ export class YouGileSettingTab extends PluginSettingTab {
         await this.plugin.saveSettings();
       });
 
-      new Setting(body)
-        .setName('Путь к базе контактов')
-        .setDesc('Путь к файлу contacts_data.json относительно хранилища Obsidian')
-        .addText(text => text
-          .setPlaceholder('contacts_data.json')
-          .setValue(this.plugin.settings.contactDbPath)
-          .onChange(async (value) => {
-            this.plugin.settings.contactDbPath = value || 'contacts_data.json';
-            await this.plugin.saveSettings();
-          }));
     });
 
     // ===== Block 6: Дашборд =====

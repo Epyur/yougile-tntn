@@ -2,30 +2,22 @@ import { App } from 'obsidian';
 import type { ContactItem, ContactDbData } from '../types/contacts';
 import type { CachedTask } from '../types/cache';
 
+const DB_PATH = 'yourbase/contacts_data.json';
+
 export class ContactDatabase {
   private app: App;
-  private dbPath: string;
   private data: ContactDbData = { contacts: [] };
 
-  constructor(app: App, dbPath: string) {
+  constructor(app: App) {
     this.app = app;
-    this.dbPath = dbPath;
-  }
-
-  setDbPath(path: string): void {
-    this.dbPath = path;
-  }
-
-  getDbPath(): string {
-    return this.dbPath;
   }
 
   async init(): Promise<void> {
     const adapter = this.app.vault.adapter;
     try {
-      const exists = await adapter.exists(this.dbPath);
+      const exists = await adapter.exists(DB_PATH);
       if (exists) {
-        const content = await adapter.read(this.dbPath);
+        const content = await adapter.read(DB_PATH);
         const parsed = JSON.parse(content);
         this.data = {
           contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [],
@@ -38,7 +30,7 @@ export class ContactDatabase {
 
   private async save(): Promise<void> {
     try {
-      await this.app.vault.adapter.write(this.dbPath, JSON.stringify(this.data, null, 2));
+      await this.app.vault.adapter.write(DB_PATH, JSON.stringify(this.data, null, 2));
     } catch {
       console.error('YouGile: failed to save contact db');
     }
@@ -48,25 +40,16 @@ export class ContactDatabase {
     return this.data.contacts;
   }
 
-  getContact(id: number): ContactItem | undefined {
+  getContactById(id: string): ContactItem | undefined {
     return this.data.contacts.find(c => c.id === id);
   }
 
-  getContactByTaskId(taskId: string): ContactItem | undefined {
-    return this.data.contacts.find(c => c.taskId === taskId);
-  }
-
   addContact(contact: ContactItem): void {
-    const idx = this.data.contacts.findIndex(c => c.id === contact.id);
-    if (idx !== -1) {
-      this.data.contacts[idx] = contact;
-    } else {
-      this.data.contacts.push(contact);
-    }
+    this.data.contacts.push(contact);
     this.save();
   }
 
-  updateContact(id: number, updates: Partial<ContactItem>): void {
+  updateContact(id: string, updates: Partial<ContactItem>): void {
     const idx = this.data.contacts.findIndex(c => c.id === id);
     if (idx !== -1) {
       this.data.contacts[idx] = { ...this.data.contacts[idx], ...updates };
@@ -74,64 +57,52 @@ export class ContactDatabase {
     }
   }
 
-  /** Синхронизирует задачи YouGile (type=contact) с локальной БД контактов */
-  syncFromTasks(tasks: CachedTask[]): void {
-    let changed = false;
-    for (const task of tasks) {
-      if (!task.description) continue;
-      const desc = task.description.trim();
-      if (!desc.startsWith('{')) continue;
-      let parsed: Record<string, unknown>;
-      try {
-        parsed = JSON.parse(desc);
-      } catch {
-        continue;
-      }
-      if (parsed.type !== 'contact') continue;
-
-      const contactId = typeof parsed.contactId === 'number' ? parsed.contactId : this.hashTaskId(task.id);
-      const existing = this.data.contacts.find(c => c.id === contactId);
-
-      if (existing) {
-        if (task.updatedAt !== existing.updatedAt) {
-          existing.name = String(parsed.name ?? existing.name);
-          existing.phone = String(parsed.phone ?? existing.phone);
-          existing.email = String(parsed.email ?? existing.email);
-          existing.organization = String(parsed.organization ?? existing.organization);
-          existing.position = String(parsed.position ?? existing.position);
-          existing.orgType = task.columnId || String(parsed.orgType ?? existing.orgType);
-          existing.notes = String(parsed.notes ?? existing.notes);
-          existing.updatedAt = task.updatedAt || new Date().toISOString();
-          existing.sync_status = 'synced';
-          changed = true;
-        }
-      } else {
-        this.data.contacts.push({
-          id: contactId,
-          name: String(parsed.name ?? task.title),
-          phone: String(parsed.phone ?? ''),
-          email: String(parsed.email ?? ''),
-          organization: String(parsed.organization ?? ''),
-          position: String(parsed.position ?? ''),
-          orgType: task.columnId || String(parsed.orgType ?? ''),
-          notes: String(parsed.notes ?? ''),
-          createdAt: task.timestamp ? new Date(task.timestamp).toISOString() : new Date().toISOString(),
-          updatedAt: task.updatedAt || new Date().toISOString(),
-          taskId: task.id,
-          sync_status: 'synced',
-        });
-        changed = true;
-      }
-    }
-    if (changed) this.save();
+  deleteContact(id: string): void {
+    this.data.contacts = this.data.contacts.filter(c => c.id !== id);
+    this.save();
   }
 
-  private hashTaskId(id: string): number {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = ((hash << 5) - hash) + id.charCodeAt(i);
-      hash |= 0;
+  syncFromTasks(tasks: CachedTask[]): void {
+    const contactTasks = tasks.filter(t => {
+      try {
+        const desc = JSON.parse(t.description || '{}');
+        return desc.type === 'contact';
+      } catch {
+        return false;
+      }
+    });
+    for (const task of contactTasks) {
+      try {
+        const parsed = JSON.parse(task.description || '{}');
+        const existing = this.data.contacts.find(c => c.taskId === task.id);
+        const orgType = task.columnId || parsed.orgType || '';
+        if (existing) {
+          existing.name = task.title;
+          existing.orgType = orgType;
+          existing.phone = parsed.phone || '';
+          existing.email = parsed.email || '';
+          existing.organization = parsed.organization || '';
+          existing.position = parsed.position || '';
+          existing.note = parsed.note || '';
+          existing.completed = task.completed;
+        } else {
+          this.data.contacts.push({
+            id: task.id,
+            taskId: task.id,
+            name: task.title,
+            orgType,
+            phone: parsed.phone || '',
+            email: parsed.email || '',
+            organization: parsed.organization || '',
+            position: parsed.position || '',
+            note: parsed.note || '',
+            completed: task.completed,
+          });
+        }
+      } catch {
+        // skip invalid
+      }
     }
-    return Math.abs(hash);
+    this.save();
   }
 }
