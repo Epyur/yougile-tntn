@@ -19,6 +19,10 @@ export class LpiView extends ItemView {
   private charts: ApexCharts[] = [];
   private dashboardTimer: number | null = null;
   private selectedProducts: Set<string> = new Set();
+  private appDateFrom = '';
+  private appDateTo = '';
+  private protocolDateFrom = '';
+  private protocolDateTo = '';
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -74,13 +78,13 @@ export class LpiView extends ItemView {
 
     const btnRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mb-8' });
     const tableBtn = btnRow.createEl('button', {
-      text: this.mode === 'table' ? '📋 Таблица' : '📋 Таблица',
+      text: '📋 Таблица',
       cls: 'mailer-yougile-refresh-btn',
     });
     tableBtn.addEventListener('click', () => { this.mode = 'table'; this.renderView(); });
 
     const dashBtn = btnRow.createEl('button', {
-      text: this.mode === 'dashboard' ? '📊 Дашборд' : '📊 Дашборд',
+      text: '📊 Дашборд',
       cls: 'mailer-yougile-refresh-btn',
     });
     dashBtn.addEventListener('click', () => { this.mode = 'dashboard'; this.renderView(); });
@@ -159,6 +163,28 @@ export class LpiView extends ItemView {
   }
 
   private renderDashboard(container: HTMLElement): void {
+    const filterRow = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap mailer-mb-8' });
+    filterRow.style.alignItems = 'end';
+    filterRow.style.gap = '8px';
+
+    const addDateFilter = (label: string, value: string, onChange: (v: string) => void) => {
+      const group = filterRow.createDiv();
+      const lbl = group.createEl('label');
+      lbl.setText(label);
+      lbl.style.fontSize = 'var(--font-smaller)';
+      lbl.style.marginRight = '4px';
+      const inp = group.createEl('input', { attr: { type: 'date' } });
+      inp.style.fontSize = 'var(--font-smaller)';
+      inp.style.padding = '2px 4px';
+      inp.value = value;
+      inp.addEventListener('change', () => { onChange(inp.value); this.renderView(); });
+      return inp;
+    };
+    addDateFilter('Дата создания с', this.appDateFrom, v => this.appDateFrom = v);
+    addDateFilter('по', this.appDateTo, v => this.appDateTo = v);
+    addDateFilter('Дата протокола с', this.protocolDateFrom, v => this.protocolDateFrom = v);
+    addDateFilter('по', this.protocolDateTo, v => this.protocolDateTo = v);
+
     const productBtn = container.createEl('button', {
       text: this.selectedProducts.size > 0 ? `🔽 Продукты (${this.selectedProducts.size})` : '🔽 Выбрать продукты',
       cls: 'mailer-yougile-refresh-btn',
@@ -181,8 +207,22 @@ export class LpiView extends ItemView {
     }
 
     let filtered = this.items;
+
     if (this.selectedProducts.size > 0) {
-      filtered = this.items.filter(item => this.selectedProducts.has(item.product_name));
+      filtered = filtered.filter(item => this.selectedProducts.has(item.product_name));
+    }
+
+    if (this.appDateFrom) {
+      filtered = filtered.filter(item => item.application_created_at >= this.appDateFrom);
+    }
+    if (this.appDateTo) {
+      filtered = filtered.filter(item => item.application_created_at <= this.appDateTo);
+    }
+    if (this.protocolDateFrom) {
+      filtered = filtered.filter(item => item.protocol_date && item.protocol_date >= this.protocolDateFrom);
+    }
+    if (this.protocolDateTo) {
+      filtered = filtered.filter(item => item.protocol_date && item.protocol_date <= this.protocolDateTo);
     }
 
     const total = filtered.length;
@@ -206,19 +246,37 @@ export class LpiView extends ItemView {
 
     const c1 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
     c1.createEl('h4', { text: 'Статус заявок' });
-    const statusDonut = this.createChart(c1, this.buildStatusSeries(filtered));
+    this.createChart(c1, this.buildStatusSeries(filtered));
 
     const c2 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
     c2.createEl('h4', { text: 'Заявки по месяцам' });
-    const monthlyBar = this.createChart(c2, this.buildMonthlySeries(filtered));
+    this.createChart(c2, this.buildMonthlySeries(filtered));
 
     const c3 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
-    c3.createEl('h4', { text: 'Оценка соответствия' });
-    const complianceDonut = this.createChart(c3, this.buildComplianceSeries(filtered));
+    c3.createEl('h4', { text: 'Общая оценка соответствия' });
+    this.createChart(c3, this.buildComplianceSeries(filtered));
 
-    const c4 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
-    c4.createEl('h4', { text: 'Топ продуктов по заявкам' });
-    const topProductsBar = this.createChart(c4, this.buildTopProductsSeries(filtered));
+    if (this.selectedProducts.size > 1) {
+      const c4 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+      c4.createEl('h4', { text: 'Оценка по продуктам' });
+      const perProductWrap = c4.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
+      const products = [...this.selectedProducts].sort();
+      for (const product of products) {
+        const productItems = filtered.filter(i => i.product_name === product);
+        if (productItems.length === 0) continue;
+        const card = perProductWrap.createDiv({ attr: { style: 'width:45%;min-width:160px;margin:2%' } });
+        const title = card.createEl('h5', { text: product });
+        title.style.fontSize = 'var(--font-smaller)';
+        title.style.whiteSpace = 'normal';
+        title.style.wordBreak = 'break-word';
+        title.style.margin = '4px 0';
+        this.createChart(card, this.buildComplianceSeries(productItems, true));
+      }
+    } else {
+      const c4 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+      c4.createEl('h4', { text: 'Топ продуктов по заявкам' });
+      this.createChart(c4, this.buildTopProductsSeries(filtered));
+    }
 
     this.dashboardTimer = window.setTimeout(() => {
       for (const chart of this.charts) {
@@ -269,7 +327,7 @@ export class LpiView extends ItemView {
     };
   }
 
-  private buildComplianceSeries(items: LpiItem[]): Record<string, unknown> {
+  private buildComplianceSeries(items: LpiItem[], small = false): Record<string, unknown> {
     const counts: Record<string, number> = { 'Соответствует': 0, 'Не соответствует': 0, 'Не оценивается': 0, 'Нет данных': 0 };
     for (const item of items) {
       const val = item.agg_gen_group_complience;
@@ -279,7 +337,7 @@ export class LpiView extends ItemView {
     }
     const labels = Object.keys(counts);
     const data = Object.values(counts);
-    return {
+    const opts: Record<string, unknown> = {
       chart: { type: 'donut' },
       labels,
       series: data,
@@ -288,6 +346,11 @@ export class LpiView extends ItemView {
       tooltip: { enabled: true },
       legend: { position: 'bottom', fontSize: '12px' },
     };
+    if (small) {
+      opts.dataLabels = { enabled: false };
+      opts.legend = { show: false };
+    }
+    return opts;
   }
 
   private buildTopProductsSeries(items: LpiItem[]): Record<string, unknown> {
@@ -299,12 +362,14 @@ export class LpiView extends ItemView {
     return {
       chart: { type: 'bar' },
       xaxis: {
-        categories: sorted.map(([name]) => name.length > 30 ? name.substring(0, 30) + '...' : name),
-        labels: { style: { fontSize: '9px' } },
+        categories: sorted.map(([name]) => name),
+        labels: { style: { fontSize: '10px', whiteSpace: 'normal', wordBreak: 'break-word' } },
       },
       series: [{ name: 'Заявок', data: sorted.map(([, c]) => c) }],
       colors: ['#8b5cf6'],
-      plotOptions: { bar: { borderRadius: 3, horizontal: true } },
+      plotOptions: {
+        bar: { borderRadius: 3, horizontal: true, dataLabels: { position: 'top' } },
+      },
       tooltip: { enabled: true },
       legend: { show: false },
     };

@@ -100,7 +100,8 @@ src/
 - **safeRegisterView**: Обёртка для `registerView()` с `try-catch` — предотвращает ошибку "Attempting to register an existing view type" при перезапуске плагина через updater (view-типы не очищаются из реестра при disablePlugin)
 - **Updater: разделение TARGET_DIR/TARGET_ID**: Для путей к файлам используется `TARGET_DIR` (имя папки плагина `yougile-tntn`), для disablePlugin/enablePlugin — `TARGET_ID` (ID плагина из манифеста `obsidian-yougile`), чтобы файлы скачивались в правильную директорию
 - **Updater: очистка require.cache**: Перед enablePlugin удаляется закешированный модуль `main.js` через `delete require.cache[resolve(path)]`, чтобы загружался новый код с диска
-- **LPI дашборд**: 4 графика ApexCharts (status donut, apps-over-time bar, compliance donut, top products horizontal bar); фильтр продуктов через модалку (search + select/deselect all); deferred render через setTimeout (100ms) для стабильности
+- **LPI дашборд**: 4 графика ApexCharts (status donut, apps-over-time bar, compliance donut, top products horizontal bar); фильтр продуктов через модалку (search + select/deselect all); дата-фильтры (дата создания заявки, дата протокола); deferred render через setTimeout (100ms) для стабильности
+- **Per-product compliance donuts**: при выборе нескольких продуктов топ-продуктов заменяется на донаты соответствия по каждому продукту + общий донат остаётся
 - **LPI таблица**: 6 колонок; active-статус жёлтый, completed — зелёный; у active protocol_date показывается как "—" (без fallback-даты)
 
 ## Настройки плагина

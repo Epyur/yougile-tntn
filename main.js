@@ -66748,13 +66748,20 @@ var ContactsView = class extends import_obsidian10.ItemView {
 var import_obsidian11 = require("obsidian");
 var DB_PATH = "yourbase/lpi_data.json";
 var LPI_VIEW_TYPE = "yougile-lpi-view";
-var PROTOCOL_DATE_FALLBACK = "01.03.2026";
 var LpiView = class extends import_obsidian11.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.items = [];
     this.searchQuery = "";
     this.searchTimeout = null;
+    this.mode = "table";
+    this.charts = [];
+    this.dashboardTimer = null;
+    this.selectedProducts = /* @__PURE__ */ new Set();
+    this.appDateFrom = "";
+    this.appDateTo = "";
+    this.protocolDateFrom = "";
+    this.protocolDateTo = "";
     this.plugin = plugin;
   }
   getViewType() {
@@ -66785,13 +66792,49 @@ var LpiView = class extends import_obsidian11.ItemView {
     }
   }
   getProtocolDate(item) {
-    return item.protocol_date || PROTOCOL_DATE_FALLBACK;
+    if (item.application_status === "active") return "\u2014";
+    return item.protocol_date || "";
   }
   renderView() {
     const container = this.containerElContent;
+    if (this.dashboardTimer) {
+      clearTimeout(this.dashboardTimer);
+      this.dashboardTimer = null;
+    }
+    for (const c of this.charts) {
+      try {
+        c.destroy();
+      } catch (e) {
+      }
+    }
+    this.charts = [];
     container.empty();
     const header = container.createDiv({ cls: "mailer-yougile-header" });
     header.createEl("h3", { text: "\u{1F9EA} \u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439" });
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mb-8" });
+    const tableBtn = btnRow.createEl("button", {
+      text: "\u{1F4CB} \u0422\u0430\u0431\u043B\u0438\u0446\u0430",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    tableBtn.addEventListener("click", () => {
+      this.mode = "table";
+      this.renderView();
+    });
+    const dashBtn = btnRow.createEl("button", {
+      text: "\u{1F4CA} \u0414\u0430\u0448\u0431\u043E\u0440\u0434",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    dashBtn.addEventListener("click", () => {
+      this.mode = "dashboard";
+      this.renderView();
+    });
+    if (this.mode === "dashboard") {
+      this.renderDashboard(container);
+    } else {
+      this.renderTable(container);
+    }
+  }
+  renderTable(container) {
     const searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u2116 \u0437\u0430\u044F\u0432\u043A\u0438, \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044E \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430..." } });
     searchInput.addClass("mailer-mb-8");
     searchInput.value = this.searchQuery;
@@ -66818,7 +66861,7 @@ var LpiView = class extends import_obsidian11.ItemView {
     const table = container.createEl("table", { cls: "mailer-table" });
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
-    const headers = ["\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F"];
+    const headers = ["\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F"];
     for (const h of headers) {
       const th = headerRow.createEl("th", { cls: "mailer-th" });
       th.setText(h);
@@ -66827,7 +66870,7 @@ var LpiView = class extends import_obsidian11.ItemView {
     if (filtered.length === 0) {
       const emptyRow = tbody.createEl("tr");
       const td = emptyRow.createEl("td", { cls: "mailer-text-center mailer-p-24" });
-      td.setAttr("colspan", "4");
+      td.setAttr("colspan", "6");
       td.setText("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445");
       return;
     }
@@ -66836,9 +66879,221 @@ var LpiView = class extends import_obsidian11.ItemView {
       row.addEventListener("click", () => this.renderDetail(item));
       row.createEl("td", { cls: "mailer-td" }).setText(item.application_external_id);
       row.createEl("td", { cls: "mailer-td" }).setText(item.product_name);
+      row.createEl("td", { cls: "mailer-td" }).setText(item.application_created_at);
+      const statusCell = row.createEl("td", { cls: "mailer-td" });
+      if (item.application_status === "active") {
+        statusCell.style.color = "var(--text-warning)";
+        statusCell.setText("\u0410\u043A\u0442\u0438\u0432\u043D\u0430");
+      } else {
+        statusCell.style.color = "var(--text-success)";
+        statusCell.setText("\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430");
+      }
       row.createEl("td", { cls: "mailer-td" }).setText(this.getProtocolDate(item));
       row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group_complience || "");
     }
+  }
+  renderDashboard(container) {
+    const filterRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap mailer-mb-8" });
+    filterRow.style.alignItems = "end";
+    filterRow.style.gap = "8px";
+    const addDateFilter = (label, value, onChange) => {
+      const group = filterRow.createDiv();
+      const lbl = group.createEl("label");
+      lbl.setText(label);
+      lbl.style.fontSize = "var(--font-smaller)";
+      lbl.style.marginRight = "4px";
+      const inp = group.createEl("input", { attr: { type: "date" } });
+      inp.style.fontSize = "var(--font-smaller)";
+      inp.style.padding = "2px 4px";
+      inp.value = value;
+      inp.addEventListener("change", () => {
+        onChange(inp.value);
+        this.renderView();
+      });
+      return inp;
+    };
+    addDateFilter("\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0441", this.appDateFrom, (v) => this.appDateFrom = v);
+    addDateFilter("\u043F\u043E", this.appDateTo, (v) => this.appDateTo = v);
+    addDateFilter("\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430 \u0441", this.protocolDateFrom, (v) => this.protocolDateFrom = v);
+    addDateFilter("\u043F\u043E", this.protocolDateTo, (v) => this.protocolDateTo = v);
+    const productBtn = container.createEl("button", {
+      text: this.selectedProducts.size > 0 ? `\u{1F53D} \u041F\u0440\u043E\u0434\u0443\u043A\u0442\u044B (${this.selectedProducts.size})` : "\u{1F53D} \u0412\u044B\u0431\u0440\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u044B",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    productBtn.addEventListener("click", () => {
+      const modal = new ProductFilterModal(this.app, this.items, this.selectedProducts, (selected) => {
+        this.selectedProducts = selected;
+        this.renderView();
+      });
+      modal.open();
+    });
+    if (this.selectedProducts.size > 0) {
+      const clearBtn = container.createEl("button", { text: "\u2715 \u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+      clearBtn.style.marginLeft = "8px";
+      clearBtn.addEventListener("click", () => {
+        this.selectedProducts.clear();
+        this.renderView();
+      });
+    }
+    let filtered = this.items;
+    if (this.selectedProducts.size > 0) {
+      filtered = filtered.filter((item) => this.selectedProducts.has(item.product_name));
+    }
+    if (this.appDateFrom) {
+      filtered = filtered.filter((item) => item.application_created_at >= this.appDateFrom);
+    }
+    if (this.appDateTo) {
+      filtered = filtered.filter((item) => item.application_created_at <= this.appDateTo);
+    }
+    if (this.protocolDateFrom) {
+      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date >= this.protocolDateFrom);
+    }
+    if (this.protocolDateTo) {
+      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date <= this.protocolDateTo);
+    }
+    const total = filtered.length;
+    const active = filtered.filter((i) => i.application_status === "active").length;
+    const completed = filtered.filter((i) => i.application_status === "completed").length;
+    const withProtocol = filtered.filter((i) => i.protocol_date).length;
+    const metricsRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap mailer-mb-8" });
+    const metricStyle = "min-width:120px;padding:8px 12px;margin:4px;background:var(--background-modifier-hover);border-radius:6px;text-align:center";
+    const addMetric = (label, value) => {
+      const div = metricsRow.createDiv({ attr: { style: metricStyle } });
+      div.createDiv({ attr: { style: "font-size:var(--font-ui-smaller);opacity:.7" }, text: label });
+      div.createDiv({ attr: { style: "font-size:var(--font-ui-large);font-weight:700" }, text: String(value) });
+    };
+    addMetric("\u0412\u0441\u0435\u0433\u043E \u0437\u0430\u044F\u0432\u043E\u043A", total);
+    addMetric("\u0410\u043A\u0442\u0438\u0432\u043D\u043E", active);
+    addMetric("\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E", completed);
+    addMetric("\u0421 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u043E\u043C", withProtocol);
+    const chartRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
+    const c1 = chartRow.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
+    c1.createEl("h4", { text: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u044F\u0432\u043E\u043A" });
+    this.createChart(c1, this.buildStatusSeries(filtered));
+    const c2 = chartRow.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
+    c2.createEl("h4", { text: "\u0417\u0430\u044F\u0432\u043A\u0438 \u043F\u043E \u043C\u0435\u0441\u044F\u0446\u0430\u043C" });
+    this.createChart(c2, this.buildMonthlySeries(filtered));
+    const c3 = chartRow.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
+    c3.createEl("h4", { text: "\u041E\u0431\u0449\u0430\u044F \u043E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" });
+    this.createChart(c3, this.buildComplianceSeries(filtered));
+    if (this.selectedProducts.size > 1) {
+      const c4 = chartRow.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
+      c4.createEl("h4", { text: "\u041E\u0446\u0435\u043D\u043A\u0430 \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C" });
+      const perProductWrap = c4.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
+      const products = [...this.selectedProducts].sort();
+      for (const product of products) {
+        const productItems = filtered.filter((i) => i.product_name === product);
+        if (productItems.length === 0) continue;
+        const card = perProductWrap.createDiv({ attr: { style: "width:45%;min-width:160px;margin:2%" } });
+        const title = card.createEl("h5", { text: product });
+        title.style.fontSize = "var(--font-smaller)";
+        title.style.whiteSpace = "normal";
+        title.style.wordBreak = "break-word";
+        title.style.margin = "4px 0";
+        this.createChart(card, this.buildComplianceSeries(productItems, true));
+      }
+    } else {
+      const c4 = chartRow.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
+      c4.createEl("h4", { text: "\u0422\u043E\u043F \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0430\u043C" });
+      this.createChart(c4, this.buildTopProductsSeries(filtered));
+    }
+    this.dashboardTimer = window.setTimeout(() => {
+      for (const chart of this.charts) {
+        try {
+          chart.render();
+        } catch (e) {
+        }
+      }
+    }, 100);
+  }
+  createChart(container, options2) {
+    const chart = new ApexCharts(container, options2);
+    this.charts.push(chart);
+    return chart;
+  }
+  buildStatusSeries(items) {
+    const active = items.filter((i) => i.application_status === "active").length;
+    const completed = items.filter((i) => i.application_status === "completed").length;
+    return {
+      chart: { type: "donut" },
+      labels: ["\u0410\u043A\u0442\u0438\u0432\u043D\u043E", "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E"],
+      series: [active, completed],
+      colors: ["#f59e0b", "#10b981"],
+      plotOptions: { pie: { donut: { size: "60%" } } },
+      tooltip: { enabled: true },
+      legend: { position: "bottom", fontSize: "12px" }
+    };
+  }
+  buildMonthlySeries(items) {
+    const months = {};
+    for (const item of items) {
+      if (!item.application_created_at) continue;
+      const month = item.application_created_at.substring(0, 7);
+      months[month] = (months[month] || 0) + 1;
+    }
+    const sorted = Object.entries(months).sort((a, b) => a[0].localeCompare(b[0]));
+    return {
+      chart: { type: "bar" },
+      xaxis: {
+        categories: sorted.map(([m]) => m),
+        labels: { rotate: -45, style: { fontSize: "10px" } }
+      },
+      series: [{ name: "\u0417\u0430\u044F\u0432\u043E\u043A", data: sorted.map(([, c]) => c) }],
+      colors: ["#3b82f6"],
+      plotOptions: { bar: { borderRadius: 3 } },
+      tooltip: { enabled: true },
+      legend: { show: false }
+    };
+  }
+  buildComplianceSeries(items, small = false) {
+    const counts = { "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442": 0, "\u041D\u0435 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442": 0, "\u041D\u0435 \u043E\u0446\u0435\u043D\u0438\u0432\u0430\u0435\u0442\u0441\u044F": 0, "\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445": 0 };
+    for (const item of items) {
+      const val = item.agg_gen_group_complience;
+      if (!val) {
+        counts["\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445"]++;
+      } else if (counts[val] !== void 0) {
+        counts[val]++;
+      } else {
+        counts["\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445"]++;
+      }
+    }
+    const labels = Object.keys(counts);
+    const data = Object.values(counts);
+    const opts = {
+      chart: { type: "donut" },
+      labels,
+      series: data,
+      colors: ["#10b981", "#ef4444", "#f59e0b", "#6b7280"],
+      plotOptions: { pie: { donut: { size: "60%" } } },
+      tooltip: { enabled: true },
+      legend: { position: "bottom", fontSize: "12px" }
+    };
+    if (small) {
+      opts.dataLabels = { enabled: false };
+      opts.legend = { show: false };
+    }
+    return opts;
+  }
+  buildTopProductsSeries(items) {
+    const counts = {};
+    for (const item of items) {
+      counts[item.product_name] = (counts[item.product_name] || 0) + 1;
+    }
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+    return {
+      chart: { type: "bar" },
+      xaxis: {
+        categories: sorted.map(([name2]) => name2),
+        labels: { style: { fontSize: "10px", whiteSpace: "normal", wordBreak: "break-word" } }
+      },
+      series: [{ name: "\u0417\u0430\u044F\u0432\u043E\u043A", data: sorted.map(([, c]) => c) }],
+      colors: ["#8b5cf6"],
+      plotOptions: {
+        bar: { borderRadius: 3, horizontal: true, dataLabels: { position: "top" } }
+      },
+      tooltip: { enabled: true },
+      legend: { show: false }
+    };
   }
   renderDetail(item) {
     const container = this.containerElContent;
@@ -66848,7 +67103,9 @@ var LpiView = class extends import_obsidian11.ItemView {
     container.createEl("h3", { text: `\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}` });
     const fields = [
       { label: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", value: item.product_name },
-      { label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", value: this.getProtocolDate(item) },
+      { label: "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0437\u0430\u044F\u0432\u043A\u0438", value: item.application_created_at },
+      { label: "\u0421\u0442\u0430\u0442\u0443\u0441", value: item.application_status === "active" ? "\u0410\u043A\u0442\u0438\u0432\u043D\u0430" : "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" },
+      { label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", value: this.getProtocolDate(item) || null },
       { label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", value: item.agg_gen_group_complience },
       { label: "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A", value: item.customer_name },
       { label: "Email \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", value: item.customer_mail },
@@ -66882,7 +67139,6 @@ var LpiView = class extends import_obsidian11.ItemView {
       { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", value: item.agg_complience_by_length },
       { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_complience_by_comb_time },
       { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0430\u0442\u043A\u0435", value: item.agg_complience_by_bulbe },
-      { label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", value: item.agg_gen_group_complience },
       { label: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F", value: item.agg_additional_info_1 }
     ];
     const meta = container.createDiv({ cls: "mailer-yougile-task-meta mailer-mb-12" });
@@ -66890,6 +67146,81 @@ var LpiView = class extends import_obsidian11.ItemView {
       if (field.value === null || field.value === void 0 || field.value === "") continue;
       meta.createDiv({ text: `${field.label}: ${field.value}` });
     }
+  }
+};
+var ProductFilterModal = class extends import_obsidian11.Modal {
+  constructor(app, items, selected, onSave) {
+    super(app);
+    this.searchQuery = "";
+    this.items = items;
+    this.selected = new Set(selected);
+    this.onSave = onSave;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h3", { text: "\u0412\u044B\u0431\u043E\u0440 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u0434\u043B\u044F \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430" });
+    const searchInput = contentEl.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430..." } });
+    searchInput.style.width = "100%";
+    searchInput.style.marginBottom = "8px";
+    searchInput.style.boxSizing = "border-box";
+    const allProducts = [...new Set(this.items.map((i) => i.product_name))].sort();
+    const listContainer = contentEl.createDiv();
+    listContainer.style.maxHeight = "400px";
+    listContainer.style.overflowY = "auto";
+    const renderList = (query) => {
+      listContainer.empty();
+      const q = query.trim().toLowerCase();
+      const filtered = q ? allProducts.filter((p) => p.toLowerCase().includes(q)) : allProducts;
+      for (const product of filtered) {
+        const wrapper = listContainer.createEl("label");
+        wrapper.style.display = "flex";
+        wrapper.style.alignItems = "center";
+        wrapper.style.padding = "2px 0";
+        wrapper.style.cursor = "pointer";
+        wrapper.style.fontSize = "var(--font-smaller)";
+        const cb = wrapper.createEl("input", { attr: { type: "checkbox" } });
+        cb.style.width = "16px";
+        cb.style.height = "16px";
+        cb.style.margin = "0 6px 0 0";
+        cb.style.flexShrink = "0";
+        cb.checked = this.selected.has(product);
+        cb.addEventListener("change", () => {
+          if (cb.checked) this.selected.add(product);
+          else this.selected.delete(product);
+        });
+        wrapper.createEl("span").setText(product);
+      }
+    };
+    renderList("");
+    searchInput.addEventListener("input", () => {
+      this.searchQuery = searchInput.value;
+      renderList(this.searchQuery);
+    });
+    const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
+    const selectAllBtn = btnRow.createEl("button", { text: "\u0412\u044B\u0431\u0440\u0430\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
+    selectAllBtn.addEventListener("click", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? allProducts.filter((p) => p.toLowerCase().includes(q)) : allProducts;
+      for (const product of filtered) this.selected.add(product);
+      renderList(searchInput.value);
+    });
+    const deselectAllBtn = btnRow.createEl("button", { text: "\u0421\u043D\u044F\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
+    deselectAllBtn.addEventListener("click", () => {
+      this.selected.clear();
+      renderList(searchInput.value);
+    });
+    const applyBtn = btnRow.createEl("button", { text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    applyBtn.addEventListener("click", () => {
+      this.onSave(this.selected);
+      this.close();
+    });
+    const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
+    cancelBtn.addEventListener("click", () => this.close());
+  }
+  onClose() {
+    this.contentEl.empty();
   }
 };
 
@@ -67684,6 +68015,14 @@ var CHANGELOG = {
     "\u041C\u043E\u0434\u0443\u043B\u044C LPI \u0447\u0438\u0442\u0430\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0435 \u0438\u0437 yourbase/lpi_data.json, \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0430\u0435\u0442 \u0442\u0430\u0431\u043B\u0438\u0446\u0443 \u0438 \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043E\u043A",
     "\u041F\u0440\u043E\u0435\u043A\u0442, \u0434\u043E\u0441\u043A\u0430 \u0438 \u043A\u043E\u043B\u043E\u043D\u043A\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u044B \u0436\u0451\u0441\u0442\u043A\u043E (\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439 / \u0417\u0430\u044F\u0432\u043A\u0438 / \u0417\u0430\u044F\u0432\u043A\u0438)",
     "\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0430\u0432\u0442\u043E\u0440 manifest.json: \u0415.\u041F\u043E\u043B\u0438\u0449\u0443\u043A"
+  ],
+  "0.3.1": [
+    '\u0422\u0430\u0431\u043B\u0438\u0446\u0430 LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u043A\u043E\u043B\u043E\u043D\u043A\u0438 "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0437\u0430\u044F\u0432\u043A\u0438", "\u0421\u0442\u0430\u0442\u0443\u0441" (\u0432\u0441\u0435\u0433\u043E 6 \u043A\u043E\u043B\u043E\u043D\u043E\u043A)',
+    '\u0421\u0442\u0430\u0442\u0443\u0441 "\u0410\u043A\u0442\u0438\u0432\u043D\u0430" \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0430\u0435\u0442\u0441\u044F \u0436\u0451\u043B\u0442\u044B\u043C, "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" \u2014 \u0437\u0435\u043B\u0451\u043D\u044B\u043C',
+    '\u0423 active-\u0437\u0430\u044F\u0432\u043E\u043A \u0432 \u043A\u043E\u043B\u043E\u043D\u043A\u0435 "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F "\u2014" (\u0432\u043C\u0435\u0441\u0442\u043E fallback-\u0434\u0430\u0442\u044B 01.03.2026)',
+    "\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0434\u0430\u0448\u0431\u043E\u0440\u0434 LPI \u0441 4 \u0433\u0440\u0430\u0444\u0438\u043A\u0430\u043C\u0438 ApexCharts: \u0441\u0442\u0430\u0442\u0443\u0441 (donut), \u0437\u0430\u044F\u0432\u043A\u0438 \u043F\u043E \u043C\u0435\u0441\u044F\u0446\u0430\u043C (bar), \u043E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F (donut), \u0442\u043E\u043F \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 (bar)",
+    "\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u043C\u043E\u0434\u0430\u043B\u044C\u043D\u044B\u0439 \u0444\u0438\u043B\u044C\u0442\u0440 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u0434\u043B\u044F \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430 (\u0432\u044B\u0431\u043E\u0440 \u043B\u044E\u0431\u043E\u0433\u043E \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u0430 \u0438\u0437 174 \u0443\u043D\u0438\u043A\u0430\u043B\u044C\u043D\u044B\u0445 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432)",
+    "\u041F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u043C\u0435\u0436\u0434\u0443 \u0440\u0435\u0436\u0438\u043C\u0430\u043C\u0438 \u0422\u0430\u0431\u043B\u0438\u0446\u0430 / \u0414\u0430\u0448\u0431\u043E\u0440\u0434 \u0447\u0435\u0440\u0435\u0437 \u043A\u043D\u043E\u043F\u043A\u0438 \u0432 \u0448\u0430\u043F\u043A\u0435"
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {
