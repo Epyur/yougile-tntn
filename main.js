@@ -66763,6 +66763,7 @@ var LpiView = class extends import_obsidian11.ItemView {
     this.protocolDateFrom = "";
     this.protocolDateTo = "";
     this.serialOnly = false;
+    this.experimentalOnly = false;
     this.plugin = plugin;
   }
   getViewType() {
@@ -66893,6 +66894,31 @@ var LpiView = class extends import_obsidian11.ItemView {
       row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group_complience || "");
     }
   }
+  applyFilters(items) {
+    let filtered = items;
+    if (this.selectedProducts.size > 0) {
+      filtered = filtered.filter((item) => this.selectedProducts.has(item.product_name));
+    }
+    if (this.appDateFrom) {
+      filtered = filtered.filter((item) => item.application_created_at >= this.appDateFrom);
+    }
+    if (this.appDateTo) {
+      filtered = filtered.filter((item) => item.application_created_at <= this.appDateTo);
+    }
+    if (this.protocolDateFrom) {
+      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date >= this.protocolDateFrom);
+    }
+    if (this.protocolDateTo) {
+      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date <= this.protocolDateTo);
+    }
+    if (this.serialOnly) {
+      filtered = filtered.filter((item) => item.ekn && /^\d+$/.test(item.ekn));
+    }
+    if (this.experimentalOnly) {
+      filtered = filtered.filter((item) => !item.ekn || !/^\d+$/.test(item.ekn));
+    }
+    return filtered;
+  }
   renderDashboard(container) {
     const filterRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap mailer-mb-8" });
     filterRow.style.alignItems = "end";
@@ -66917,27 +66943,33 @@ var LpiView = class extends import_obsidian11.ItemView {
     addDateFilter("\u043F\u043E", this.appDateTo, (v) => this.appDateTo = v);
     addDateFilter("\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430 \u0441", this.protocolDateFrom, (v) => this.protocolDateFrom = v);
     addDateFilter("\u043F\u043E", this.protocolDateTo, (v) => this.protocolDateTo = v);
-    const serialGroup = filterRow.createDiv();
-    serialGroup.style.display = "flex";
-    serialGroup.style.alignItems = "center";
-    serialGroup.style.marginLeft = "8px";
-    const serialCb = serialGroup.createEl("input", { attr: { type: "checkbox" } });
-    serialCb.style.width = "16px";
-    serialCb.style.height = "16px";
-    serialCb.style.margin = "0 4px 0 0";
-    serialCb.checked = this.serialOnly;
-    serialCb.addEventListener("change", () => {
-      this.serialOnly = serialCb.checked;
-      this.renderView();
-    });
-    const serialLabel = serialGroup.createEl("label", { text: "\u0421\u0435\u0440\u0438\u0439\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F" });
-    serialLabel.style.fontSize = "var(--font-smaller)";
+    const addCb = (label, checked, onChange) => {
+      const group = filterRow.createDiv({ attr: { style: "display:flex;align-items:center;margin-left:8px" } });
+      const cb = group.createEl("input", { attr: { type: "checkbox" } });
+      cb.style.width = "16px";
+      cb.style.height = "16px";
+      cb.style.margin = "0 4px 0 0";
+      cb.checked = checked;
+      cb.addEventListener("change", () => {
+        onChange(cb.checked);
+        this.renderView();
+      });
+      const lbl = group.createEl("label", { text: label });
+      lbl.style.fontSize = "var(--font-smaller)";
+    };
+    addCb("\u0421\u0435\u0440\u0438\u0439\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F", this.serialOnly, (v) => this.serialOnly = v);
+    addCb("\u041E\u043F\u044B\u0442\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F", this.experimentalOnly, (v) => this.experimentalOnly = v);
+    const allFiltered = this.applyFilters(this.items);
+    const availableProducts = [...new Set(allFiltered.map((i) => i.product_name))].sort();
+    for (const p of this.selectedProducts) {
+      if (!availableProducts.includes(p)) this.selectedProducts.delete(p);
+    }
     const productBtn = container.createEl("button", {
       text: this.selectedProducts.size > 0 ? `\u{1F53D} \u041F\u0440\u043E\u0434\u0443\u043A\u0442\u044B (${this.selectedProducts.size})` : "\u{1F53D} \u0412\u044B\u0431\u0440\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u044B",
       cls: "mailer-yougile-refresh-btn"
     });
     productBtn.addEventListener("click", () => {
-      const modal = new ProductFilterModal(this.app, this.items, this.selectedProducts, (selected) => {
+      const modal = new ProductFilterModal(this.app, availableProducts, this.selectedProducts, (selected) => {
         this.selectedProducts = selected;
         this.renderView();
       });
@@ -66951,24 +66983,9 @@ var LpiView = class extends import_obsidian11.ItemView {
         this.renderView();
       });
     }
-    let filtered = this.items;
+    let filtered = allFiltered;
     if (this.selectedProducts.size > 0) {
       filtered = filtered.filter((item) => this.selectedProducts.has(item.product_name));
-    }
-    if (this.appDateFrom) {
-      filtered = filtered.filter((item) => item.application_created_at >= this.appDateFrom);
-    }
-    if (this.appDateTo) {
-      filtered = filtered.filter((item) => item.application_created_at <= this.appDateTo);
-    }
-    if (this.protocolDateFrom) {
-      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date >= this.protocolDateFrom);
-    }
-    if (this.protocolDateTo) {
-      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date <= this.protocolDateTo);
-    }
-    if (this.serialOnly) {
-      filtered = filtered.filter((item) => item.ekn && /^\d+$/.test(item.ekn));
     }
     const total = filtered.length;
     const active = filtered.filter((i) => i.application_status === "active").length;
@@ -67012,7 +67029,7 @@ var LpiView = class extends import_obsidian11.ItemView {
         this.createChart(card, this.buildComplianceSeries(productItems, true));
       }
     } else {
-      const c4 = chartRow.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
+      const c4 = chartRow.createDiv({ attr: { style: "width:98%;min-width:280px;margin:1%" } });
       c4.createEl("h4", { text: "\u0422\u043E\u043F \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0430\u043C" });
       this.createChart(c4, this.buildTopProductsSeries(filtered));
     }
@@ -67099,17 +67116,23 @@ var LpiView = class extends import_obsidian11.ItemView {
       counts[item.product_name] = (counts[item.product_name] || 0) + 1;
     }
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+    const names = sorted.map(([name2]) => name2);
     return {
       chart: { type: "bar" },
-      xaxis: {
-        categories: sorted.map(([name2]) => name2),
-        labels: { style: { fontSize: "10px", whiteSpace: "normal", wordBreak: "break-word" } }
-      },
+      plotOptions: { bar: { borderRadius: 3, horizontal: true } },
       series: [{ name: "\u0417\u0430\u044F\u0432\u043E\u043A", data: sorted.map(([, c]) => c) }],
-      colors: ["#8b5cf6"],
-      plotOptions: {
-        bar: { borderRadius: 3, horizontal: true }
+      xaxis: {
+        categories: names,
+        labels: { style: { fontSize: "10px" } }
       },
+      yaxis: {
+        labels: {
+          style: { fontSize: "10px", whiteSpace: "normal", wordBreak: "break-word" },
+          maxWidth: 500,
+          trim: false
+        }
+      },
+      colors: ["#8b5cf6"],
       tooltip: { enabled: true },
       legend: { show: false }
     };
@@ -67168,10 +67191,9 @@ var LpiView = class extends import_obsidian11.ItemView {
   }
 };
 var ProductFilterModal = class extends import_obsidian11.Modal {
-  constructor(app, items, selected, onSave) {
+  constructor(app, allProducts, selected, onSave) {
     super(app);
-    this.searchQuery = "";
-    this.items = items;
+    this.allProducts = allProducts;
     this.selected = new Set(selected);
     this.onSave = onSave;
   }
@@ -67184,14 +67206,13 @@ var ProductFilterModal = class extends import_obsidian11.Modal {
     searchInput.style.width = "100%";
     searchInput.style.marginBottom = "8px";
     searchInput.style.boxSizing = "border-box";
-    const allProducts = [...new Set(this.items.map((i) => i.product_name))].sort();
     const listContainer = contentEl.createDiv();
     listContainer.style.maxHeight = "400px";
     listContainer.style.overflowY = "auto";
-    const renderList = (query) => {
+    const renderList = () => {
       listContainer.empty();
-      const q = query.trim().toLowerCase();
-      const filtered = q ? allProducts.filter((p) => p.toLowerCase().includes(q)) : allProducts;
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allProducts.filter((p) => p.toLowerCase().includes(q)) : this.allProducts;
       for (const product of filtered) {
         const wrapper = listContainer.createEl("label");
         wrapper.style.display = "flex";
@@ -67212,23 +67233,20 @@ var ProductFilterModal = class extends import_obsidian11.Modal {
         wrapper.createEl("span").setText(product);
       }
     };
-    renderList("");
-    searchInput.addEventListener("input", () => {
-      this.searchQuery = searchInput.value;
-      renderList(this.searchQuery);
-    });
+    renderList();
+    searchInput.addEventListener("input", renderList);
     const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
     const selectAllBtn = btnRow.createEl("button", { text: "\u0412\u044B\u0431\u0440\u0430\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
     selectAllBtn.addEventListener("click", () => {
       const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? allProducts.filter((p) => p.toLowerCase().includes(q)) : allProducts;
+      const filtered = q ? this.allProducts.filter((p) => p.toLowerCase().includes(q)) : this.allProducts;
       for (const product of filtered) this.selected.add(product);
-      renderList(searchInput.value);
+      renderList();
     });
     const deselectAllBtn = btnRow.createEl("button", { text: "\u0421\u043D\u044F\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
     deselectAllBtn.addEventListener("click", () => {
       this.selected.clear();
-      renderList(searchInput.value);
+      renderList();
     });
     const applyBtn = btnRow.createEl("button", { text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
     applyBtn.addEventListener("click", () => {
@@ -68047,6 +68065,10 @@ var CHANGELOG = {
     "\u0414\u0430\u0448\u0431\u043E\u0440\u0434 LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u0434\u0430\u0442\u0430-\u0444\u0438\u043B\u044C\u0442\u0440\u044B (\u0434\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0437\u0430\u044F\u0432\u043A\u0438 \u0441/\u043F\u043E, \u0434\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430 \u0441/\u043F\u043E)",
     "\u041F\u043E\u043B\u043D\u044B\u0435 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u043D\u0430 \u0433\u0440\u0430\u0444\u0438\u043A\u0430\u0445 (\u0431\u0435\u0437 \u043E\u0431\u0440\u0435\u0437\u0430\u043D\u0438\u044F \u0434\u043E 30 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432), \u043F\u0435\u0440\u0435\u043D\u043E\u0441 \u043D\u0430 \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u043E \u0441\u0442\u0440\u043E\u043A",
     "\u041F\u0440\u0438 \u0432\u044B\u0431\u043E\u0440\u0435 \u043D\u0435\u0441\u043A\u043E\u043B\u044C\u043A\u0438\u0445 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432: \u0442\u043E\u043F-\u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u0437\u0430\u043C\u0435\u043D\u0451\u043D \u043D\u0430 \u043A\u0440\u0443\u0433\u043E\u0432\u044B\u0435 \u0434\u0438\u0430\u0433\u0440\u0430\u043C\u043C\u044B \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F \u043F\u043E \u043A\u0430\u0436\u0434\u043E\u043C\u0443 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0443 + \u043E\u0431\u0449\u0438\u0439 \u043A\u0440\u0443\u0433 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F"
+  ],
+  "0.3.3": [
+    '\u0414\u0430\u0448\u0431\u043E\u0440\u0434 LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0447\u0435\u043A\u0431\u043E\u043A\u0441 "\u0421\u0435\u0440\u0438\u0439\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F" \u2014 \u0435\u0441\u043B\u0438 \u0415\u041A\u041D \u0443\u043A\u0430\u0437\u0430\u043D (\u0446\u0438\u0444\u0440\u043E\u0432\u043E\u0439), \u0442\u043E \u0441\u0435\u0440\u0438\u0439\u043D\u0430\u044F; \u0438\u043D\u0430\u0447\u0435 \u043E\u043F\u044B\u0442\u043D\u044B\u0439 \u043E\u0431\u0440\u0430\u0437\u0435\u0446',
+    '\u0413\u0440\u0430\u0444\u0438\u043A "\u0422\u043E\u043F \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432": \u0443\u0431\u0440\u0430\u043D\u044B \u043F\u043E\u0434\u043F\u0438\u0441\u0438 \u0441 \u0447\u0438\u0441\u043B\u043E\u043C \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439 \u043D\u0430 \u0431\u0430\u0440\u0430\u0445 (\u043E\u0441\u0442\u0430\u0432\u043B\u0435\u043D\u0430 \u0442\u043E\u043B\u044C\u043A\u043E \u0448\u043A\u0430\u043B\u0430)'
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {

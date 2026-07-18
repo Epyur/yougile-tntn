@@ -24,6 +24,7 @@ export class LpiView extends ItemView {
   private protocolDateFrom = '';
   private protocolDateTo = '';
   private serialOnly = false;
+  private experimentalOnly = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -104,9 +105,7 @@ export class LpiView extends ItemView {
     searchInput.addEventListener('input', () => {
       this.searchQuery = searchInput.value;
       if (this.searchTimeout) clearTimeout(this.searchTimeout);
-      this.searchTimeout = window.setTimeout(() => {
-        this.renderView();
-      }, 300);
+      this.searchTimeout = window.setTimeout(() => { this.renderView(); }, 300);
     });
 
     const q = this.searchQuery.trim().toLowerCase();
@@ -146,7 +145,6 @@ export class LpiView extends ItemView {
     for (const item of filtered) {
       const row = tbody.createEl('tr', { cls: 'mailer-clickable mailer-row-hover' });
       row.addEventListener('click', () => this.renderDetail(item));
-
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
@@ -161,6 +159,32 @@ export class LpiView extends ItemView {
       row.createEl('td', { cls: 'mailer-td' }).setText(this.getProtocolDate(item));
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
     }
+  }
+
+  private applyFilters(items: LpiItem[]): LpiItem[] {
+    let filtered = items;
+    if (this.selectedProducts.size > 0) {
+      filtered = filtered.filter(item => this.selectedProducts.has(item.product_name));
+    }
+    if (this.appDateFrom) {
+      filtered = filtered.filter(item => item.application_created_at >= this.appDateFrom);
+    }
+    if (this.appDateTo) {
+      filtered = filtered.filter(item => item.application_created_at <= this.appDateTo);
+    }
+    if (this.protocolDateFrom) {
+      filtered = filtered.filter(item => item.protocol_date && item.protocol_date >= this.protocolDateFrom);
+    }
+    if (this.protocolDateTo) {
+      filtered = filtered.filter(item => item.protocol_date && item.protocol_date <= this.protocolDateTo);
+    }
+    if (this.serialOnly) {
+      filtered = filtered.filter(item => item.ekn && /^\d+$/.test(item.ekn));
+    }
+    if (this.experimentalOnly) {
+      filtered = filtered.filter(item => !item.ekn || !/^\d+$/.test(item.ekn));
+    }
+    return filtered;
   }
 
   private renderDashboard(container: HTMLElement): void {
@@ -186,25 +210,34 @@ export class LpiView extends ItemView {
     addDateFilter('Дата протокола с', this.protocolDateFrom, v => this.protocolDateFrom = v);
     addDateFilter('по', this.protocolDateTo, v => this.protocolDateTo = v);
 
-    const serialGroup = filterRow.createDiv();
-    serialGroup.style.display = 'flex';
-    serialGroup.style.alignItems = 'center';
-    serialGroup.style.marginLeft = '8px';
-    const serialCb = serialGroup.createEl('input', { attr: { type: 'checkbox' } });
-    serialCb.style.width = '16px';
-    serialCb.style.height = '16px';
-    serialCb.style.margin = '0 4px 0 0';
-    serialCb.checked = this.serialOnly;
-    serialCb.addEventListener('change', () => { this.serialOnly = serialCb.checked; this.renderView(); });
-    const serialLabel = serialGroup.createEl('label', { text: 'Серийная продукция' });
-    serialLabel.style.fontSize = 'var(--font-smaller)';
+    const addCb = (label: string, checked: boolean, onChange: (v: boolean) => void) => {
+      const group = filterRow.createDiv({ attr: { style: 'display:flex;align-items:center;margin-left:8px' } });
+      const cb = group.createEl('input', { attr: { type: 'checkbox' } });
+      cb.style.width = '16px';
+      cb.style.height = '16px';
+      cb.style.margin = '0 4px 0 0';
+      cb.checked = checked;
+      cb.addEventListener('change', () => { onChange(cb.checked); this.renderView(); });
+      const lbl = group.createEl('label', { text: label });
+      lbl.style.fontSize = 'var(--font-smaller)';
+    };
+    addCb('Серийная продукция', this.serialOnly, v => this.serialOnly = v);
+    addCb('Опытная продукция', this.experimentalOnly, v => this.experimentalOnly = v);
+
+    const allFiltered = this.applyFilters(this.items);
+
+    const availableProducts = [...new Set(allFiltered.map(i => i.product_name))].sort();
+    // remove selected products that are no longer in filtered set
+    for (const p of this.selectedProducts) {
+      if (!availableProducts.includes(p)) this.selectedProducts.delete(p);
+    }
 
     const productBtn = container.createEl('button', {
       text: this.selectedProducts.size > 0 ? `🔽 Продукты (${this.selectedProducts.size})` : '🔽 Выбрать продукты',
       cls: 'mailer-yougile-refresh-btn',
     });
     productBtn.addEventListener('click', () => {
-      const modal = new ProductFilterModal(this.app, this.items, this.selectedProducts, (selected) => {
+      const modal = new ProductFilterModal(this.app, availableProducts, this.selectedProducts, (selected) => {
         this.selectedProducts = selected;
         this.renderView();
       });
@@ -220,27 +253,9 @@ export class LpiView extends ItemView {
       });
     }
 
-    let filtered = this.items;
-
+    let filtered = allFiltered;
     if (this.selectedProducts.size > 0) {
       filtered = filtered.filter(item => this.selectedProducts.has(item.product_name));
-    }
-
-    if (this.appDateFrom) {
-      filtered = filtered.filter(item => item.application_created_at >= this.appDateFrom);
-    }
-    if (this.appDateTo) {
-      filtered = filtered.filter(item => item.application_created_at <= this.appDateTo);
-    }
-    if (this.protocolDateFrom) {
-      filtered = filtered.filter(item => item.protocol_date && item.protocol_date >= this.protocolDateFrom);
-    }
-    if (this.protocolDateTo) {
-      filtered = filtered.filter(item => item.protocol_date && item.protocol_date <= this.protocolDateTo);
-    }
-
-    if (this.serialOnly) {
-      filtered = filtered.filter(item => item.ekn && /^\d+$/.test(item.ekn));
     }
 
     const total = filtered.length;
@@ -291,7 +306,7 @@ export class LpiView extends ItemView {
         this.createChart(card, this.buildComplianceSeries(productItems, true));
       }
     } else {
-      const c4 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+      const c4 = chartRow.createDiv({ attr: { style: 'width:98%;min-width:280px;margin:1%' } });
       c4.createEl('h4', { text: 'Топ продуктов по заявкам' });
       this.createChart(c4, this.buildTopProductsSeries(filtered));
     }
@@ -377,17 +392,23 @@ export class LpiView extends ItemView {
       counts[item.product_name] = (counts[item.product_name] || 0) + 1;
     }
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+    const names = sorted.map(([name]) => name);
     return {
       chart: { type: 'bar' },
-      xaxis: {
-        categories: sorted.map(([name]) => name),
-        labels: { style: { fontSize: '10px', whiteSpace: 'normal', wordBreak: 'break-word' } },
-      },
+      plotOptions: { bar: { borderRadius: 3, horizontal: true } },
       series: [{ name: 'Заявок', data: sorted.map(([, c]) => c) }],
-      colors: ['#8b5cf6'],
-      plotOptions: {
-        bar: { borderRadius: 3, horizontal: true },
+      xaxis: {
+        categories: names,
+        labels: { style: { fontSize: '10px' } },
       },
+      yaxis: {
+        labels: {
+          style: { fontSize: '10px', whiteSpace: 'normal', wordBreak: 'break-word' },
+          maxWidth: 500,
+          trim: false,
+        },
+      },
+      colors: ['#8b5cf6'],
       tooltip: { enabled: true },
       legend: { show: false },
     };
@@ -452,14 +473,13 @@ export class LpiView extends ItemView {
 }
 
 class ProductFilterModal extends Modal {
-  private items: LpiItem[];
+  private allProducts: string[];
   private selected: Set<string>;
   private onSave: (selected: Set<string>) => void;
-  private searchQuery = '';
 
-  constructor(app: App, items: LpiItem[], selected: Set<string>, onSave: (selected: Set<string>) => void) {
+  constructor(app: App, allProducts: string[], selected: Set<string>, onSave: (selected: Set<string>) => void) {
     super(app);
-    this.items = items;
+    this.allProducts = allProducts;
     this.selected = new Set(selected);
     this.onSave = onSave;
   }
@@ -476,16 +496,14 @@ class ProductFilterModal extends Modal {
     searchInput.style.marginBottom = '8px';
     searchInput.style.boxSizing = 'border-box';
 
-    const allProducts = [...new Set(this.items.map(i => i.product_name))].sort();
-
     const listContainer = contentEl.createDiv();
     listContainer.style.maxHeight = '400px';
     listContainer.style.overflowY = 'auto';
 
-    const renderList = (query: string) => {
+    const renderList = () => {
       listContainer.empty();
-      const q = query.trim().toLowerCase();
-      const filtered = q ? allProducts.filter(p => p.toLowerCase().includes(q)) : allProducts;
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allProducts.filter(p => p.toLowerCase().includes(q)) : this.allProducts;
       for (const product of filtered) {
         const wrapper = listContainer.createEl('label');
         wrapper.style.display = 'flex';
@@ -506,26 +524,23 @@ class ProductFilterModal extends Modal {
         wrapper.createEl('span').setText(product);
       }
     };
-    renderList('');
+    renderList();
 
-    searchInput.addEventListener('input', () => {
-      this.searchQuery = searchInput.value;
-      renderList(this.searchQuery);
-    });
+    searchInput.addEventListener('input', renderList);
 
     const btnRow = contentEl.createDiv({ cls: 'mailer-yougile-header mailer-mt-8' });
     const selectAllBtn = btnRow.createEl('button', { text: 'Выбрать все', cls: 'mailer-yougile-refresh-btn' });
     selectAllBtn.addEventListener('click', () => {
       const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? allProducts.filter(p => p.toLowerCase().includes(q)) : allProducts;
+      const filtered = q ? this.allProducts.filter(p => p.toLowerCase().includes(q)) : this.allProducts;
       for (const product of filtered) this.selected.add(product);
-      renderList(searchInput.value);
+      renderList();
     });
 
     const deselectAllBtn = btnRow.createEl('button', { text: 'Снять все', cls: 'mailer-yougile-refresh-btn' });
     deselectAllBtn.addEventListener('click', () => {
       this.selected.clear();
-      renderList(searchInput.value);
+      renderList();
     });
 
     const applyBtn = btnRow.createEl('button', { text: '✅ Применить', cls: 'mailer-yougile-refresh-btn' });
