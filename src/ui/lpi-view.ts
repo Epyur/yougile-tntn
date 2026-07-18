@@ -23,6 +23,7 @@ export class LpiView extends ItemView {
   private appDateTo = '';
   private protocolDateFrom = '';
   private protocolDateTo = '';
+  private serialOnly = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -185,6 +186,19 @@ export class LpiView extends ItemView {
     addDateFilter('Дата протокола с', this.protocolDateFrom, v => this.protocolDateFrom = v);
     addDateFilter('по', this.protocolDateTo, v => this.protocolDateTo = v);
 
+    const serialGroup = filterRow.createDiv();
+    serialGroup.style.display = 'flex';
+    serialGroup.style.alignItems = 'center';
+    serialGroup.style.marginLeft = '8px';
+    const serialCb = serialGroup.createEl('input', { attr: { type: 'checkbox' } });
+    serialCb.style.width = '16px';
+    serialCb.style.height = '16px';
+    serialCb.style.margin = '0 4px 0 0';
+    serialCb.checked = this.serialOnly;
+    serialCb.addEventListener('change', () => { this.serialOnly = serialCb.checked; this.renderView(); });
+    const serialLabel = serialGroup.createEl('label', { text: 'Серийная продукция' });
+    serialLabel.style.fontSize = 'var(--font-smaller)';
+
     const productBtn = container.createEl('button', {
       text: this.selectedProducts.size > 0 ? `🔽 Продукты (${this.selectedProducts.size})` : '🔽 Выбрать продукты',
       cls: 'mailer-yougile-refresh-btn',
@@ -223,6 +237,10 @@ export class LpiView extends ItemView {
     }
     if (this.protocolDateTo) {
       filtered = filtered.filter(item => item.protocol_date && item.protocol_date <= this.protocolDateTo);
+    }
+
+    if (this.serialOnly) {
+      filtered = filtered.filter(item => item.ekn && /^\d+$/.test(item.ekn));
     }
 
     const total = filtered.length;
@@ -368,7 +386,7 @@ export class LpiView extends ItemView {
       series: [{ name: 'Заявок', data: sorted.map(([, c]) => c) }],
       colors: ['#8b5cf6'],
       plotOptions: {
-        bar: { borderRadius: 3, horizontal: true, dataLabels: { position: 'top' } },
+        bar: { borderRadius: 3, horizontal: true },
       },
       tooltip: { enabled: true },
       legend: { show: false },
