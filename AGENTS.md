@@ -15,7 +15,7 @@
 | 9 | **Настройки**: складные блоки с toggle, проекты/доски через dropdown, LLM, DOCX, автор | ✅ | `ui/settings-tab.ts`, `types/settings.ts` |
 | 10 | **Предложения**: таблица, создание, детали, редактирование, завершение, офлайн-очередь | ✅ | `ui/suggestions-view.ts` |
 | 11 | **Контакты**: таблица, создание, редактирование, детали, поиск, фильтр по колонкам, QR-код (vCard, красный, 250×250), локальная JSON БД, синхронизация с YouGile | ✅ | `ui/contacts-view.ts`, `database/contact-db.ts`, `types/contacts.ts` |
-| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (6 колонок: №, материал, дата создания, статус, дата протокола, оценка), дашборд (4 графика ApexCharts: статус, заявки по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, детали (read-only), локальная JSON БД yourbase/lpi_data.json, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы | ✅ | `ui/lpi-view.ts`, `types/lpi.ts` |
+| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (6 колонок: №, материал, дата создания, статус, дата протокола, оценка), дашборд (4 графика ApexCharts: статус, заявки по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, дата-фильтры (заявки + протоколы), чекбоксы "Серийная/Опытная продукция", per-product compliance donuts, детали (read-only), локальная JSON БД yourbase/lpi_data.json, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы | ✅ | `ui/lpi-view.ts`, `types/lpi.ts` |
 | 13 | **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы + email) | ✅ | `ui/assignee-selector.ts` |
 
 ## Структура файлов
@@ -100,8 +100,7 @@ src/
 - **safeRegisterView**: Обёртка для `registerView()` с `try-catch` — предотвращает ошибку "Attempting to register an existing view type" при перезапуске плагина через updater (view-типы не очищаются из реестра при disablePlugin)
 - **Updater: разделение TARGET_DIR/TARGET_ID**: Для путей к файлам используется `TARGET_DIR` (имя папки плагина `yougile-tntn`), для disablePlugin/enablePlugin — `TARGET_ID` (ID плагина из манифеста `obsidian-yougile`), чтобы файлы скачивались в правильную директорию
 - **Updater: очистка require.cache**: Перед enablePlugin удаляется закешированный модуль `main.js` через `delete require.cache[resolve(path)]`, чтобы загружался новый код с диска
-- **LPI дашборд**: 4 графика ApexCharts (status donut, apps-over-time bar, compliance donut, top products horizontal bar); фильтр продуктов через модалку (search + select/deselect all); дата-фильтры (дата создания заявки, дата протокола); deferred render через setTimeout (100ms) для стабильности
-- **Per-product compliance donuts**: при выборе нескольких продуктов топ-продуктов заменяется на донаты соответствия по каждому продукту + общий донат остаётся
+- **LPI дашборд**: 4 графика ApexCharts (status donut, apps-over-time bar, compliance donut, top products horizontal bar); фильтр продуктов через модалку (search + select/deselect all); дата-фильтры (дата создания заявки, дата протокола); чекбоксы "Серийная продукция" (ЕКН цифровой) / "Опытная продукция" (ЕКН отсутствует) — независимые; перцептуальные compliance donuts при выборе нескольких продуктов; deferred render через setTimeout (100ms) для стабильности
 - **LPI таблица**: 6 колонок; active-статус жёлтый, completed — зелёный; у active protocol_date показывается как "—" (без fallback-даты)
 
 ## Настройки плагина
