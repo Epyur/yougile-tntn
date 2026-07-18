@@ -14,7 +14,6 @@ import { registerCommands } from './commands';
 import { LocalDatabase } from './database/db';
 import { EmailDatabase } from './database/email-db';
 import { ContactDatabase } from './database/contact-db';
-import { LpiDatabase } from './database/lpi-db';
 import { LLMService } from './services/llm-service';
 
 const PASSWORD_SECRET_ID = 'yougile-password';
@@ -74,10 +73,11 @@ const CHANGELOG: Record<string, string[]> = {
     'Модальное окно выбора продуктов: показывает только продукты после всех фильтров, исправлен поиск',
   ],
   '0.4.0': [
-    'LPI: добавлена возможность завершения заявок — данные сохраняются в yourbase/lpi_completed.json и отправляются в YouGile',
-    'LPI: добавлена вкладка "Завершённые" в таблице LPI',
-    'LPI: в настройках добавлено поле "Путь к SQLite БД" для привязки внешней базы LIMS',
-    'Синхронизация завершённых заявок LPI между устройствами через YouGile',
+    'LPI: завершение заявок — данные сохраняются в lpi_data.json (вместо отдельного lpi_completed.json)',
+    'LPI: вкладка "Завершённые": поле выбора даты протокола (по умолч. сегодня), кнопка "Обновить" для чтения SQLite, таблица результатов, кнопка "Отправить" для пакетного завершения',
+    'LPI: пакетное завершение — все найденные записи добавляются в lpi_data.json + создаются задачи YouGile с dateStart/dateEnd',
+    'LPI: удалён lpi-db.ts (всё хранится в lpi_data.json как в письмах)',
+    'Подключена библиотека sql.js (WASM) для чтения внешней SQLite БД',
   ],
 };
 
@@ -116,7 +116,6 @@ export default class YouGilePlugin extends Plugin {
   db!: LocalDatabase;
   emailDb!: EmailDatabase;
   contactDb!: ContactDatabase;
-  lpiDb!: LpiDatabase;
   llmService!: LLMService;
 
   async onload(): Promise<void> {
@@ -147,10 +146,6 @@ export default class YouGilePlugin extends Plugin {
 
     this.contactDb = new ContactDatabase(this.app);
     await this.contactDb.init();
-
-    this.lpiDb = new LpiDatabase(this.app, this);
-    await this.lpiDb.init();
-    await this.lpiDb.syncFromTasks();
 
     this.llmService = new LLMService(this);
 

@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf, Modal, App, Notice } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { LpiItem } from '../types/lpi';
 import ApexCharts from 'apexcharts';
+import initSqlJs from 'sql.js';
 
 const DB_PATH = 'yourbase/lpi_data.json';
 
@@ -48,6 +49,7 @@ export class LpiView extends ItemView {
     container.addClass('mailer-yougile-container');
     this.containerElContent = container.createDiv();
     await this.loadData();
+    await this.syncFromTasks();
     this.renderView();
   }
 
@@ -61,6 +63,37 @@ export class LpiView extends ItemView {
     } catch {
       this.items = [];
     }
+  }
+
+  private async saveData(): Promise<void> {
+    try {
+      await this.app.vault.adapter.write(DB_PATH, JSON.stringify(this.items, null, 2));
+    } catch {}
+  }
+
+  private async syncFromTasks(): Promise<void> {
+    try {
+      if (!this.plugin.client) return;
+      const tasks: any[] = await this.plugin.client.getTasks();
+      const lpiTasks = tasks.filter((t: any) => {
+        try {
+          const desc = JSON.parse(t.description || '{}');
+          return desc.type === 'lpi_completed' && t.completed;
+        } catch { return false; }
+      });
+      let changed = false;
+      for (const task of lpiTasks) {
+        const desc = JSON.parse(task.description || '{}');
+        const existing = this.items.find(i => i.aggregate_id === desc.aggregate_id);
+        if (existing && !existing.completedLocally) {
+          existing.completedLocally = true;
+          existing.completedAt = desc.completedAt || '';
+          existing.taskId = task.id;
+          changed = true;
+        }
+      }
+      if (changed) await this.saveData();
+    } catch {}
   }
 
   private getProtocolDate(item: LpiItem): string {
@@ -135,7 +168,7 @@ export class LpiView extends ItemView {
     const table = container.createEl('table', { cls: 'mailer-table' });
     const thead = table.createEl('thead');
     const headerRow = thead.createEl('tr');
-    const headers = ['№ заявки', 'Название материала', 'Дата создания', 'Статус', 'Дата протокола', 'Оценка соответствия'];
+    const headers = ['№ заявки', 'Название материала', 'Дата создания', 'Статус', 'Дата протокола', 'Результат испытания', 'Оценка соответствия'];
     for (const h of headers) {
       const th = headerRow.createEl('th', { cls: 'mailer-th' });
       th.setText(h);
@@ -145,7 +178,7 @@ export class LpiView extends ItemView {
     if (filtered.length === 0) {
       const emptyRow = tbody.createEl('tr');
       const td = emptyRow.createEl('td', { cls: 'mailer-text-center mailer-p-24' });
-      td.setAttr('colspan', '6');
+      td.setAttr('colspan', '7');
       td.setText('Нет данных');
       return;
     }
@@ -165,66 +198,269 @@ export class LpiView extends ItemView {
         statusCell.setText('Завершена');
       }
       row.createEl('td', { cls: 'mailer-td' }).setText(this.getProtocolDate(item));
+      row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group || '');
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
     }
   }
 
+  private batchDate = '';
+  private batchResults: LpiItem[] = [];
+  private batchReady = false;
+
   private renderCompleted(container: HTMLElement): void {
-    const entries = this.plugin.lpiDb.getAll();
+    const entries = this.items.filter(i => i.completedLocally);
     container.createEl('h4', { text: `Завершённые заявки (${entries.length})` });
+
+    const row = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap mailer-mb-8' });
+    row.style.alignItems = 'end';
+    row.style.gap = '8px';
+
+    const dateGroup = row.createDiv();
+    const dateLbl = dateGroup.createEl('label', { text: 'Дата протокола' });
+    dateLbl.style.fontSize = 'var(--font-smaller)';
+    dateLbl.style.marginRight = '4px';
+    const dateInput = dateGroup.createEl('input', { attr: { type: 'date' } });
+    dateInput.style.fontSize = 'var(--font-smaller)';
+    dateInput.style.padding = '2px 4px';
+    if (!this.batchDate) this.batchDate = new Date().toISOString().split('T')[0];
+    dateInput.value = this.batchDate;
+    dateInput.addEventListener('change', () => {
+      this.batchDate = dateInput.value;
+      this.batchReady = false;
+      this.batchResults = [];
+      this.renderView();
+    });
+
+    const refreshBtn = row.createEl('button', {
+      text: '🔄 Обновить',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    refreshBtn.addEventListener('click', () => this.loadFromSqlite());
+
+    const sendBtn = row.createEl('button', {
+      text: '📤 Отправить',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    sendBtn.style.marginLeft = '8px';
+    if (!this.batchReady || this.batchResults.length === 0) {
+      sendBtn.setAttr('disabled', 'true');
+      sendBtn.style.opacity = '.5';
+    }
+    sendBtn.addEventListener('click', () => this.batchCompleteEntries());
+
+    if (this.batchResults.length > 0) {
+      container.createEl('h5', { text: `Найдено заявок с протоколом от ${this.batchDate}: ${this.batchResults.length}` });
+      const table = container.createEl('table', { cls: 'mailer-table' });
+      const thead = table.createEl('thead');
+      const hr = thead.createEl('tr');
+      for (const h of ['№ заявки', 'Продукт', 'Дата создания', 'Дата протокола', 'Результат испытания', 'Оценка']) {
+        hr.createEl('th', { cls: 'mailer-th' }).setText(h);
+      }
+      const tbody = table.createEl('tbody');
+      for (const item of this.batchResults) {
+        const r = tbody.createEl('tr');
+        r.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
+        r.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
+        r.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
+        r.createEl('td', { cls: 'mailer-td' }).setText(item.protocol_date || '');
+        r.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group || '');
+        r.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
+      }
+    }
+
     const table = container.createEl('table', { cls: 'mailer-table' });
     const thead = table.createEl('thead');
-    const hr = thead.createEl('tr');
+    const hr2 = thead.createEl('tr');
     for (const h of ['№ заявки', 'Продукт', 'Дата завершения', 'Оценка']) {
-      hr.createEl('th', { cls: 'mailer-th' }).setText(h);
+      hr2.createEl('th', { cls: 'mailer-th' }).setText(h);
     }
     const tbody = table.createEl('tbody');
     if (entries.length === 0) {
-      const row = tbody.createEl('tr');
-      const td = row.createEl('td', { attr: { colspan: '4' }, cls: 'mailer-text-center mailer-p-24' });
+      const row2 = tbody.createEl('tr');
+      const td = row2.createEl('td', { attr: { colspan: '4' }, cls: 'mailer-text-center mailer-p-24' });
       td.setText('Нет завершённых заявок');
       return;
     }
     for (const e of entries) {
-      const row = tbody.createEl('tr');
-      row.createEl('td', { cls: 'mailer-td' }).setText(e.application_external_id);
-      row.createEl('td', { cls: 'mailer-td' }).setText(e.product_name);
-      row.createEl('td', { cls: 'mailer-td' }).setText(e.completed_at);
-      row.createEl('td', { cls: 'mailer-td' }).setText(e.agg_gen_group_complience);
+      const row2 = tbody.createEl('tr');
+      row2.createEl('td', { cls: 'mailer-td' }).setText(e.application_external_id);
+      row2.createEl('td', { cls: 'mailer-td' }).setText(e.product_name);
+      row2.createEl('td', { cls: 'mailer-td' }).setText(e.completedAt || '');
+      row2.createEl('td', { cls: 'mailer-td' }).setText(e.agg_gen_group_complience || '');
+    }
+  }
+
+  private wasmBinary: ArrayBuffer | null = null;
+
+  private async getWasmBinary(): Promise<ArrayBuffer> {
+    if (this.wasmBinary) return this.wasmBinary;
+    const wasmPath = '.obsidian/plugins/yougile-tntn/sql-wasm.wasm';
+    this.wasmBinary = await this.app.vault.adapter.readBinary(wasmPath);
+    return this.wasmBinary;
+  }
+
+  private async loadFromSqlite(): Promise<void> {
+    try {
+      const dbPath = this.plugin.settings.lpiDbPath;
+      if (!dbPath) {
+        new Notice('Укажите путь к SQLite БД в настройках LPI');
+        return;
+      }
+      const exists = await this.app.vault.adapter.exists(dbPath);
+      if (!exists) {
+        new Notice('Файл БД не найден: ' + dbPath);
+        return;
+      }
+      const wasmBinary = await this.getWasmBinary();
+      const SQL = await initSqlJs({ wasmBinary: wasmBinary.slice(0) });
+      const dbBuf = await this.app.vault.adapter.readBinary(dbPath);
+      const db = new SQL.Database(new Uint8Array(dbBuf));
+      const sql = `SELECT
+        ar.aggregate_id,
+        a.external_id AS application_external_id,
+        a.created_at AS application_created_at,
+        a.status AS application_status,
+        COALESCE(p.product_name, '') AS product_name,
+        ar.protocol_date,
+        ar.agg_gen_group_complience,
+        COALESCE(c.customer_name, '') AS customer_name,
+        COALESCE(c.customer_email, '') AS customer_mail,
+        COALESCE(c.organization, '') AS organization,
+        COALESCE(c.customer_tel, '') AS customer_phone,
+        COALESCE(c.address, '') AS customer_address,
+        COALESCE(p.ekn, '') AS ekn,
+        p.thickness,
+        COALESCE(p.color, '') AS color,
+        COALESCE(o.batch_number, '') AS batch_number,
+        COALESCE(o.sample_number, '') AS sample_number,
+        COALESCE(o.object_name, '') AS object_name,
+        COALESCE(p.standard, '') AS standard,
+        COALESCE(p.target_comb_group, '') AS target_comb_group,
+        COALESCE(p.target_flam_group, '') AS target_flam_group,
+        COALESCE(p.target_prop_group, '') AS target_prop_group,
+        COALESCE(m.method_abbreviation, '') AS method_abbreviation,
+        COALESCE(m.method_name, '') AS method_name,
+        COALESCE(m.method_standard, '') AS method_standard,
+        ar.agg_avg_smog_temp,
+        ar.agg_smog_group,
+        ar.agg_smog_complience,
+        ar.agg_mass_loss,
+        ar.agg_comb_time,
+        ar.agg_dam_length,
+        ar.agg_comb_bulb,
+        ar.agg_group_by_mass,
+        ar.agg_group_by_length,
+        ar.agg_croup_by_comb_time,
+        ar.agg_group_by_bulbe,
+        ar.agg_gen_group,
+        ar.agg_mass_complience,
+        ar.agg_complience_by_length,
+        ar.agg_complience_by_comb_time,
+        ar.agg_complience_by_bulbe,
+        ar.agg_additional_info_1
+      FROM applications a
+      LEFT JOIN aggregated_results ar ON ar.application_id = a.application_id
+      LEFT JOIN products p ON p.product_id = a.product_id
+      LEFT JOIN customers c ON c.customer_id = a.customer_id
+      LEFT JOIN objects o ON o.object_id = a.object_id
+      LEFT JOIN methods m ON m.method_id = a.method_id
+      WHERE ar.protocol_date = ?`;
+      const stmt = db.prepare(sql);
+      stmt.bind([this.batchDate]);
+      this.batchResults = [];
+      while (stmt.step()) {
+        const obj = stmt.getAsObject();
+        obj.thickness = obj.thickness !== null ? Number(obj.thickness) : null;
+        obj.source_series_count = null;
+        obj.source_series_range = null;
+        obj.calculation_type = null;
+        obj.result_data = null;
+        this.batchResults.push(obj as LpiItem);
+      }
+      stmt.free();
+      db.close();
+      this.batchReady = true;
+      this.renderView();
+    } catch (e: any) {
+      new Notice('Ошибка загрузки из SQLite: ' + e.message);
+    }
+  }
+
+  private async batchCompleteEntries(): Promise<void> {
+    try {
+      if (!this.batchReady || this.batchResults.length === 0) return;
+      const now = new Date().toISOString().split('T')[0];
+      let sent = 0;
+      for (const item of this.batchResults) {
+        const existing = this.items.find(i => i.aggregate_id === item.aggregate_id);
+        if (existing?.completedLocally) continue;
+        item.completedLocally = true;
+        item.completedAt = now;
+        if (existing) {
+          Object.assign(existing, item);
+        } else {
+          this.items.push(item);
+        }
+        try {
+          if (this.plugin.client) {
+            const desc = JSON.stringify({
+              type: 'lpi_completed',
+              aggregate_id: item.aggregate_id,
+              application_external_id: item.application_external_id,
+              product_name: item.product_name,
+              completedAt: now,
+              protocol_date: item.protocol_date || now,
+              agg_gen_group_complience: item.agg_gen_group_complience || '',
+              customer_name: item.customer_name || '',
+              customer_mail: item.customer_mail || '',
+              organization: item.organization || '',
+              ekn: item.ekn || '',
+            });
+            const result: any = await this.plugin.client.createTask({
+              title: `LPI: ${item.application_external_id} — ${item.product_name}`,
+              description: desc,
+              columnId: '',
+            } as any);
+            if (result?.id) {
+              await this.plugin.client.updateTask(result.id, { completed: true, dateStart: item.application_created_at, dateEnd: now });
+              if (existing) existing.taskId = result.id;
+              else item.taskId = result.id;
+            }
+          }
+        } catch {}
+        sent++;
+      }
+      await this.saveData();
+      this.batchReady = false;
+      this.batchResults = [];
+      new Notice(`Отправлено ${sent} заявок`);
+      this.renderView();
+    } catch (e: any) {
+      new Notice('Ошибка: ' + e.message);
     }
   }
 
   private async completeEntry(item: LpiItem): Promise<void> {
     try {
       const now = new Date().toISOString().split('T')[0];
-      const entry = {
-        id: this.plugin.lpiDb.getNextId(),
-        aggregate_id: item.aggregate_id,
-        application_external_id: item.application_external_id,
-        product_name: item.product_name,
-        completed_at: now,
-        protocol_date: item.protocol_date || now,
-        agg_gen_group_complience: item.agg_gen_group_complience || '',
-        customer_name: item.customer_name || '',
-        customer_mail: item.customer_mail || '',
-        organization: item.organization || '',
-        ekn: item.ekn || '',
-      };
+      item.completedLocally = true;
+      item.completedAt = now;
+      await this.saveData();
       try {
         if (this.plugin.client) {
-          const desc = JSON.stringify({ type: 'lpi_completed', ...entry });
-          const result = await this.plugin.client.createTask({
+          const desc = JSON.stringify({ type: 'lpi_completed', aggregate_id: item.aggregate_id, application_external_id: item.application_external_id, product_name: item.product_name, completedAt: now, protocol_date: item.protocol_date || now, agg_gen_group_complience: item.agg_gen_group_complience || '', customer_name: item.customer_name || '', customer_mail: item.customer_mail || '', organization: item.organization || '', ekn: item.ekn || '' });
+          const result: any = await this.plugin.client.createTask({
             title: `LPI: ${item.application_external_id} — ${item.product_name}`,
             description: desc,
             columnId: '',
           } as any);
           if (result?.id) {
             await this.plugin.client.updateTask(result.id, { completed: true });
-            (entry as any).taskId = result.id;
+            item.taskId = result.id;
+            await this.saveData();
           }
         }
       } catch {}
-      this.plugin.lpiDb.add(entry);
       new Notice(`Заявка №${item.application_external_id} завершена`);
       this.renderView();
     } catch (e: any) {
@@ -353,17 +589,25 @@ export class LpiView extends ItemView {
     this.createChart(c1, this.buildStatusSeries(filtered));
 
     const c2 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
-    c2.createEl('h4', { text: 'Заявки по месяцам' });
-    this.createChart(c2, this.buildMonthlySeries(filtered));
+    c2.createEl('h4', { text: 'Поступление заявок по месяцам' });
+    this.createChart(c2, this.buildIncomingMonthlySeries(filtered));
 
-    const c3 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
-    c3.createEl('h4', { text: 'Общая оценка соответствия' });
-    this.createChart(c3, this.buildComplianceSeries(filtered));
+    const chartRow2 = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
+
+    const c3 = chartRow2.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+    c3.createEl('h4', { text: 'Завершение заявок по месяцам' });
+    this.createChart(c3, this.buildCompletedMonthlySeries(filtered));
+
+    const c4 = chartRow2.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+    c4.createEl('h4', { text: 'Общая оценка соответствия' });
+    this.createChart(c4, this.buildComplianceSeries(filtered));
+
+    const chartRow3 = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
 
     if (this.selectedProducts.size > 1) {
-      const c4 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
-      c4.createEl('h4', { text: 'Оценка по продуктам' });
-      const perProductWrap = c4.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
+      const c5 = chartRow3.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+      c5.createEl('h4', { text: 'Оценка по продуктам' });
+      const perProductWrap = c5.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
       const products = [...this.selectedProducts].sort();
       for (const product of products) {
         const productItems = filtered.filter(i => i.product_name === product);
@@ -377,9 +621,9 @@ export class LpiView extends ItemView {
         this.createChart(card, this.buildComplianceSeries(productItems, true));
       }
     } else {
-      const c4 = chartRow.createDiv({ attr: { style: 'width:98%;min-width:280px;margin:1%' } });
-      c4.createEl('h4', { text: 'Топ продуктов по заявкам' });
-      this.createChart(c4, this.buildTopProductsSeries(filtered));
+      const c5 = chartRow3.createDiv({ attr: { style: 'width:98%;min-width:280px;margin:1%' } });
+      c5.createEl('h4', { text: 'Топ продуктов по заявкам' });
+      this.createChart(c5, this.buildTopProductsSeries(filtered));
     }
 
     this.dashboardTimer = window.setTimeout(() => {
@@ -409,7 +653,7 @@ export class LpiView extends ItemView {
     };
   }
 
-  private buildMonthlySeries(items: LpiItem[]): Record<string, unknown> {
+  private buildIncomingMonthlySeries(items: LpiItem[]): Record<string, unknown> {
     const months: Record<string, number> = {};
     for (const item of items) {
       if (!item.application_created_at) continue;
@@ -423,8 +667,30 @@ export class LpiView extends ItemView {
         categories: sorted.map(([m]) => m),
         labels: { rotate: -45, style: { fontSize: '10px' } },
       },
-      series: [{ name: 'Заявок', data: sorted.map(([, c]) => c) }],
+      series: [{ name: 'Поступило', data: sorted.map(([, c]) => c) }],
       colors: ['#3b82f6'],
+      plotOptions: { bar: { borderRadius: 3 } },
+      tooltip: { enabled: true },
+      legend: { show: false },
+    };
+  }
+
+  private buildCompletedMonthlySeries(items: LpiItem[]): Record<string, unknown> {
+    const months: Record<string, number> = {};
+    for (const item of items) {
+      if (!item.protocol_date) continue;
+      const month = item.protocol_date.substring(0, 7);
+      months[month] = (months[month] || 0) + 1;
+    }
+    const sorted = Object.entries(months).sort((a, b) => a[0].localeCompare(b[0]));
+    return {
+      chart: { type: 'bar' },
+      xaxis: {
+        categories: sorted.map(([m]) => m),
+        labels: { rotate: -45, style: { fontSize: '10px' } },
+      },
+      series: [{ name: 'Завершено', data: sorted.map(([, c]) => c) }],
+      colors: ['#10b981'],
       plotOptions: { bar: { borderRadius: 3 } },
       tooltip: { enabled: true },
       legend: { show: false },

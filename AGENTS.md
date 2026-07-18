@@ -15,7 +15,7 @@
 | 9 | **Настройки**: складные блоки с toggle, проекты/доски через dropdown, LLM, DOCX, автор | ✅ | `ui/settings-tab.ts`, `types/settings.ts` |
 | 10 | **Предложения**: таблица, создание, детали, редактирование, завершение, офлайн-очередь | ✅ | `ui/suggestions-view.ts` |
 | 11 | **Контакты**: таблица, создание, редактирование, детали, поиск, фильтр по колонкам, QR-код (vCard, красный, 250×250), локальная JSON БД, синхронизация с YouGile | ✅ | `ui/contacts-view.ts`, `database/contact-db.ts`, `types/contacts.ts` |
-| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (6 колонок: №, материал, дата создания, статус, дата протокола, оценка), дашборд (4 графика ApexCharts: статус, заявки по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, дата-фильтры (заявки + протоколы), чекбоксы "Серийная/Опытная продукция", per-product compliance donuts, завершение заявок → lpi_completed.json + YouGile sync, детали (read-only), локальная JSON БД yourbase/lpi_data.json + yourbase/lpi_completed.json, настройка пути к SQLite БД, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы | ✅ | `ui/lpi-view.ts`, `types/lpi.ts`, `database/lpi-db.ts` |
+| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (7 колонок: №, материал, дата создания, статус, дата протокола, результат испытания, оценка), дашборд (5 графиков ApexCharts: статус, поступление/завершение по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, дата-фильтры (заявки + протоколы), чекбоксы "Серийная/Опытная продукция", per-product compliance donuts, пакетное завершение заявок из SQLite по дате протокола (кнопка Обновить + Отправить), детали (read-only), локальная JSON БД yourbase/lpi_data.json, sql.js (WASM) для чтения внешней SQLite, настройка пути к SQLite БД, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы | ✅ | `ui/lpi-view.ts`, `types/lpi.ts` |
 | 13 | **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы + email) | ✅ | `ui/assignee-selector.ts` |
 
 ## Структура файлов
@@ -27,8 +27,7 @@ src/
 ├── database/
 │   ├── db.ts                      # LocalDatabase (yougile_cache.json)
 │   ├── email-db.ts                # EmailDatabase (mailer_data.json)
-│   ├── contact-db.ts              # ContactDatabase (contacts_data.json)
-│   └── lpi-db.ts                  # LpiDatabase (lpi_completed.json)
+│   └── contact-db.ts              # ContactDatabase (contacts_data.json) (удалён lpi-db — всё в lpi_data.json)
 ├── services/
 │   ├── document-service.ts        # DOCX генерация (jszip + docx)
 │   └── llm-service.ts             # AI-чат с RAG
@@ -37,6 +36,7 @@ src/
 │   ├── contacts.ts                # ContactItem, ContactDbData
 │   ├── emails.ts                  # MailItem, MailDirection, EmailDbData
 │   ├── settings.ts                # YouGileSettings + DEFAULT_SETTINGS
+│   ├── sql.js.d.ts                # Type declarations for sql.js
 │   └── yougile.ts                 # YouGileTask, CreateTaskPayload, …
 ├── ui/
 │   ├── assignee-selector.ts       # Переиспользуемый компонент выбора пользователей
@@ -101,8 +101,10 @@ src/
 - **safeRegisterView**: Обёртка для `registerView()` с `try-catch` — предотвращает ошибку "Attempting to register an existing view type" при перезапуске плагина через updater (view-типы не очищаются из реестра при disablePlugin)
 - **Updater: разделение TARGET_DIR/TARGET_ID**: Для путей к файлам используется `TARGET_DIR` (имя папки плагина `yougile-tntn`), для disablePlugin/enablePlugin — `TARGET_ID` (ID плагина из манифеста `obsidian-yougile`), чтобы файлы скачивались в правильную директорию
 - **Updater: очистка require.cache**: Перед enablePlugin удаляется закешированный модуль `main.js` через `delete require.cache[resolve(path)]`, чтобы загружался новый код с диска
-- **LPI дашборд**: 4 графика ApexCharts (status donut, apps-over-time bar, compliance donut, top products horizontal bar); фильтр продуктов через модалку (search + select/deselect all); дата-фильтры (дата создания заявки, дата протокола); чекбоксы "Серийная продукция" (ЕКН цифровой) / "Опытная продукция" (ЕКН отсутствует) — независимые; перцептуальные compliance donuts при выборе нескольких продуктов; deferred render через setTimeout (100ms) для стабильности
-- **LPI таблица**: 6 колонок; active-статус жёлтый, completed — зелёный; у active protocol_date показывается как "—" (без fallback-даты)
+- **LPI дашборд**: 5 графиков ApexCharts (status donut, incoming/completed monthly bar, compliance donut, top products horizontal bar); фильтр продуктов через модалку (search + select/deselect all); дата-фильтры (дата создания заявки, дата протокола); чекбоксы "Серийная продукция" (ЕКН цифровой) / "Опытная продукция" (ЕКН отсутствует) — независимые; перцептуальные compliance donuts при выборе нескольких продуктов; deferred render через setTimeout (100ms) для стабильности; графики на трёх рядах (2+2+1)
+- **LPI таблица**: 7 колонок; active-статус жёлтый, completed — зелёный; у active protocol_date показывается как "—" (без fallback-даты)
+- **LPI завершение заявок**: всё хранится в едином `lpi_data.json` (поля `completedLocally`, `completedAt`, `taskId`), без отдельного файла; синхронизация через YouGile-задачи с `type:"lpi_completed"` при загрузке
+- **LPI пакетное завершение**: на вкладке "Завершённые" поле даты (по умолч. сегодня), кнопка "Обновить" читает внешнюю SQLite БД через sql.js (только по нажатию, без автообращений), результаты в таблице, кнопка "Отправить" создаёт записи в lpi_data.json + задачи YouGile с dateStart/dateEnd
 
 ## Настройки плагина
 
@@ -121,7 +123,7 @@ src/
 ## Правила версионирования и коммитов
 
 ### Версионирование
-- Каждый раз при изменении AGENTS.md необходимо повышать версию в `manifest.json` (major.minor.patch)
+- Каждый раз при изменении AGENTS.md необходимо повышать версию в `manifest.json` (major.minor.patch) **если пользователь не сказал иначе**
 - Добавлять описание всех изменений (на русском языке) в массив `CHANGELOG` в `src/main.ts` под новой версией
 
 ### Коммиты
