@@ -1,12 +1,13 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Modal, App } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { LpiItem } from '../types/lpi';
+import ApexCharts from 'apexcharts';
 
 const DB_PATH = 'yourbase/lpi_data.json';
 
 export const LPI_VIEW_TYPE = 'yougile-lpi-view';
 
-const PROTOCOL_DATE_FALLBACK = '01.03.2026';
+type ViewMode = 'table' | 'dashboard';
 
 export class LpiView extends ItemView {
   plugin: YouGilePlugin;
@@ -14,6 +15,10 @@ export class LpiView extends ItemView {
   private items: LpiItem[] = [];
   private searchQuery = '';
   private searchTimeout: number | null = null;
+  private mode: ViewMode = 'table';
+  private charts: ApexCharts[] = [];
+  private dashboardTimer: number | null = null;
+  private selectedProducts: Set<string> = new Set();
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -53,16 +58,41 @@ export class LpiView extends ItemView {
   }
 
   private getProtocolDate(item: LpiItem): string {
-    return item.protocol_date || PROTOCOL_DATE_FALLBACK;
+    if (item.application_status === 'active') return '—';
+    return item.protocol_date || '';
   }
 
   private renderView(): void {
     const container = this.containerElContent;
+    if (this.dashboardTimer) { clearTimeout(this.dashboardTimer); this.dashboardTimer = null; }
+    for (const c of this.charts) { try { c.destroy(); } catch {} }
+    this.charts = [];
     container.empty();
 
     const header = container.createDiv({ cls: 'mailer-yougile-header' });
     header.createEl('h3', { text: '🧪 Лаборатория пожарных испытаний' });
 
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header mailer-mb-8' });
+    const tableBtn = btnRow.createEl('button', {
+      text: this.mode === 'table' ? '📋 Таблица' : '📋 Таблица',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    tableBtn.addEventListener('click', () => { this.mode = 'table'; this.renderView(); });
+
+    const dashBtn = btnRow.createEl('button', {
+      text: this.mode === 'dashboard' ? '📊 Дашборд' : '📊 Дашборд',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    dashBtn.addEventListener('click', () => { this.mode = 'dashboard'; this.renderView(); });
+
+    if (this.mode === 'dashboard') {
+      this.renderDashboard(container);
+    } else {
+      this.renderTable(container);
+    }
+  }
+
+  private renderTable(container: HTMLElement): void {
     const searchInput = container.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск по № заявки, названию материала...' } });
     searchInput.addClass('mailer-mb-8');
     searchInput.value = this.searchQuery;
@@ -93,7 +123,7 @@ export class LpiView extends ItemView {
     const table = container.createEl('table', { cls: 'mailer-table' });
     const thead = table.createEl('thead');
     const headerRow = thead.createEl('tr');
-    const headers = ['№ заявки', 'Название материала', 'Дата протокола', 'Оценка соответствия'];
+    const headers = ['№ заявки', 'Название материала', 'Дата создания', 'Статус', 'Дата протокола', 'Оценка соответствия'];
     for (const h of headers) {
       const th = headerRow.createEl('th', { cls: 'mailer-th' });
       th.setText(h);
@@ -103,7 +133,7 @@ export class LpiView extends ItemView {
     if (filtered.length === 0) {
       const emptyRow = tbody.createEl('tr');
       const td = emptyRow.createEl('td', { cls: 'mailer-text-center mailer-p-24' });
-      td.setAttr('colspan', '4');
+      td.setAttr('colspan', '6');
       td.setText('Нет данных');
       return;
     }
@@ -114,9 +144,170 @@ export class LpiView extends ItemView {
 
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
+      row.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
+      const statusCell = row.createEl('td', { cls: 'mailer-td' });
+      if (item.application_status === 'active') {
+        statusCell.style.color = 'var(--text-warning)';
+        statusCell.setText('Активна');
+      } else {
+        statusCell.style.color = 'var(--text-success)';
+        statusCell.setText('Завершена');
+      }
       row.createEl('td', { cls: 'mailer-td' }).setText(this.getProtocolDate(item));
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
     }
+  }
+
+  private renderDashboard(container: HTMLElement): void {
+    const productBtn = container.createEl('button', {
+      text: this.selectedProducts.size > 0 ? `🔽 Продукты (${this.selectedProducts.size})` : '🔽 Выбрать продукты',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    productBtn.addEventListener('click', () => {
+      const modal = new ProductFilterModal(this.app, this.items, this.selectedProducts, (selected) => {
+        this.selectedProducts = selected;
+        this.renderView();
+      });
+      modal.open();
+    });
+
+    if (this.selectedProducts.size > 0) {
+      const clearBtn = container.createEl('button', { text: '✕ Сбросить', cls: 'mailer-yougile-refresh-btn' });
+      clearBtn.style.marginLeft = '8px';
+      clearBtn.addEventListener('click', () => {
+        this.selectedProducts.clear();
+        this.renderView();
+      });
+    }
+
+    let filtered = this.items;
+    if (this.selectedProducts.size > 0) {
+      filtered = this.items.filter(item => this.selectedProducts.has(item.product_name));
+    }
+
+    const total = filtered.length;
+    const active = filtered.filter(i => i.application_status === 'active').length;
+    const completed = filtered.filter(i => i.application_status === 'completed').length;
+    const withProtocol = filtered.filter(i => i.protocol_date).length;
+
+    const metricsRow = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap mailer-mb-8' });
+    const metricStyle = 'min-width:120px;padding:8px 12px;margin:4px;background:var(--background-modifier-hover);border-radius:6px;text-align:center';
+    const addMetric = (label: string, value: string | number) => {
+      const div = metricsRow.createDiv({ attr: { style: metricStyle } });
+      div.createDiv({ attr: { style: 'font-size:var(--font-ui-smaller);opacity:.7' }, text: label });
+      div.createDiv({ attr: { style: 'font-size:var(--font-ui-large);font-weight:700' }, text: String(value) });
+    };
+    addMetric('Всего заявок', total);
+    addMetric('Активно', active);
+    addMetric('Завершено', completed);
+    addMetric('С протоколом', withProtocol);
+
+    const chartRow = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
+
+    const c1 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+    c1.createEl('h4', { text: 'Статус заявок' });
+    const statusDonut = this.createChart(c1, this.buildStatusSeries(filtered));
+
+    const c2 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+    c2.createEl('h4', { text: 'Заявки по месяцам' });
+    const monthlyBar = this.createChart(c2, this.buildMonthlySeries(filtered));
+
+    const c3 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+    c3.createEl('h4', { text: 'Оценка соответствия' });
+    const complianceDonut = this.createChart(c3, this.buildComplianceSeries(filtered));
+
+    const c4 = chartRow.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+    c4.createEl('h4', { text: 'Топ продуктов по заявкам' });
+    const topProductsBar = this.createChart(c4, this.buildTopProductsSeries(filtered));
+
+    this.dashboardTimer = window.setTimeout(() => {
+      for (const chart of this.charts) {
+        try { chart.render(); } catch {}
+      }
+    }, 100);
+  }
+
+  private createChart(container: HTMLElement, options: Record<string, unknown>): ApexCharts {
+    const chart = new ApexCharts(container, options as any);
+    this.charts.push(chart);
+    return chart;
+  }
+
+  private buildStatusSeries(items: LpiItem[]): Record<string, unknown> {
+    const active = items.filter(i => i.application_status === 'active').length;
+    const completed = items.filter(i => i.application_status === 'completed').length;
+    return {
+      chart: { type: 'donut' },
+      labels: ['Активно', 'Завершено'],
+      series: [active, completed],
+      colors: ['#f59e0b', '#10b981'],
+      plotOptions: { pie: { donut: { size: '60%' } } },
+      tooltip: { enabled: true },
+      legend: { position: 'bottom', fontSize: '12px' },
+    };
+  }
+
+  private buildMonthlySeries(items: LpiItem[]): Record<string, unknown> {
+    const months: Record<string, number> = {};
+    for (const item of items) {
+      if (!item.application_created_at) continue;
+      const month = item.application_created_at.substring(0, 7);
+      months[month] = (months[month] || 0) + 1;
+    }
+    const sorted = Object.entries(months).sort((a, b) => a[0].localeCompare(b[0]));
+    return {
+      chart: { type: 'bar' },
+      xaxis: {
+        categories: sorted.map(([m]) => m),
+        labels: { rotate: -45, style: { fontSize: '10px' } },
+      },
+      series: [{ name: 'Заявок', data: sorted.map(([, c]) => c) }],
+      colors: ['#3b82f6'],
+      plotOptions: { bar: { borderRadius: 3 } },
+      tooltip: { enabled: true },
+      legend: { show: false },
+    };
+  }
+
+  private buildComplianceSeries(items: LpiItem[]): Record<string, unknown> {
+    const counts: Record<string, number> = { 'Соответствует': 0, 'Не соответствует': 0, 'Не оценивается': 0, 'Нет данных': 0 };
+    for (const item of items) {
+      const val = item.agg_gen_group_complience;
+      if (!val) { counts['Нет данных']++; }
+      else if (counts[val] !== undefined) { counts[val]++; }
+      else { counts['Нет данных']++; }
+    }
+    const labels = Object.keys(counts);
+    const data = Object.values(counts);
+    return {
+      chart: { type: 'donut' },
+      labels,
+      series: data,
+      colors: ['#10b981', '#ef4444', '#f59e0b', '#6b7280'],
+      plotOptions: { pie: { donut: { size: '60%' } } },
+      tooltip: { enabled: true },
+      legend: { position: 'bottom', fontSize: '12px' },
+    };
+  }
+
+  private buildTopProductsSeries(items: LpiItem[]): Record<string, unknown> {
+    const counts: Record<string, number> = {};
+    for (const item of items) {
+      counts[item.product_name] = (counts[item.product_name] || 0) + 1;
+    }
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+    return {
+      chart: { type: 'bar' },
+      xaxis: {
+        categories: sorted.map(([name]) => name.length > 30 ? name.substring(0, 30) + '...' : name),
+        labels: { style: { fontSize: '9px' } },
+      },
+      series: [{ name: 'Заявок', data: sorted.map(([, c]) => c) }],
+      colors: ['#8b5cf6'],
+      plotOptions: { bar: { borderRadius: 3, horizontal: true } },
+      tooltip: { enabled: true },
+      legend: { show: false },
+    };
   }
 
   private renderDetail(item: LpiItem): void {
@@ -130,7 +321,9 @@ export class LpiView extends ItemView {
 
     const fields: Array<{ label: string; value: unknown }> = [
       { label: 'Название материала', value: item.product_name },
-      { label: 'Дата протокола', value: this.getProtocolDate(item) },
+      { label: 'Дата создания заявки', value: item.application_created_at },
+      { label: 'Статус', value: item.application_status === 'active' ? 'Активна' : 'Завершена' },
+      { label: 'Дата протокола', value: this.getProtocolDate(item) || null },
       { label: 'Оценка соответствия', value: item.agg_gen_group_complience },
       { label: 'Заказчик', value: item.customer_name },
       { label: 'Email заказчика', value: item.customer_mail },
@@ -164,7 +357,6 @@ export class LpiView extends ItemView {
       { label: 'Соответствие по длине', value: item.agg_complience_by_length },
       { label: 'Соответствие по времени горения', value: item.agg_complience_by_comb_time },
       { label: 'Соответствие по ватке', value: item.agg_complience_by_bulbe },
-      { label: 'Оценка соответствия', value: item.agg_gen_group_complience },
       { label: 'Дополнительная информация', value: item.agg_additional_info_1 },
     ];
 
@@ -173,5 +365,97 @@ export class LpiView extends ItemView {
       if (field.value === null || field.value === undefined || field.value === '') continue;
       meta.createDiv({ text: `${field.label}: ${field.value}` });
     }
+  }
+}
+
+class ProductFilterModal extends Modal {
+  private items: LpiItem[];
+  private selected: Set<string>;
+  private onSave: (selected: Set<string>) => void;
+  private searchQuery = '';
+
+  constructor(app: App, items: LpiItem[], selected: Set<string>, onSave: (selected: Set<string>) => void) {
+    super(app);
+    this.items = items;
+    this.selected = new Set(selected);
+    this.onSave = onSave;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('mailer-yougile-container');
+
+    contentEl.createEl('h3', { text: 'Выбор продуктов для дашборда' });
+
+    const searchInput = contentEl.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск продукта...' } });
+    searchInput.style.width = '100%';
+    searchInput.style.marginBottom = '8px';
+    searchInput.style.boxSizing = 'border-box';
+
+    const allProducts = [...new Set(this.items.map(i => i.product_name))].sort();
+
+    const listContainer = contentEl.createDiv();
+    listContainer.style.maxHeight = '400px';
+    listContainer.style.overflowY = 'auto';
+
+    const renderList = (query: string) => {
+      listContainer.empty();
+      const q = query.trim().toLowerCase();
+      const filtered = q ? allProducts.filter(p => p.toLowerCase().includes(q)) : allProducts;
+      for (const product of filtered) {
+        const wrapper = listContainer.createEl('label');
+        wrapper.style.display = 'flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.padding = '2px 0';
+        wrapper.style.cursor = 'pointer';
+        wrapper.style.fontSize = 'var(--font-smaller)';
+        const cb = wrapper.createEl('input', { attr: { type: 'checkbox' } });
+        cb.style.width = '16px';
+        cb.style.height = '16px';
+        cb.style.margin = '0 6px 0 0';
+        cb.style.flexShrink = '0';
+        cb.checked = this.selected.has(product);
+        cb.addEventListener('change', () => {
+          if (cb.checked) this.selected.add(product);
+          else this.selected.delete(product);
+        });
+        wrapper.createEl('span').setText(product);
+      }
+    };
+    renderList('');
+
+    searchInput.addEventListener('input', () => {
+      this.searchQuery = searchInput.value;
+      renderList(this.searchQuery);
+    });
+
+    const btnRow = contentEl.createDiv({ cls: 'mailer-yougile-header mailer-mt-8' });
+    const selectAllBtn = btnRow.createEl('button', { text: 'Выбрать все', cls: 'mailer-yougile-refresh-btn' });
+    selectAllBtn.addEventListener('click', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? allProducts.filter(p => p.toLowerCase().includes(q)) : allProducts;
+      for (const product of filtered) this.selected.add(product);
+      renderList(searchInput.value);
+    });
+
+    const deselectAllBtn = btnRow.createEl('button', { text: 'Снять все', cls: 'mailer-yougile-refresh-btn' });
+    deselectAllBtn.addEventListener('click', () => {
+      this.selected.clear();
+      renderList(searchInput.value);
+    });
+
+    const applyBtn = btnRow.createEl('button', { text: '✅ Применить', cls: 'mailer-yougile-refresh-btn' });
+    applyBtn.addEventListener('click', () => {
+      this.onSave(this.selected);
+      this.close();
+    });
+
+    const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
+    cancelBtn.addEventListener('click', () => this.close());
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
   }
 }

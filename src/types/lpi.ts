@@ -1,6 +1,8 @@
 export interface LpiItem {
   aggregate_id: string;
   application_external_id: string;
+  application_created_at: string;
+  application_status: string;
   product_name: string;
   protocol_date: string | null;
   agg_gen_group_complience: string | null;
@@ -57,5 +59,4 @@ export interface LpiItem {
   source_series_range: string | null;
   calculation_type: string | null;
   result_data: string | null;
-  application_status: string | null;
 }
