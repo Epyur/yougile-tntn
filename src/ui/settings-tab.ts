@@ -301,6 +301,18 @@ export class YouGileSettingTab extends PluginSettingTab {
             this.plugin.activateDashboardView();
           }));
     });
+
+    // ===== Block 7: Лаборатория пожарных испытаний =====
+    this.renderCollapsibleBlock(containerEl, 'Лаборатория пожарных испытаний', false, true, (body) => {
+      new Setting(body)
+        .setName('Лаборатория пожарных испытаний')
+        .setDesc('Просмотр заявок и протоколов лаборатории пожарных испытаний. Проект, доска и колонка настроены жёстко.')
+        .addButton(btn => btn
+          .setButtonText('Открыть')
+          .onClick(() => {
+            this.plugin.activateLpiView();
+          }));
+    });
   }
 
   private renderCollapsibleBlock(
@@ -402,6 +414,7 @@ export class YouGileSettingTab extends PluginSettingTab {
       'Управление письмами': 'moduleEmailsEnabled',
       'Управление контактами': 'moduleContactsEnabled',
       'Модуль дашборда': 'moduleDashboardEnabled',
+      'Лаборатория пожарных испытаний': 'moduleLpiEnabled',
     };
     return map[blockTitle] || '';
   }

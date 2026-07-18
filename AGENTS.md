@@ -15,7 +15,8 @@
 | 9 | **Настройки**: складные блоки с toggle, проекты/доски через dropdown, LLM, DOCX, автор | ✅ | `ui/settings-tab.ts`, `types/settings.ts` |
 | 10 | **Предложения**: таблица, создание, детали, редактирование, завершение, офлайн-очередь | ✅ | `ui/suggestions-view.ts` |
 | 11 | **Контакты**: таблица, создание, редактирование, детали, поиск, фильтр по колонкам, QR-код (vCard, красный, 250×250), локальная JSON БД, синхронизация с YouGile | ✅ | `ui/contacts-view.ts`, `database/contact-db.ts`, `types/contacts.ts` |
-| 12 | **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы + email) | ✅ | `ui/assignee-selector.ts` |
+| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица, детали (read-only), локальная JSON БД yourbase/lpi_data.json, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы | ✅ | `ui/lpi-view.ts`, `types/lpi.ts` |
+| 13 | **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы + email) | ✅ | `ui/assignee-selector.ts` |
 
 ## Структура файлов
 
@@ -112,6 +113,7 @@ src/
 | Письма | проект, доска, автор, AI-ключ, URL, модель, системный промпт, DOCX-шаблон/папка | `moduleEmailsEnabled` |
 | Контакты | проект, доска | `moduleContactsEnabled` |
 | Дашборд | без настроек | `moduleDashboardEnabled` |
+| LPI | без настроек | `moduleLpiEnabled` (по умолч. false) |
 
 ## Правила версионирования и коммитов
 

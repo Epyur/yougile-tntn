@@ -9,6 +9,7 @@ import { EMAILS_VIEW_TYPE, EmailsView } from './ui/emails-view';
 import { DASHBOARD_VIEW_TYPE, DashboardView } from './ui/dashboard-view';
 import { SUGGESTIONS_VIEW_TYPE, SuggestionsView } from './ui/suggestions-view';
 import { CONTACTS_VIEW_TYPE, ContactsView } from './ui/contacts-view';
+import { LPI_VIEW_TYPE, LpiView } from './ui/lpi-view';
 import { registerCommands } from './commands';
 import { LocalDatabase } from './database/db';
 import { EmailDatabase } from './database/email-db';
@@ -49,6 +50,12 @@ const CHANGELOG: Record<string, string[]> = {
     'Исправлен syncFromTasks — использовал неверные имена полей (topic, content вместо subject, text)',
     'Название направления (direction_name) теперь хранится прямо в теле письма, а не только как числовой direction_id',
     'Все существующие письма переформатированы: direction_name проставлен по direction_id',
+  ],
+  '0.3.0': [
+    'Добавлен модуль "Лаборатория пожарных испытаний" (toggle в настройках, по умолчанию выключен)',
+    'Модуль LPI читает данные из yourbase/lpi_data.json, отображает таблицу и детали заявок',
+    'Проект, доска и колонка настроены жёстко (Лаборатория пожарных испытаний / Заявки / Заявки)',
+    'Добавлен автор manifest.json: Е.Полищук',
   ],
 };
 
@@ -139,6 +146,9 @@ export default class YouGilePlugin extends Plugin {
     if (this.settings.moduleContactsEnabled) {
       this.safeRegisterView(CONTACTS_VIEW_TYPE, (leaf) => new ContactsView(leaf, this));
     }
+    if (this.settings.moduleLpiEnabled) {
+      this.safeRegisterView(LPI_VIEW_TYPE, (leaf) => new LpiView(leaf, this));
+    }
 
     this.addRibbonIcon('list-todo', 'YouGile', () => {
       this.activateView();
@@ -175,16 +185,17 @@ export default class YouGilePlugin extends Plugin {
         this.activateContactsView();
       });
     }
+    if (this.settings.moduleLpiEnabled) {
+      this.addRibbonIcon('flame', 'Лаборатория пожарных испытаний', () => {
+        this.activateLpiView();
+      });
+    }
 
     registerCommands(this);
   }
 
   private safeRegisterView(type: string, viewCreator: (leaf: WorkspaceLeaf) => any): void {
-    try {
-      this.registerView(type as any, viewCreator as any);
-    } catch {
-      // view type already registered (e.g. after updater disablePlugin/enablePlugin)
-    }
+    this.registerView(type as any, viewCreator as any);
   }
 
   onunload(): void {
@@ -195,6 +206,7 @@ export default class YouGilePlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(DASHBOARD_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(SUGGESTIONS_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(CONTACTS_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(LPI_VIEW_TYPE);
   }
 
   async loadSettings(): Promise<void> {
@@ -368,6 +380,20 @@ export default class YouGilePlugin extends Plugin {
       leaf = workspace.getRightLeaf(false) ?? undefined;
       if (leaf) {
         await leaf.setViewState({ type: CONTACTS_VIEW_TYPE, active: true });
+      }
+    }
+    if (leaf) {
+      workspace.revealLeaf(leaf);
+    }
+  }
+
+  async activateLpiView(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(LPI_VIEW_TYPE).first();
+    if (!leaf) {
+      leaf = workspace.getRightLeaf(false) ?? undefined;
+      if (leaf) {
+        await leaf.setViewState({ type: LPI_VIEW_TYPE, active: true });
       }
     }
     if (leaf) {

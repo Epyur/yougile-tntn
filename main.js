@@ -4488,7 +4488,7 @@ __export(main_exports, {
   default: () => YouGilePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 
 // src/types/settings.ts
 var DEFAULT_SETTINGS = {
@@ -4521,7 +4521,8 @@ var DEFAULT_SETTINGS = {
   contactProjectId: "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B \u0434\u0438\u0440\u0435\u043A\u0446\u0438\u0438",
   contactBoardId: "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B",
   contactSelectedColumnIds: "",
-  shownVersion: ""
+  shownVersion: "",
+  moduleLpiEnabled: false
 };
 
 // src/api/client.ts
@@ -4914,6 +4915,11 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.plugin.activateDashboardView();
       }));
     });
+    this.renderCollapsibleBlock(containerEl, "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", false, true, (body) => {
+      new import_obsidian2.Setting(body).setName("\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439").setDesc("\u041F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0437\u0430\u044F\u0432\u043E\u043A \u0438 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u043E\u0432 \u043B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u0438 \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439. \u041F\u0440\u043E\u0435\u043A\u0442, \u0434\u043E\u0441\u043A\u0430 \u0438 \u043A\u043E\u043B\u043E\u043D\u043A\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u044B \u0436\u0451\u0441\u0442\u043A\u043E.").addButton((btn) => btn.setButtonText("\u041E\u0442\u043A\u0440\u044B\u0442\u044C").onClick(() => {
+        this.plugin.activateLpiView();
+      }));
+    });
   }
   renderCollapsibleBlock(container, title, collapsible, hasToggle, renderBody) {
     const block = container.createDiv();
@@ -4996,7 +5002,8 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       "\u0423\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u0430\u043C\u0438": "moduleDocumentsEnabled",
       "\u0423\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u043F\u0438\u0441\u044C\u043C\u0430\u043C\u0438": "moduleEmailsEnabled",
       "\u0423\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u0430\u043C\u0438": "moduleContactsEnabled",
-      "\u041C\u043E\u0434\u0443\u043B\u044C \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430": "moduleDashboardEnabled"
+      "\u041C\u043E\u0434\u0443\u043B\u044C \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430": "moduleDashboardEnabled",
+      "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439": "moduleLpiEnabled"
     };
     return map[blockTitle] || "";
   }
@@ -66737,15 +66744,164 @@ var ContactsView = class extends import_obsidian10.ItemView {
   }
 };
 
-// src/commands.ts
+// src/ui/lpi-view.ts
 var import_obsidian11 = require("obsidian");
+var DB_PATH = "yourbase/lpi_data.json";
+var LPI_VIEW_TYPE = "yougile-lpi-view";
+var PROTOCOL_DATE_FALLBACK = "01.03.2026";
+var LpiView = class extends import_obsidian11.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.items = [];
+    this.searchQuery = "";
+    this.searchTimeout = null;
+    this.plugin = plugin;
+  }
+  getViewType() {
+    return LPI_VIEW_TYPE;
+  }
+  getDisplayText() {
+    return "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439";
+  }
+  getIcon() {
+    return "flame";
+  }
+  async onOpen() {
+    const container = this.contentEl;
+    container.addClass("mailer-yougile-container");
+    this.containerElContent = container.createDiv();
+    await this.loadData();
+    this.renderView();
+  }
+  async loadData() {
+    try {
+      const exists = await this.app.vault.adapter.exists(DB_PATH);
+      if (exists) {
+        const content = await this.app.vault.adapter.read(DB_PATH);
+        this.items = JSON.parse(content);
+      }
+    } catch (e) {
+      this.items = [];
+    }
+  }
+  getProtocolDate(item) {
+    return item.protocol_date || PROTOCOL_DATE_FALLBACK;
+  }
+  renderView() {
+    const container = this.containerElContent;
+    container.empty();
+    const header = container.createDiv({ cls: "mailer-yougile-header" });
+    header.createEl("h3", { text: "\u{1F9EA} \u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439" });
+    const searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u2116 \u0437\u0430\u044F\u0432\u043A\u0438, \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044E \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430..." } });
+    searchInput.addClass("mailer-mb-8");
+    searchInput.value = this.searchQuery;
+    searchInput.addEventListener("input", () => {
+      this.searchQuery = searchInput.value;
+      if (this.searchTimeout) clearTimeout(this.searchTimeout);
+      this.searchTimeout = window.setTimeout(() => {
+        this.renderView();
+      }, 300);
+    });
+    const q = this.searchQuery.trim().toLowerCase();
+    let filtered = this.items;
+    if (q) {
+      filtered = this.items.filter(
+        (item) => item.application_external_id.toLowerCase().includes(q) || item.product_name.toLowerCase().includes(q)
+      );
+    }
+    filtered.sort((a, b) => {
+      const numA = parseInt(a.application_external_id, 10);
+      const numB = parseInt(b.application_external_id, 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
+      return b.application_external_id.localeCompare(a.application_external_id);
+    });
+    const table = container.createEl("table", { cls: "mailer-table" });
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    const headers = ["\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F"];
+    for (const h of headers) {
+      const th = headerRow.createEl("th", { cls: "mailer-th" });
+      th.setText(h);
+    }
+    const tbody = table.createEl("tbody");
+    if (filtered.length === 0) {
+      const emptyRow = tbody.createEl("tr");
+      const td = emptyRow.createEl("td", { cls: "mailer-text-center mailer-p-24" });
+      td.setAttr("colspan", "4");
+      td.setText("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445");
+      return;
+    }
+    for (const item of filtered) {
+      const row = tbody.createEl("tr", { cls: "mailer-clickable mailer-row-hover" });
+      row.addEventListener("click", () => this.renderDetail(item));
+      row.createEl("td", { cls: "mailer-td" }).setText(item.application_external_id);
+      row.createEl("td", { cls: "mailer-td" }).setText(item.product_name);
+      row.createEl("td", { cls: "mailer-td" }).setText(this.getProtocolDate(item));
+      row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group_complience || "");
+    }
+  }
+  renderDetail(item) {
+    const container = this.containerElContent;
+    container.empty();
+    const backBtn = container.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434 \u043A \u0441\u043F\u0438\u0441\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
+    backBtn.addEventListener("click", () => this.renderView());
+    container.createEl("h3", { text: `\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}` });
+    const fields = [
+      { label: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", value: item.product_name },
+      { label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", value: this.getProtocolDate(item) },
+      { label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", value: item.agg_gen_group_complience },
+      { label: "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A", value: item.customer_name },
+      { label: "Email \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", value: item.customer_mail },
+      { label: "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", value: item.organization },
+      { label: "\u0422\u0435\u043B\u0435\u0444\u043E\u043D", value: item.customer_phone },
+      { label: "\u0410\u0434\u0440\u0435\u0441", value: item.customer_address },
+      { label: "\u0415\u041A\u041D", value: item.ekn },
+      { label: "\u0422\u043E\u043B\u0449\u0438\u043D\u0430", value: item.thickness !== null ? `${item.thickness} \u043C\u043C` : null },
+      { label: "\u0426\u0432\u0435\u0442", value: item.color },
+      { label: "\u041D\u043E\u043C\u0435\u0440 \u043F\u0430\u0440\u0442\u0438\u0438", value: item.batch_number },
+      { label: "\u041D\u043E\u043C\u0435\u0440 \u043E\u0431\u0440\u0430\u0437\u0446\u0430", value: item.sample_number },
+      { label: "\u041E\u0431\u044A\u0435\u043A\u0442", value: item.object_name },
+      { label: "\u0421\u0442\u0430\u043D\u0434\u0430\u0440\u0442", value: item.standard },
+      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438", value: item.target_comb_group },
+      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438", value: item.target_flam_group },
+      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F", value: item.target_prop_group },
+      { label: "\u041C\u0435\u0442\u043E\u0434 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", value: item.method_name },
+      { label: "\u0421\u0440\u0435\u0434\u043D\u044F\u044F \u0442\u0435\u043C\u043F\u0435\u0440\u0430\u0442\u0443\u0440\u0430 \u0434\u044B\u043C\u0430", value: item.agg_avg_smog_temp ? `${item.agg_avg_smog_temp} \xB0C` : null },
+      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u044B\u043C\u0443", value: item.agg_smog_group },
+      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u044B\u043C\u0443", value: item.agg_smog_complience },
+      { label: "\u041F\u043E\u0442\u0435\u0440\u044F \u043C\u0430\u0441\u0441\u044B", value: item.agg_mass_loss ? `${item.agg_mass_loss} %` : null },
+      { label: "\u0412\u0440\u0435\u043C\u044F \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_comb_time ? `${item.agg_comb_time} \u0441` : null },
+      { label: "\u0414\u043B\u0438\u043D\u0430 \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u044F", value: item.agg_dam_length ? `${item.agg_dam_length} \u043C\u043C` : null },
+      { label: "\u0412\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u0435\u043D\u0438\u0435 \u0432\u0430\u0442\u043A\u0438", value: item.agg_comb_bulb },
+      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", value: item.agg_group_by_mass },
+      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", value: item.agg_group_by_length },
+      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_croup_by_comb_time },
+      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0432\u0430\u0442\u043A\u0435", value: item.agg_group_by_bulbe },
+      { label: "\u041E\u0431\u0449\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438", value: item.agg_gen_group },
+      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", value: item.agg_mass_complience },
+      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", value: item.agg_complience_by_length },
+      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_complience_by_comb_time },
+      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0430\u0442\u043A\u0435", value: item.agg_complience_by_bulbe },
+      { label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", value: item.agg_gen_group_complience },
+      { label: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F", value: item.agg_additional_info_1 }
+    ];
+    const meta = container.createDiv({ cls: "mailer-yougile-task-meta mailer-mb-12" });
+    for (const field of fields) {
+      if (field.value === null || field.value === void 0 || field.value === "") continue;
+      meta.createDiv({ text: `${field.label}: ${field.value}` });
+    }
+  }
+};
+
+// src/commands.ts
+var import_obsidian12 = require("obsidian");
 function registerCommands(plugin) {
   plugin.addCommand({
     id: "create-task",
     name: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443",
     callback: () => {
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian11.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian12.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return;
       }
       plugin.activateView();
@@ -66769,7 +66925,7 @@ function registerCommands(plugin) {
       const view = leaf == null ? void 0 : leaf.view;
       if (view instanceof TasksView) {
         view.syncAndRender();
-        new import_obsidian11.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
+        new import_obsidian12.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
       }
     }
   });
@@ -66788,7 +66944,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleDocumentsEnabled) return false;
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian11.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian12.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return false;
       }
       if (checking) return true;
@@ -66828,6 +66984,15 @@ function registerCommands(plugin) {
       if (!plugin.settings.moduleContactsEnabled) return false;
       if (checking) return true;
       plugin.activateContactsView();
+    }
+  });
+  plugin.addCommand({
+    id: "open-lpi",
+    name: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044E \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439",
+    checkCallback: (checking) => {
+      if (!plugin.settings.moduleLpiEnabled) return false;
+      if (checking) return true;
+      plugin.activateLpiView();
     }
   });
 }
@@ -67117,7 +67282,7 @@ var LocalDatabase = class {
 };
 
 // src/database/email-db.ts
-var DB_PATH = "yourbase/mailer_data.json";
+var DB_PATH2 = "yourbase/mailer_data.json";
 var EmailDatabase = class {
   constructor(app) {
     this.data = { emails: [], directions: [] };
@@ -67126,9 +67291,9 @@ var EmailDatabase = class {
   async init() {
     const adapter = this.app.vault.adapter;
     try {
-      const exists = await adapter.exists(DB_PATH);
+      const exists = await adapter.exists(DB_PATH2);
       if (exists) {
-        const content = await adapter.read(DB_PATH);
+        const content = await adapter.read(DB_PATH2);
         const parsed = JSON.parse(content);
         this.data = {
           emails: Array.isArray(parsed.emails) ? parsed.emails : [],
@@ -67140,7 +67305,7 @@ var EmailDatabase = class {
   }
   async save() {
     try {
-      await this.app.vault.adapter.write(DB_PATH, JSON.stringify(this.data, null, 2));
+      await this.app.vault.adapter.write(DB_PATH2, JSON.stringify(this.data, null, 2));
     } catch (e) {
       console.error("YouGile: failed to save email db");
     }
@@ -67259,7 +67424,7 @@ var EmailDatabase = class {
 };
 
 // src/database/contact-db.ts
-var DB_PATH2 = "yourbase/contacts_data.json";
+var DB_PATH3 = "yourbase/contacts_data.json";
 var ContactDatabase = class {
   constructor(app) {
     this.data = { contacts: [] };
@@ -67268,9 +67433,9 @@ var ContactDatabase = class {
   async init() {
     const adapter = this.app.vault.adapter;
     try {
-      const exists = await adapter.exists(DB_PATH2);
+      const exists = await adapter.exists(DB_PATH3);
       if (exists) {
-        const content = await adapter.read(DB_PATH2);
+        const content = await adapter.read(DB_PATH3);
         const parsed = JSON.parse(content);
         this.data = {
           contacts: Array.isArray(parsed.contacts) ? parsed.contacts : []
@@ -67281,7 +67446,7 @@ var ContactDatabase = class {
   }
   async save() {
     try {
-      await this.app.vault.adapter.write(DB_PATH2, JSON.stringify(this.data, null, 2));
+      await this.app.vault.adapter.write(DB_PATH3, JSON.stringify(this.data, null, 2));
     } catch (e) {
       console.error("YouGile: failed to save contact db");
     }
@@ -67352,7 +67517,7 @@ var ContactDatabase = class {
 };
 
 // src/services/llm-service.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 var LLMService = class {
   constructor(plugin) {
     this.lastRequestTime = 0;
@@ -67454,7 +67619,7 @@ ${question}
 ## \u041E\u0422\u0412\u0415\u0422\u042C:`;
     return this.retryWithBackoff(async () => {
       var _a, _b, _c;
-      const response = await (0, import_obsidian12.requestUrl)({
+      const response = await (0, import_obsidian13.requestUrl)({
         url: llmApiUrl || "https://ask.chadgpt.ru/api/v1/chat/completions",
         method: "POST",
         headers: {
@@ -67513,9 +67678,15 @@ var CHANGELOG = {
     "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D syncFromTasks \u2014 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u043B \u043D\u0435\u0432\u0435\u0440\u043D\u044B\u0435 \u0438\u043C\u0435\u043D\u0430 \u043F\u043E\u043B\u0435\u0439 (topic, content \u0432\u043C\u0435\u0441\u0442\u043E subject, text)",
     "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F (direction_name) \u0442\u0435\u043F\u0435\u0440\u044C \u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u043F\u0440\u044F\u043C\u043E \u0432 \u0442\u0435\u043B\u0435 \u043F\u0438\u0441\u044C\u043C\u0430, \u0430 \u043D\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043A\u0430\u043A \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 direction_id",
     "\u0412\u0441\u0435 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0435 \u043F\u0438\u0441\u044C\u043C\u0430 \u043F\u0435\u0440\u0435\u0444\u043E\u0440\u043C\u0430\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u044B: direction_name \u043F\u0440\u043E\u0441\u0442\u0430\u0432\u043B\u0435\u043D \u043F\u043E direction_id"
+  ],
+  "0.3.0": [
+    '\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u043C\u043E\u0434\u0443\u043B\u044C "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439" (toggle \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445, \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D)',
+    "\u041C\u043E\u0434\u0443\u043B\u044C LPI \u0447\u0438\u0442\u0430\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0435 \u0438\u0437 yourbase/lpi_data.json, \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0430\u0435\u0442 \u0442\u0430\u0431\u043B\u0438\u0446\u0443 \u0438 \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043E\u043A",
+    "\u041F\u0440\u043E\u0435\u043A\u0442, \u0434\u043E\u0441\u043A\u0430 \u0438 \u043A\u043E\u043B\u043E\u043D\u043A\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u044B \u0436\u0451\u0441\u0442\u043A\u043E (\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439 / \u0417\u0430\u044F\u0432\u043A\u0438 / \u0417\u0430\u044F\u0432\u043A\u0438)",
+    "\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0430\u0432\u0442\u043E\u0440 manifest.json: \u0415.\u041F\u043E\u043B\u0438\u0449\u0443\u043A"
   ]
 };
-var ChangelogModal = class extends import_obsidian13.Modal {
+var ChangelogModal = class extends import_obsidian14.Modal {
   constructor(app, version, changes) {
     super(app);
     this.version = version;
@@ -67530,14 +67701,14 @@ var ChangelogModal = class extends import_obsidian13.Modal {
       list.createEl("li", { text: change });
     }
     contentEl.createEl("hr");
-    new import_obsidian13.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
+    new import_obsidian14.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
   }
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
   }
 };
-var YouGilePlugin = class extends import_obsidian13.Plugin {
+var YouGilePlugin = class extends import_obsidian14.Plugin {
   async onload() {
     await this.loadSettings();
     this.client = new YouGileClient();
@@ -67580,6 +67751,9 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
     if (this.settings.moduleContactsEnabled) {
       this.safeRegisterView(CONTACTS_VIEW_TYPE, (leaf) => new ContactsView(leaf, this));
     }
+    if (this.settings.moduleLpiEnabled) {
+      this.safeRegisterView(LPI_VIEW_TYPE, (leaf) => new LpiView(leaf, this));
+    }
     this.addRibbonIcon("list-todo", "YouGile", () => {
       this.activateView();
     });
@@ -67611,13 +67785,15 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
         this.activateContactsView();
       });
     }
+    if (this.settings.moduleLpiEnabled) {
+      this.addRibbonIcon("flame", "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", () => {
+        this.activateLpiView();
+      });
+    }
     registerCommands(this);
   }
   safeRegisterView(type, viewCreator) {
-    try {
-      this.registerView(type, viewCreator);
-    } catch (e) {
-    }
+    this.registerView(type, viewCreator);
   }
   onunload() {
     this.app.workspace.detachLeavesOfType(TASKS_VIEW_TYPE);
@@ -67627,6 +67803,7 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
     this.app.workspace.detachLeavesOfType(DASHBOARD_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(SUGGESTIONS_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(CONTACTS_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(LPI_VIEW_TYPE);
   }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -67700,7 +67877,7 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
     this.saveSecret(secretName, key);
     this.settings.apiKeySecret = secretName;
     await this.saveSettings();
-    new import_obsidian13.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
+    new import_obsidian14.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
   }
   async activateView() {
     var _a;
@@ -67794,6 +67971,20 @@ var YouGilePlugin = class extends import_obsidian13.Plugin {
       leaf = (_a = workspace.getRightLeaf(false)) != null ? _a : void 0;
       if (leaf) {
         await leaf.setViewState({ type: CONTACTS_VIEW_TYPE, active: true });
+      }
+    }
+    if (leaf) {
+      workspace.revealLeaf(leaf);
+    }
+  }
+  async activateLpiView() {
+    var _a;
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(LPI_VIEW_TYPE).first();
+    if (!leaf) {
+      leaf = (_a = workspace.getRightLeaf(false)) != null ? _a : void 0;
+      if (leaf) {
+        await leaf.setViewState({ type: LPI_VIEW_TYPE, active: true });
       }
     }
     if (leaf) {

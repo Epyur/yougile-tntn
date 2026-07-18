@@ -7,6 +7,7 @@ import { EMAILS_VIEW_TYPE } from './ui/emails-view';
 import { DASHBOARD_VIEW_TYPE } from './ui/dashboard-view';
 import { SUGGESTIONS_VIEW_TYPE, SuggestionsView } from './ui/suggestions-view';
 import { CONTACTS_VIEW_TYPE } from './ui/contacts-view';
+import { LPI_VIEW_TYPE } from './ui/lpi-view';
 
 export function registerCommands(plugin: YouGilePlugin): void {
   plugin.addCommand({
@@ -104,6 +105,16 @@ export function registerCommands(plugin: YouGilePlugin): void {
       if (!plugin.settings.moduleContactsEnabled) return false;
       if (checking) return true;
       plugin.activateContactsView();
+    },
+  });
+
+  plugin.addCommand({
+    id: 'open-lpi',
+    name: 'Открыть лабораторию пожарных испытаний',
+    checkCallback: (checking: boolean) => {
+      if (!plugin.settings.moduleLpiEnabled) return false;
+      if (checking) return true;
+      plugin.activateLpiView();
     },
   });
 }

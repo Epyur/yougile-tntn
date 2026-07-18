@@ -31,6 +31,7 @@ export interface YouGileSettings {
   moduleEmailsEnabled: boolean;
   moduleDashboardEnabled: boolean;
   moduleContactsEnabled: boolean;
+  moduleLpiEnabled: boolean;
   contactProjectId: string;
   contactBoardId: string;
   contactSelectedColumnIds: string;
@@ -68,4 +69,5 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   contactBoardId: 'Контакты',
   contactSelectedColumnIds: '',
   shownVersion: '',
+  moduleLpiEnabled: false,
 };
