@@ -32,6 +32,7 @@ export interface YouGileSettings {
   moduleDashboardEnabled: boolean;
   moduleContactsEnabled: boolean;
   moduleLpiEnabled: boolean;
+  lpiDbPath: string;
   contactProjectId: string;
   contactBoardId: string;
   contactSelectedColumnIds: string;
@@ -70,4 +71,5 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   contactSelectedColumnIds: '',
   shownVersion: '',
   moduleLpiEnabled: false,
+  lpiDbPath: 'C:/Users/adm/Downloads/Новая папка/lims/lims.db',
 };

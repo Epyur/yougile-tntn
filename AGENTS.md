@@ -15,7 +15,7 @@
 | 9 | **Настройки**: складные блоки с toggle, проекты/доски через dropdown, LLM, DOCX, автор | ✅ | `ui/settings-tab.ts`, `types/settings.ts` |
 | 10 | **Предложения**: таблица, создание, детали, редактирование, завершение, офлайн-очередь | ✅ | `ui/suggestions-view.ts` |
 | 11 | **Контакты**: таблица, создание, редактирование, детали, поиск, фильтр по колонкам, QR-код (vCard, красный, 250×250), локальная JSON БД, синхронизация с YouGile | ✅ | `ui/contacts-view.ts`, `database/contact-db.ts`, `types/contacts.ts` |
-| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (6 колонок: №, материал, дата создания, статус, дата протокола, оценка), дашборд (4 графика ApexCharts: статус, заявки по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, дата-фильтры (заявки + протоколы), чекбоксы "Серийная/Опытная продукция", per-product compliance donuts, детали (read-only), локальная JSON БД yourbase/lpi_data.json, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы | ✅ | `ui/lpi-view.ts`, `types/lpi.ts` |
+| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (6 колонок: №, материал, дата создания, статус, дата протокола, оценка), дашборд (4 графика ApexCharts: статус, заявки по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, дата-фильтры (заявки + протоколы), чекбоксы "Серийная/Опытная продукция", per-product compliance donuts, завершение заявок → lpi_completed.json + YouGile sync, детали (read-only), локальная JSON БД yourbase/lpi_data.json + yourbase/lpi_completed.json, настройка пути к SQLite БД, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы | ✅ | `ui/lpi-view.ts`, `types/lpi.ts`, `database/lpi-db.ts` |
 | 13 | **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы + email) | ✅ | `ui/assignee-selector.ts` |
 
 ## Структура файлов
@@ -27,7 +27,8 @@ src/
 ├── database/
 │   ├── db.ts                      # LocalDatabase (yougile_cache.json)
 │   ├── email-db.ts                # EmailDatabase (mailer_data.json)
-│   └── contact-db.ts              # ContactDatabase (contacts_data.json)
+│   ├── contact-db.ts              # ContactDatabase (contacts_data.json)
+│   └── lpi-db.ts                  # LpiDatabase (lpi_completed.json)
 ├── services/
 │   ├── document-service.ts        # DOCX генерация (jszip + docx)
 │   └── llm-service.ts             # AI-чат с RAG

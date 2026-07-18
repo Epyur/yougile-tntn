@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Modal, App } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Modal, App, Notice } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { LpiItem } from '../types/lpi';
 import ApexCharts from 'apexcharts';
@@ -7,7 +7,7 @@ const DB_PATH = 'yourbase/lpi_data.json';
 
 export const LPI_VIEW_TYPE = 'yougile-lpi-view';
 
-type ViewMode = 'table' | 'dashboard';
+type ViewMode = 'table' | 'dashboard' | 'completed';
 
 export class LpiView extends ItemView {
   plugin: YouGilePlugin;
@@ -91,8 +91,16 @@ export class LpiView extends ItemView {
     });
     dashBtn.addEventListener('click', () => { this.mode = 'dashboard'; this.renderView(); });
 
+    const completedBtn = btnRow.createEl('button', {
+      text: '✅ Завершённые',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    completedBtn.addEventListener('click', () => { this.mode = 'completed'; this.renderView(); });
+
     if (this.mode === 'dashboard') {
       this.renderDashboard(container);
+    } else if (this.mode === 'completed') {
+      this.renderCompleted(container);
     } else {
       this.renderTable(container);
     }
@@ -158,6 +166,69 @@ export class LpiView extends ItemView {
       }
       row.createEl('td', { cls: 'mailer-td' }).setText(this.getProtocolDate(item));
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
+    }
+  }
+
+  private renderCompleted(container: HTMLElement): void {
+    const entries = this.plugin.lpiDb.getAll();
+    container.createEl('h4', { text: `Завершённые заявки (${entries.length})` });
+    const table = container.createEl('table', { cls: 'mailer-table' });
+    const thead = table.createEl('thead');
+    const hr = thead.createEl('tr');
+    for (const h of ['№ заявки', 'Продукт', 'Дата завершения', 'Оценка']) {
+      hr.createEl('th', { cls: 'mailer-th' }).setText(h);
+    }
+    const tbody = table.createEl('tbody');
+    if (entries.length === 0) {
+      const row = tbody.createEl('tr');
+      const td = row.createEl('td', { attr: { colspan: '4' }, cls: 'mailer-text-center mailer-p-24' });
+      td.setText('Нет завершённых заявок');
+      return;
+    }
+    for (const e of entries) {
+      const row = tbody.createEl('tr');
+      row.createEl('td', { cls: 'mailer-td' }).setText(e.application_external_id);
+      row.createEl('td', { cls: 'mailer-td' }).setText(e.product_name);
+      row.createEl('td', { cls: 'mailer-td' }).setText(e.completed_at);
+      row.createEl('td', { cls: 'mailer-td' }).setText(e.agg_gen_group_complience);
+    }
+  }
+
+  private async completeEntry(item: LpiItem): Promise<void> {
+    try {
+      const now = new Date().toISOString().split('T')[0];
+      const entry = {
+        id: this.plugin.lpiDb.getNextId(),
+        aggregate_id: item.aggregate_id,
+        application_external_id: item.application_external_id,
+        product_name: item.product_name,
+        completed_at: now,
+        protocol_date: item.protocol_date || now,
+        agg_gen_group_complience: item.agg_gen_group_complience || '',
+        customer_name: item.customer_name || '',
+        customer_mail: item.customer_mail || '',
+        organization: item.organization || '',
+        ekn: item.ekn || '',
+      };
+      try {
+        if (this.plugin.client) {
+          const desc = JSON.stringify({ type: 'lpi_completed', ...entry });
+          const result = await this.plugin.client.createTask({
+            title: `LPI: ${item.application_external_id} — ${item.product_name}`,
+            description: desc,
+            columnId: '',
+          } as any);
+          if (result?.id) {
+            await this.plugin.client.updateTask(result.id, { completed: true });
+            (entry as any).taskId = result.id;
+          }
+        }
+      } catch {}
+      this.plugin.lpiDb.add(entry);
+      new Notice(`Заявка №${item.application_external_id} завершена`);
+      this.renderView();
+    } catch (e: any) {
+      new Notice('Ошибка: ' + e.message);
     }
   }
 
@@ -420,6 +491,15 @@ export class LpiView extends ItemView {
 
     const backBtn = container.createEl('button', { text: '← Назад к списку', cls: 'mailer-yougile-refresh-btn' });
     backBtn.addEventListener('click', () => this.renderView());
+
+    if (item.application_status === 'active') {
+      const completeBtn = container.createEl('button', {
+        text: '✅ Завершить заявку',
+        cls: 'mailer-yougile-refresh-btn',
+      });
+      completeBtn.style.marginLeft = '8px';
+      completeBtn.addEventListener('click', () => this.completeEntry(item));
+    }
 
     container.createEl('h3', { text: `Заявка №${item.application_external_id}` });
 

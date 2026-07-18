@@ -312,6 +312,17 @@ export class YouGileSettingTab extends PluginSettingTab {
           .onClick(() => {
             this.plugin.activateLpiView();
           }));
+
+      new Setting(body)
+        .setName('Путь к SQLite БД')
+        .setDesc('Полный путь к внешней базе данных LIMS (lims.db). Используется для генерации yourbase/lpi_data.json.')
+        .addText(text => text
+          .setPlaceholder('C:/lims/lims.db')
+          .setValue(this.plugin.settings.lpiDbPath)
+          .onChange(async (value) => {
+            this.plugin.settings.lpiDbPath = value;
+            await this.plugin.saveSettings();
+          }));
     });
   }
 

@@ -60,3 +60,22 @@ export interface LpiItem {
   calculation_type: string | null;
   result_data: string | null;
 }
+
+export interface LpiCompletedEntry {
+  id: number;
+  taskId?: string;
+  aggregate_id: string;
+  application_external_id: string;
+  product_name: string;
+  completed_at: string;
+  protocol_date: string;
+  agg_gen_group_complience: string;
+  customer_name: string;
+  customer_mail: string;
+  organization: string;
+  ekn: string;
+}
+
+export interface LpiCompletedDbData {
+  entries: LpiCompletedEntry[];
+}
