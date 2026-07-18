@@ -190,7 +190,7 @@ export class EmailsView extends ItemView {
     if (this.selectedColumnIds.size > 0) {
       const selectedColIds = [...this.selectedColumnIds];
       filtered = filtered.filter(e => {
-        const dir = this.plugin.emailDb.getDirectionName(e.direction_id);
+        const dir = e.direction_name || this.plugin.emailDb.getDirectionName(e.direction_id);
         if (!dir) return false;
         return selectedColIds.some(colId => {
           const dirName = this.getDirectionName(colId);
@@ -274,7 +274,7 @@ export class EmailsView extends ItemView {
     container.createEl('h3', { text: `${email.number} — ${email.subject}` });
 
     const metaDiv = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-mb-12' });
-    const dirName = this.plugin.emailDb.getDirectionName(email.direction_id);
+    const dirName = email.direction_name || this.plugin.emailDb.getDirectionName(email.direction_id);
     metaDiv.createDiv({ text: `Автор: ${email.author}` });
     metaDiv.createDiv({ text: `Дата: ${new Date(email.date).toLocaleString()}` });
     metaDiv.createDiv({ text: `Направление: ${dirName}` });
@@ -409,7 +409,7 @@ export class EmailsView extends ItemView {
     const dirSelect = container.createEl('select', { cls: 'mailer-mb-12' });
 
     const columns = this.getBoardColumns();
-    const currentDirName = this.plugin.emailDb.getDirectionName(email.direction_id);
+    const currentDirName = email.direction_name || this.plugin.emailDb.getDirectionName(email.direction_id);
     for (const col of columns) {
       const name = this.getDirectionName(col.id);
       const opt = dirSelect.createEl('option', { value: col.id, text: name });
@@ -461,7 +461,7 @@ export class EmailsView extends ItemView {
         author: email.author,
         date: email.date,
         direction_id: directionId,
-        directionName: dirName,
+        direction_name: dirName,
       }, null, 2);
 
       try {
@@ -486,6 +486,7 @@ export class EmailsView extends ItemView {
         email.subject = subject;
         email.text = text;
         email.direction_id = directionId;
+        email.direction_name = dirName;
         email.images = attachedFiles.map(f => f.url);
         email.lastSyncTime = now;
         email.sync_status = 'synced';
@@ -498,6 +499,7 @@ export class EmailsView extends ItemView {
           email.subject = subject;
           email.text = text;
           email.direction_id = directionId;
+          email.direction_name = dirName;
           this.plugin.emailDb.addEmail(email);
           const payload: Record<string, unknown> = {
             title: `[Письмо] ${number} — ${subject}`,
@@ -653,6 +655,7 @@ export class EmailsView extends ItemView {
         author,
         date: now.toISOString(),
         direction_id: directionId,
+        direction_name: dirName,
         images: attachedFiles.map(f => f.url),
         mdFilePath: '',
         mdFileHash: '',
@@ -670,7 +673,7 @@ export class EmailsView extends ItemView {
         author,
         date: now.toISOString(),
         direction_id: directionId,
-        directionName: dirName,
+        direction_name: dirName,
       }, null, 2);
 
       try {
@@ -755,7 +758,7 @@ export class EmailsView extends ItemView {
     if (this.selectedColumnIds.size > 0) {
       const selectedColIds = [...this.selectedColumnIds];
       filtered = filtered.filter(e => {
-        const dir = this.plugin.emailDb.getDirectionName(e.direction_id);
+        const dir = e.direction_name || this.plugin.emailDb.getDirectionName(e.direction_id);
         if (!dir) return false;
         return selectedColIds.some(colId => {
           const dirName = this.getDirectionName(colId);

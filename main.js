@@ -26514,7 +26514,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
     if (this.selectedColumnIds.size > 0) {
       const selectedColIds = [...this.selectedColumnIds];
       filtered = filtered.filter((e) => {
-        const dir = this.plugin.emailDb.getDirectionName(e.direction_id);
+        const dir = e.direction_name || this.plugin.emailDb.getDirectionName(e.direction_id);
         if (!dir) return false;
         return selectedColIds.some((colId) => {
           const dirName = this.getDirectionName(colId);
@@ -26583,7 +26583,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
     backBtn.addEventListener("click", () => this.renderView());
     container.createEl("h3", { text: `${email.number} \u2014 ${email.subject}` });
     const metaDiv = container.createDiv({ cls: "mailer-yougile-task-meta mailer-mb-12" });
-    const dirName = this.plugin.emailDb.getDirectionName(email.direction_id);
+    const dirName = email.direction_name || this.plugin.emailDb.getDirectionName(email.direction_id);
     metaDiv.createDiv({ text: `\u0410\u0432\u0442\u043E\u0440: ${email.author}` });
     metaDiv.createDiv({ text: `\u0414\u0430\u0442\u0430: ${new Date(email.date).toLocaleString()}` });
     metaDiv.createDiv({ text: `\u041D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435: ${dirName}` });
@@ -26700,7 +26700,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
     const dirLabel = container.createEl("label", { text: "\u041D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435" });
     const dirSelect = container.createEl("select", { cls: "mailer-mb-12" });
     const columns = this.getBoardColumns();
-    const currentDirName = this.plugin.emailDb.getDirectionName(email.direction_id);
+    const currentDirName = email.direction_name || this.plugin.emailDb.getDirectionName(email.direction_id);
     for (const col of columns) {
       const name2 = this.getDirectionName(col.id);
       const opt = dirSelect.createEl("option", { value: col.id, text: name2 });
@@ -26746,7 +26746,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
         author: email.author,
         date: email.date,
         direction_id: directionId,
-        directionName: dirName
+        direction_name: dirName
       }, null, 2);
       try {
         if (email.taskId) {
@@ -26770,6 +26770,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
         email.subject = subject;
         email.text = text;
         email.direction_id = directionId;
+        email.direction_name = dirName;
         email.images = attachedFiles.map((f) => f.url);
         email.lastSyncTime = now;
         email.sync_status = "synced";
@@ -26782,6 +26783,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
           email.subject = subject;
           email.text = text;
           email.direction_id = directionId;
+          email.direction_name = dirName;
           this.plugin.emailDb.addEmail(email);
           const payload = {
             title: `[\u041F\u0438\u0441\u044C\u043C\u043E] ${number} \u2014 ${subject}`,
@@ -26918,6 +26920,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
         author,
         date: now.toISOString(),
         direction_id: directionId,
+        direction_name: dirName,
         images: attachedFiles.map((f) => f.url),
         mdFilePath: "",
         mdFileHash: "",
@@ -26934,7 +26937,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
         author,
         date: now.toISOString(),
         direction_id: directionId,
-        directionName: dirName
+        direction_name: dirName
       }, null, 2);
       try {
         const task = await this.plugin.client.createTask({
@@ -27013,7 +27016,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
     if (this.selectedColumnIds.size > 0) {
       const selectedColIds = [...this.selectedColumnIds];
       filtered = filtered.filter((e) => {
-        const dir = this.plugin.emailDb.getDirectionName(e.direction_id);
+        const dir = e.direction_name || this.plugin.emailDb.getDirectionName(e.direction_id);
         if (!dir) return false;
         return selectedColIds.some((colId) => {
           const dirName = this.getDirectionName(colId);
@@ -67148,8 +67151,16 @@ var EmailDatabase = class {
   getEmailById(id) {
     return this.data.emails.find((e) => e.id === id);
   }
+  getEmailByTaskId(taskId) {
+    return this.data.emails.find((e) => e.taskId === taskId);
+  }
   addEmail(email) {
-    this.data.emails.push(email);
+    const idx = this.data.emails.findIndex((e) => e.id === email.id);
+    if (idx !== -1) {
+      this.data.emails[idx] = email;
+    } else {
+      this.data.emails.push(email);
+    }
     this.save();
   }
   updateEmail(id, updates) {
@@ -67163,53 +67174,87 @@ var EmailDatabase = class {
     this.data.emails = this.data.emails.filter((e) => e.id !== id);
     this.save();
   }
-  getAllDirections() {
+  getDirections() {
     return this.data.directions;
   }
-  addDirection(dir) {
-    this.data.directions.push(dir);
-    this.save();
+  getDirectionName(directionId) {
+    const dir = this.data.directions.find((d) => d.id === directionId);
+    return (dir == null ? void 0 : dir.name) || "";
   }
-  removeDirection(columnId) {
-    this.data.directions = this.data.directions.filter((d) => d.columnId !== columnId);
+  addDirection(dir) {
+    const idx = this.data.directions.findIndex((d) => d.id === dir.id);
+    if (idx !== -1) {
+      this.data.directions[idx] = dir;
+    } else {
+      this.data.directions.push(dir);
+    }
     this.save();
   }
   syncFromTasks(tasks) {
-    const emailTasks = tasks.filter((t) => {
+    var _a, _b, _c, _d, _e;
+    let changed = false;
+    for (const task of tasks) {
+      if (!task.description) continue;
+      const desc = task.description.trim();
+      if (!desc.startsWith("{")) continue;
+      let parsed;
       try {
-        const desc = JSON.parse(t.description || "{}");
-        return desc.type === "email";
+        parsed = JSON.parse(desc);
       } catch (e) {
-        return false;
+        continue;
       }
-    });
-    for (const task of emailTasks) {
-      try {
-        const desc = JSON.parse(task.description || "{}");
-        const existing = this.data.emails.find((e) => e.taskId === task.id);
-        if (existing) {
-          existing.title = task.title;
-          existing.completed = task.completed;
-        } else {
-          this.data.emails.push({
-            id: task.id,
-            taskId: task.id,
-            title: task.title,
-            date: desc.date || "",
-            appNumber: desc.appNumber || "",
-            topic: desc.topic || "",
-            content: desc.content || "",
-            images: desc.images || [],
-            directionName: desc.directionName || "",
-            author: desc.author || "",
-            completed: task.completed,
-            textNumber: desc.textNumber || ""
-          });
-        }
-      } catch (e) {
+      if (parsed.type !== "email") continue;
+      const emailId = typeof parsed.emailId === "number" ? parsed.emailId : this.hashTaskId(task.id);
+      const existing = this.data.emails.find((e) => e.id === emailId);
+      const number = String((_a = parsed.number) != null ? _a : "");
+      const subject = String((_b = parsed.subject) != null ? _b : task.title.replace(/^\[Письмо\]\s*/, ""));
+      const text = String((_c = parsed.text) != null ? _c : "");
+      const author = String((_d = parsed.author) != null ? _d : "");
+      const date = String((_e = parsed.date) != null ? _e : (/* @__PURE__ */ new Date()).toISOString());
+      const directionId = typeof parsed.direction_id === "number" ? parsed.direction_id : 0;
+      const directionName = String(parsed.direction_name || parsed.directionName || "");
+      if (existing) {
+        existing.number = number;
+        existing.subject = subject;
+        existing.text = text;
+        existing.author = author;
+        existing.date = date;
+        existing.direction_id = directionId;
+        existing.direction_name = directionName;
+        existing.taskId = task.id;
+        existing.lastSyncTime = (/* @__PURE__ */ new Date()).toISOString();
+        existing.sync_status = "synced";
+        changed = true;
+      } else {
+        this.data.emails.push({
+          id: emailId,
+          number,
+          subject,
+          text,
+          author,
+          date,
+          direction_id: directionId,
+          direction_name: directionName,
+          images: [],
+          mdFilePath: "",
+          mdFileHash: "",
+          lastSyncTime: (/* @__PURE__ */ new Date()).toISOString(),
+          sync_status: "synced",
+          created_at: date,
+          taskId: task.id
+        });
+        changed = true;
       }
     }
-    this.save();
+    if (changed) this.save();
+  }
+  hashTaskId(id) {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash << 5) - hash + id.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash);
   }
 };
 
@@ -67462,6 +67507,12 @@ var CHANGELOG = {
     "\u0412\u0441\u0435 \u0431\u0430\u0437\u044B \u0434\u0430\u043D\u043D\u044B\u0445 \u043F\u0435\u0440\u0435\u043D\u0435\u0441\u0435\u043D\u044B \u0432 \u043F\u0430\u043F\u043A\u0443 yourbase/ \u043E\u0442\u043D\u043E\u0441\u0438\u0442\u0435\u043B\u044C\u043D\u043E \u043A\u043E\u0440\u043D\u044F \u0445\u0440\u0430\u043D\u0438\u043B\u0438\u0449\u0430",
     "\u041F\u0443\u0442\u0438 \u043A \u0411\u0414 \u0436\u0451\u0441\u0442\u043A\u043E \u043F\u0440\u043E\u043F\u0438\u0441\u0430\u043D\u044B \u0432 \u043A\u043E\u0434\u0435 (yourbase/yougile_cache.json, yourbase/mailer_data.json, yourbase/contacts_data.json)",
     '\u0423\u0434\u0430\u043B\u0435\u043D\u044B \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 "\u041F\u0443\u0442\u044C \u043A \u0431\u0430\u0437\u0435 \u043F\u0438\u0441\u0435\u043C" \u0438 "\u041F\u0443\u0442\u044C \u043A \u0431\u0430\u0437\u0435 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043E\u0432"'
+  ],
+  "0.2.4": [
+    '\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u043E\u0448\u0438\u0431\u043A\u0430 "getDirectionName is not a function", \u0438\u0437-\u0437\u0430 \u043A\u043E\u0442\u043E\u0440\u043E\u0439 \u043D\u0435 \u043E\u0442\u043A\u0440\u044B\u0432\u0430\u043B\u0438\u0441\u044C \u0434\u0435\u0442\u0430\u043B\u0438 \u043F\u0438\u0441\u044C\u043C\u0430',
+    "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D syncFromTasks \u2014 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u043B \u043D\u0435\u0432\u0435\u0440\u043D\u044B\u0435 \u0438\u043C\u0435\u043D\u0430 \u043F\u043E\u043B\u0435\u0439 (topic, content \u0432\u043C\u0435\u0441\u0442\u043E subject, text)",
+    "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F (direction_name) \u0442\u0435\u043F\u0435\u0440\u044C \u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u043F\u0440\u044F\u043C\u043E \u0432 \u0442\u0435\u043B\u0435 \u043F\u0438\u0441\u044C\u043C\u0430, \u0430 \u043D\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043A\u0430\u043A \u0447\u0438\u0441\u043B\u043E\u0432\u043E\u0439 direction_id",
+    "\u0412\u0441\u0435 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0435 \u043F\u0438\u0441\u044C\u043C\u0430 \u043F\u0435\u0440\u0435\u0444\u043E\u0440\u043C\u0430\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u044B: direction_name \u043F\u0440\u043E\u0441\u0442\u0430\u0432\u043B\u0435\u043D \u043F\u043E direction_id"
   ]
 };
 var ChangelogModal = class extends import_obsidian13.Modal {

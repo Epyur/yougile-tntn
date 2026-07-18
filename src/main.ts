@@ -44,6 +44,12 @@ const CHANGELOG: Record<string, string[]> = {
     'Пути к БД жёстко прописаны в коде (yourbase/yougile_cache.json, yourbase/mailer_data.json, yourbase/contacts_data.json)',
     'Удалены настройки "Путь к базе писем" и "Путь к базе контактов"',
   ],
+  '0.2.4': [
+    'Исправлена ошибка "getDirectionName is not a function", из-за которой не открывались детали письма',
+    'Исправлен syncFromTasks — использовал неверные имена полей (topic, content вместо subject, text)',
+    'Название направления (direction_name) теперь хранится прямо в теле письма, а не только как числовой direction_id',
+    'Все существующие письма переформатированы: direction_name проставлен по direction_id',
+  ],
 };
 
 class ChangelogModal extends Modal {

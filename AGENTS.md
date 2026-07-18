@@ -75,7 +75,7 @@ src/
 ## Ключевые решения
 
 - **Все БД хранятся** в папке `yourbase/` относительно корня хранилища: `yourbase/yougile_cache.json`, `yourbase/mailer_data.json`, `yourbase/contacts_data.json`; пути жёстко прописаны в коде, не настраиваются
-- **Письма хранятся локально** в `yourbase/mailer_data.json` + дублируются в YouGile как задачи (`type: "email"` в description JSON)
+- **Письма хранятся локально** в `yourbase/mailer_data.json` + дублируются в YouGile как задачи (`type: "email"` в description JSON); название направления (`direction_name`) хранится прямо в письме, а не только как числовой `direction_id`
 - **Контакты хранятся локально** в `yourbase/contacts_data.json` + дублируются как задачи (`type: "contact"`, `completed: true`)
 - **Assigned** в задачах — UUID пользователя, найденный по `settings.login` через `db.getUsers()`
 - **Файлы** загружаются на YouGile через `POST /upload-file`, URL хранится в `email.images[]`

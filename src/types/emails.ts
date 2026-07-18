@@ -13,6 +13,8 @@ export interface MailItem {
   author: string;
   date: string;
   direction_id: number;
+  /** Название направления (хранится прямо в письме, чтобы не зависеть от directions[]) */
+  direction_name?: string;
   images: string[];
   mdFilePath: string;
   mdFileHash: string;
