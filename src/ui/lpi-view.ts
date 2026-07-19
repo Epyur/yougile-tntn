@@ -20,12 +20,26 @@ export class LpiView extends ItemView {
   private charts: ApexCharts[] = [];
   private dashboardTimer: number | null = null;
   private selectedProducts: Set<string> = new Set();
+  private selectedMethods: Set<string> = new Set();
   private appDateFrom = '';
   private appDateTo = '';
   private protocolDateFrom = '';
   private protocolDateTo = '';
   private serialOnly = false;
   private experimentalOnly = false;
+
+  private static METHOD_NAMES: Record<string, string> = {
+    'method1': 'Группа горючести',
+    'method2': 'Группа воспламеняемости',
+    'method3': 'Группа распространения пламени',
+    'method4': 'Кислородный индекс',
+    'g56027': 'Малое пламя',
+    'g56927': 'Малое пламя',
+  };
+
+  private static getMethodDisplayName(abbr: string): string {
+    return LpiView.METHOD_NAMES[abbr] || abbr;
+  }
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -143,26 +157,31 @@ export class LpiView extends ItemView {
     const searchInput = container.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск по № заявки, названию материала...' } });
     searchInput.addClass('mailer-mb-8');
     searchInput.value = this.searchQuery;
-    searchInput.addEventListener('input', () => {
+    const searchHandler = () => {
       this.searchQuery = searchInput.value;
       if (this.searchTimeout) clearTimeout(this.searchTimeout);
-      this.searchTimeout = window.setTimeout(() => { this.renderView(); }, 300);
-    });
+      this.searchTimeout = window.setTimeout(() => { this.renderView(); }, 100);
+    };
+    searchInput.addEventListener('input', searchHandler);
+    searchInput.addEventListener('keyup', searchHandler);
+    if (this.searchQuery) searchInput.focus();
 
     const q = this.searchQuery.trim().toLowerCase();
     let filtered = this.items;
     if (q) {
       filtered = this.items.filter(item =>
-        item.application_external_id.toLowerCase().includes(q) ||
-        item.product_name.toLowerCase().includes(q)
+        (item.application_external_id || '').toLowerCase().includes(q) ||
+        (item.product_name || '').toLowerCase().includes(q)
       );
     }
 
     filtered.sort((a, b) => {
-      const numA = parseInt(a.application_external_id, 10);
-      const numB = parseInt(b.application_external_id, 10);
+      const idA = a.application_external_id || '';
+      const idB = b.application_external_id || '';
+      const numA = parseInt(idA, 10);
+      const numB = parseInt(idB, 10);
       if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
-      return b.application_external_id.localeCompare(a.application_external_id);
+      return idB.localeCompare(idA);
     });
 
     const table = container.createEl('table', { cls: 'mailer-table' });
@@ -491,6 +510,9 @@ export class LpiView extends ItemView {
     if (this.experimentalOnly) {
       filtered = filtered.filter(item => !item.ekn || !/^\d+$/.test(item.ekn));
     }
+    if (this.selectedMethods.size > 0) {
+      filtered = filtered.filter(item => item.method_abbreviation && this.selectedMethods.has(item.method_abbreviation));
+    }
     return filtered;
   }
 
@@ -533,18 +555,48 @@ export class LpiView extends ItemView {
 
     const allFiltered = this.applyFilters(this.items);
 
-    const availableProducts = [...new Set(allFiltered.map(i => i.product_name))].sort();
-    // remove selected products that are no longer in filtered set
+    // available products from full unfiltered list for the filter modal
+    const allProducts = [...new Set(this.items.map(i => i.product_name))].sort();
+    // remove selected that no longer exist in full list
     for (const p of this.selectedProducts) {
-      if (!availableProducts.includes(p)) this.selectedProducts.delete(p);
+      if (!allProducts.includes(p)) this.selectedProducts.delete(p);
+    }
+    // available methods from filtered items for the method filter
+    const filteredMethods = [...new Set(allFiltered.filter(i => i.method_abbreviation).map(i => i.method_abbreviation!))].sort();
+    // available methods from full list for the method filter modal
+    const allMethods = [...new Set(this.items.filter(i => i.method_abbreviation).map(i => i.method_abbreviation!))].sort();
+    for (const m of this.selectedMethods) {
+      if (!allMethods.includes(m)) this.selectedMethods.delete(m);
+    }
+
+    const methodBtn = container.createEl('button', {
+      text: this.selectedMethods.size > 0 ? `🔬 ${[...this.selectedMethods].map(m => LpiView.getMethodDisplayName(m)).join(', ')}` : '🔬 Подтверждаемый показатель',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    methodBtn.style.marginLeft = '8px';
+    methodBtn.addEventListener('click', () => {
+      const modal = new MethodFilterModal(this.app, allMethods, this.selectedMethods, (selected) => {
+        this.selectedMethods = selected;
+        this.renderView();
+      });
+      modal.open();
+    });
+    if (this.selectedMethods.size > 0) {
+      const clearM = container.createEl('button', { text: '✕', cls: 'mailer-yougile-refresh-btn' });
+      clearM.style.marginLeft = '4px';
+      clearM.addEventListener('click', () => {
+        this.selectedMethods.clear();
+        this.renderView();
+      });
     }
 
     const productBtn = container.createEl('button', {
       text: this.selectedProducts.size > 0 ? `🔽 Продукты (${this.selectedProducts.size})` : '🔽 Выбрать продукты',
       cls: 'mailer-yougile-refresh-btn',
     });
+    productBtn.style.marginLeft = '8px';
     productBtn.addEventListener('click', () => {
-      const modal = new ProductFilterModal(this.app, availableProducts, this.selectedProducts, (selected) => {
+      const modal = new ProductFilterModal(this.app, allProducts, this.selectedProducts, (selected) => {
         this.selectedProducts = selected;
         this.renderView();
       });
@@ -769,12 +821,27 @@ export class LpiView extends ItemView {
 
     container.createEl('h3', { text: `Заявка №${item.application_external_id}` });
 
-    const fields: Array<{ label: string; value: unknown }> = [
+    const meta = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-mb-12' });
+
+    const addSection = (title: string, pairs: Array<{ label: string; value: unknown; bold?: boolean; color?: (v: string) => string }>) => {
+      if (pairs.length === 0) return;
+      meta.createEl('h4', { text: title, cls: 'mailer-mt-8' });
+      for (const p of pairs) {
+        const div = meta.createDiv();
+        if (p.bold) div.style.fontWeight = 'bold';
+        const val = p.value ?? '—';
+        div.textContent = `${p.label}: ${val}`;
+        if (p.color && typeof val === 'string') {
+          div.style.color = p.color(val);
+        }
+      }
+    };
+
+    addSection('Детали заявки', [
       { label: 'Название материала', value: item.product_name },
       { label: 'Дата создания заявки', value: item.application_created_at },
       { label: 'Статус', value: item.application_status === 'active' ? 'Активна' : 'Завершена' },
-      { label: 'Дата протокола', value: this.getProtocolDate(item) || null },
-      { label: 'Оценка соответствия', value: item.agg_gen_group_complience },
+      { label: 'Дата протокола', value: this.getProtocolDate(item) },
       { label: 'Заказчик', value: item.customer_name },
       { label: 'Email заказчика', value: item.customer_mail },
       { label: 'Организация', value: item.organization },
@@ -791,30 +858,31 @@ export class LpiView extends ItemView {
       { label: 'Целевая группа воспламеняемости', value: item.target_flam_group },
       { label: 'Целевая группа распространения', value: item.target_prop_group },
       { label: 'Метод испытаний', value: item.method_name },
+    ]);
+
+    addSection('Результаты измерений', [
       { label: 'Средняя температура дыма', value: item.agg_avg_smog_temp ? `${item.agg_avg_smog_temp} °C` : null },
-      { label: 'Группа по дыму', value: item.agg_smog_group },
-      { label: 'Соответствие по дыму', value: item.agg_smog_complience },
       { label: 'Потеря массы', value: item.agg_mass_loss ? `${item.agg_mass_loss} %` : null },
       { label: 'Время горения', value: item.agg_comb_time ? `${item.agg_comb_time} с` : null },
       { label: 'Длина повреждения', value: item.agg_dam_length ? `${item.agg_dam_length} мм` : null },
-      { label: 'Воспламенение ватки', value: item.agg_comb_bulb },
-      { label: 'Группа по массе', value: item.agg_group_by_mass },
-      { label: 'Группа по длине', value: item.agg_group_by_length },
-      { label: 'Группа по времени горения', value: item.agg_croup_by_comb_time },
-      { label: 'Группа по ватке', value: item.agg_group_by_bulbe },
-      { label: 'Общая группа горючести', value: item.agg_gen_group },
-      { label: 'Соответствие по массе', value: item.agg_mass_complience },
-      { label: 'Соответствие по длине', value: item.agg_complience_by_length },
-      { label: 'Соответствие по времени горения', value: item.agg_complience_by_comb_time },
-      { label: 'Соответствие по ватке', value: item.agg_complience_by_bulbe },
-      { label: 'Дополнительная информация', value: item.agg_additional_info_1 },
-    ];
+      { label: 'Падение горящих капель расплава', value: item.agg_comb_bulb },
+    ]);
 
-    const meta = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-mb-12' });
-    for (const field of fields) {
-      if (field.value === null || field.value === undefined || field.value === '') continue;
-      meta.createDiv({ text: `${field.label}: ${field.value}` });
-    }
+    addSection('Выводы', [
+      { label: 'Результат испытания', value: item.agg_gen_group, bold: true },
+      { label: 'Общая оценка соответствия', value: item.agg_gen_group_complience, bold: true, color: v => v === 'Не оценивается' ? 'var(--text-muted)' : v === 'Соответствует' ? 'var(--text-success)' : v === 'Не соответствует' ? 'var(--text-error)' : '' },
+      { label: 'Группа по дыму', value: item.agg_smog_group },
+      { label: 'Соответствие по дыму', value: item.agg_smog_complience },
+      { label: 'Группа по массе', value: item.agg_group_by_mass },
+      { label: 'Соответствие по массе', value: item.agg_mass_complience },
+      { label: 'Группа по длине', value: item.agg_group_by_length },
+      { label: 'Соответствие по длине', value: item.agg_complience_by_length },
+      { label: 'Группа по времени горения', value: item.agg_croup_by_comb_time },
+      { label: 'Соответствие по времени горения', value: item.agg_complience_by_comb_time },
+      { label: 'Группа по горящим каплям', value: item.agg_group_by_bulbe },
+      { label: 'Соответствие по горящим каплям', value: item.agg_complience_by_bulbe },
+      { label: 'Дополнительная информация', value: item.agg_additional_info_1 },
+    ]);
   }
 }
 
@@ -841,6 +909,7 @@ class ProductFilterModal extends Modal {
     searchInput.style.width = '100%';
     searchInput.style.marginBottom = '8px';
     searchInput.style.boxSizing = 'border-box';
+    searchInput.focus();
 
     const listContainer = contentEl.createDiv();
     listContainer.style.maxHeight = '400px';
@@ -849,7 +918,7 @@ class ProductFilterModal extends Modal {
     const renderList = () => {
       listContainer.empty();
       const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? this.allProducts.filter(p => p.toLowerCase().includes(q)) : this.allProducts;
+      const filtered = q ? this.allProducts.filter(p => p && p.toLowerCase().includes(q)) : this.allProducts;
       for (const product of filtered) {
         const wrapper = listContainer.createEl('label');
         wrapper.style.display = 'flex';
@@ -873,13 +942,106 @@ class ProductFilterModal extends Modal {
     renderList();
 
     searchInput.addEventListener('input', renderList);
+    searchInput.addEventListener('keyup', renderList);
 
     const btnRow = contentEl.createDiv({ cls: 'mailer-yougile-header mailer-mt-8' });
     const selectAllBtn = btnRow.createEl('button', { text: 'Выбрать все', cls: 'mailer-yougile-refresh-btn' });
     selectAllBtn.addEventListener('click', () => {
       const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? this.allProducts.filter(p => p.toLowerCase().includes(q)) : this.allProducts;
+      const filtered = q ? this.allProducts.filter(p => p && p.toLowerCase().includes(q)) : this.allProducts;
       for (const product of filtered) this.selected.add(product);
+      renderList();
+    });
+
+    const deselectAllBtn = btnRow.createEl('button', { text: 'Снять все', cls: 'mailer-yougile-refresh-btn' });
+    deselectAllBtn.addEventListener('click', () => {
+      this.selected.clear();
+      renderList();
+    });
+
+    const applyBtn = btnRow.createEl('button', { text: '✅ Применить', cls: 'mailer-yougile-refresh-btn' });
+    applyBtn.addEventListener('click', () => {
+      this.onSave(this.selected);
+      this.close();
+    });
+
+    const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
+    cancelBtn.addEventListener('click', () => this.close());
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
+
+class MethodFilterModal extends Modal {
+  private allMethods: string[];
+  private selected: Set<string>;
+  private onSave: (selected: Set<string>) => void;
+
+  constructor(app: App, allMethods: string[], selected: Set<string>, onSave: (selected: Set<string>) => void) {
+    super(app);
+    this.allMethods = allMethods;
+    this.selected = new Set(selected);
+    this.onSave = onSave;
+  }
+
+  private displayName(abbr: string): string {
+    return LpiView.METHOD_NAMES[abbr] || abbr;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('mailer-yougile-container');
+
+    contentEl.createEl('h3', { text: 'Выбор подтверждаемого показателя' });
+
+    const searchInput = contentEl.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск показателя...' } });
+    searchInput.style.width = '100%';
+    searchInput.style.marginBottom = '8px';
+    searchInput.style.boxSizing = 'border-box';
+    searchInput.focus();
+
+    const listContainer = contentEl.createDiv();
+    listContainer.style.maxHeight = '400px';
+    listContainer.style.overflowY = 'auto';
+
+    const renderList = () => {
+      listContainer.empty();
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allMethods.filter(m => this.displayName(m).toLowerCase().includes(q)) : this.allMethods;
+      for (const method of filtered) {
+        const wrapper = listContainer.createEl('label');
+        wrapper.style.display = 'flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.padding = '2px 0';
+        wrapper.style.cursor = 'pointer';
+        wrapper.style.fontSize = 'var(--font-smaller)';
+        const cb = wrapper.createEl('input', { attr: { type: 'checkbox' } });
+        cb.style.width = '16px';
+        cb.style.height = '16px';
+        cb.style.margin = '0 6px 0 0';
+        cb.style.flexShrink = '0';
+        cb.checked = this.selected.has(method);
+        cb.addEventListener('change', () => {
+          if (cb.checked) this.selected.add(method);
+          else this.selected.delete(method);
+        });
+        wrapper.createEl('span').setText(this.displayName(method));
+      }
+    };
+    renderList();
+
+    searchInput.addEventListener('input', renderList);
+    searchInput.addEventListener('keyup', renderList);
+
+    const btnRow = contentEl.createDiv({ cls: 'mailer-yougile-header mailer-mt-8' });
+    const selectAllBtn = btnRow.createEl('button', { text: 'Выбрать все', cls: 'mailer-yougile-refresh-btn' });
+    selectAllBtn.addEventListener('click', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allMethods.filter(m => this.displayName(m).toLowerCase().includes(q)) : this.allMethods;
+      for (const method of filtered) this.selected.add(method);
       renderList();
     });
 

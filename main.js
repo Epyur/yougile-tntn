@@ -68900,7 +68900,7 @@ var import_obsidian11 = require("obsidian");
 var import_sql = __toESM(require_sql_wasm_browser());
 var DB_PATH = "yourbase/lpi_data.json";
 var LPI_VIEW_TYPE = "yougile-lpi-view";
-var LpiView = class extends import_obsidian11.ItemView {
+var _LpiView = class _LpiView extends import_obsidian11.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.items = [];
@@ -68910,6 +68910,7 @@ var LpiView = class extends import_obsidian11.ItemView {
     this.charts = [];
     this.dashboardTimer = null;
     this.selectedProducts = /* @__PURE__ */ new Set();
+    this.selectedMethods = /* @__PURE__ */ new Set();
     this.appDateFrom = "";
     this.appDateTo = "";
     this.protocolDateFrom = "";
@@ -68921,6 +68922,9 @@ var LpiView = class extends import_obsidian11.ItemView {
     this.batchReady = false;
     this.wasmBinary = null;
     this.plugin = plugin;
+  }
+  static getMethodDisplayName(abbr) {
+    return _LpiView.METHOD_NAMES[abbr] || abbr;
   }
   getViewType() {
     return LPI_VIEW_TYPE;
@@ -69040,25 +69044,30 @@ var LpiView = class extends import_obsidian11.ItemView {
     const searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u2116 \u0437\u0430\u044F\u0432\u043A\u0438, \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044E \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430..." } });
     searchInput.addClass("mailer-mb-8");
     searchInput.value = this.searchQuery;
-    searchInput.addEventListener("input", () => {
+    const searchHandler = () => {
       this.searchQuery = searchInput.value;
       if (this.searchTimeout) clearTimeout(this.searchTimeout);
       this.searchTimeout = window.setTimeout(() => {
         this.renderView();
-      }, 300);
-    });
+      }, 100);
+    };
+    searchInput.addEventListener("input", searchHandler);
+    searchInput.addEventListener("keyup", searchHandler);
+    if (this.searchQuery) searchInput.focus();
     const q = this.searchQuery.trim().toLowerCase();
     let filtered = this.items;
     if (q) {
       filtered = this.items.filter(
-        (item) => item.application_external_id.toLowerCase().includes(q) || item.product_name.toLowerCase().includes(q)
+        (item) => (item.application_external_id || "").toLowerCase().includes(q) || (item.product_name || "").toLowerCase().includes(q)
       );
     }
     filtered.sort((a, b) => {
-      const numA = parseInt(a.application_external_id, 10);
-      const numB = parseInt(b.application_external_id, 10);
+      const idA = a.application_external_id || "";
+      const idB = b.application_external_id || "";
+      const numA = parseInt(idA, 10);
+      const numB = parseInt(idB, 10);
       if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
-      return b.application_external_id.localeCompare(a.application_external_id);
+      return idB.localeCompare(idA);
     });
     const table = container.createEl("table", { cls: "mailer-table" });
     const thead = table.createEl("thead");
@@ -69368,6 +69377,9 @@ var LpiView = class extends import_obsidian11.ItemView {
     if (this.experimentalOnly) {
       filtered = filtered.filter((item) => !item.ekn || !/^\d+$/.test(item.ekn));
     }
+    if (this.selectedMethods.size > 0) {
+      filtered = filtered.filter((item) => item.method_abbreviation && this.selectedMethods.has(item.method_abbreviation));
+    }
     return filtered;
   }
   renderDashboard(container) {
@@ -69411,16 +69423,42 @@ var LpiView = class extends import_obsidian11.ItemView {
     addCb("\u0421\u0435\u0440\u0438\u0439\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F", this.serialOnly, (v) => this.serialOnly = v);
     addCb("\u041E\u043F\u044B\u0442\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F", this.experimentalOnly, (v) => this.experimentalOnly = v);
     const allFiltered = this.applyFilters(this.items);
-    const availableProducts = [...new Set(allFiltered.map((i) => i.product_name))].sort();
+    const allProducts = [...new Set(this.items.map((i) => i.product_name))].sort();
     for (const p of this.selectedProducts) {
-      if (!availableProducts.includes(p)) this.selectedProducts.delete(p);
+      if (!allProducts.includes(p)) this.selectedProducts.delete(p);
+    }
+    const filteredMethods = [...new Set(allFiltered.filter((i) => i.method_abbreviation).map((i) => i.method_abbreviation))].sort();
+    const allMethods = [...new Set(this.items.filter((i) => i.method_abbreviation).map((i) => i.method_abbreviation))].sort();
+    for (const m of this.selectedMethods) {
+      if (!allMethods.includes(m)) this.selectedMethods.delete(m);
+    }
+    const methodBtn = container.createEl("button", {
+      text: this.selectedMethods.size > 0 ? `\u{1F52C} ${[...this.selectedMethods].map((m) => _LpiView.getMethodDisplayName(m)).join(", ")}` : "\u{1F52C} \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u0435\u043C\u044B\u0439 \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044C",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    methodBtn.style.marginLeft = "8px";
+    methodBtn.addEventListener("click", () => {
+      const modal = new MethodFilterModal(this.app, allMethods, this.selectedMethods, (selected) => {
+        this.selectedMethods = selected;
+        this.renderView();
+      });
+      modal.open();
+    });
+    if (this.selectedMethods.size > 0) {
+      const clearM = container.createEl("button", { text: "\u2715", cls: "mailer-yougile-refresh-btn" });
+      clearM.style.marginLeft = "4px";
+      clearM.addEventListener("click", () => {
+        this.selectedMethods.clear();
+        this.renderView();
+      });
     }
     const productBtn = container.createEl("button", {
       text: this.selectedProducts.size > 0 ? `\u{1F53D} \u041F\u0440\u043E\u0434\u0443\u043A\u0442\u044B (${this.selectedProducts.size})` : "\u{1F53D} \u0412\u044B\u0431\u0440\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u044B",
       cls: "mailer-yougile-refresh-btn"
     });
+    productBtn.style.marginLeft = "8px";
     productBtn.addEventListener("click", () => {
-      const modal = new ProductFilterModal(this.app, availableProducts, this.selectedProducts, (selected) => {
+      const modal = new ProductFilterModal(this.app, allProducts, this.selectedProducts, (selected) => {
         this.selectedProducts = selected;
         this.renderView();
       });
@@ -69628,12 +69666,26 @@ var LpiView = class extends import_obsidian11.ItemView {
       completeBtn.addEventListener("click", () => this.completeEntry(item));
     }
     container.createEl("h3", { text: `\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}` });
-    const fields = [
+    const meta = container.createDiv({ cls: "mailer-yougile-task-meta mailer-mb-12" });
+    const addSection = (title, pairs) => {
+      var _a;
+      if (pairs.length === 0) return;
+      meta.createEl("h4", { text: title, cls: "mailer-mt-8" });
+      for (const p of pairs) {
+        const div = meta.createDiv();
+        if (p.bold) div.style.fontWeight = "bold";
+        const val = (_a = p.value) != null ? _a : "\u2014";
+        div.textContent = `${p.label}: ${val}`;
+        if (p.color && typeof val === "string") {
+          div.style.color = p.color(val);
+        }
+      }
+    };
+    addSection("\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438", [
       { label: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", value: item.product_name },
       { label: "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0437\u0430\u044F\u0432\u043A\u0438", value: item.application_created_at },
       { label: "\u0421\u0442\u0430\u0442\u0443\u0441", value: item.application_status === "active" ? "\u0410\u043A\u0442\u0438\u0432\u043D\u0430" : "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" },
-      { label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", value: this.getProtocolDate(item) || null },
-      { label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", value: item.agg_gen_group_complience },
+      { label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", value: this.getProtocolDate(item) },
       { label: "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A", value: item.customer_name },
       { label: "Email \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", value: item.customer_mail },
       { label: "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", value: item.organization },
@@ -69649,32 +69701,41 @@ var LpiView = class extends import_obsidian11.ItemView {
       { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438", value: item.target_comb_group },
       { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438", value: item.target_flam_group },
       { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F", value: item.target_prop_group },
-      { label: "\u041C\u0435\u0442\u043E\u0434 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", value: item.method_name },
+      { label: "\u041C\u0435\u0442\u043E\u0434 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", value: item.method_name }
+    ]);
+    addSection("\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0439", [
       { label: "\u0421\u0440\u0435\u0434\u043D\u044F\u044F \u0442\u0435\u043C\u043F\u0435\u0440\u0430\u0442\u0443\u0440\u0430 \u0434\u044B\u043C\u0430", value: item.agg_avg_smog_temp ? `${item.agg_avg_smog_temp} \xB0C` : null },
-      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u044B\u043C\u0443", value: item.agg_smog_group },
-      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u044B\u043C\u0443", value: item.agg_smog_complience },
       { label: "\u041F\u043E\u0442\u0435\u0440\u044F \u043C\u0430\u0441\u0441\u044B", value: item.agg_mass_loss ? `${item.agg_mass_loss} %` : null },
       { label: "\u0412\u0440\u0435\u043C\u044F \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_comb_time ? `${item.agg_comb_time} \u0441` : null },
       { label: "\u0414\u043B\u0438\u043D\u0430 \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u044F", value: item.agg_dam_length ? `${item.agg_dam_length} \u043C\u043C` : null },
-      { label: "\u0412\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u0435\u043D\u0438\u0435 \u0432\u0430\u0442\u043A\u0438", value: item.agg_comb_bulb },
+      { label: "\u041F\u0430\u0434\u0435\u043D\u0438\u0435 \u0433\u043E\u0440\u044F\u0449\u0438\u0445 \u043A\u0430\u043F\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043B\u0430\u0432\u0430", value: item.agg_comb_bulb }
+    ]);
+    addSection("\u0412\u044B\u0432\u043E\u0434\u044B", [
+      { label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", value: item.agg_gen_group, bold: true },
+      { label: "\u041E\u0431\u0449\u0430\u044F \u043E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", value: item.agg_gen_group_complience, bold: true, color: (v) => v === "\u041D\u0435 \u043E\u0446\u0435\u043D\u0438\u0432\u0430\u0435\u0442\u0441\u044F" ? "var(--text-muted)" : v === "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442" ? "var(--text-success)" : v === "\u041D\u0435 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442" ? "var(--text-error)" : "" },
+      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u044B\u043C\u0443", value: item.agg_smog_group },
+      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u044B\u043C\u0443", value: item.agg_smog_complience },
       { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", value: item.agg_group_by_mass },
-      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", value: item.agg_group_by_length },
-      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_croup_by_comb_time },
-      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0432\u0430\u0442\u043A\u0435", value: item.agg_group_by_bulbe },
-      { label: "\u041E\u0431\u0449\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438", value: item.agg_gen_group },
       { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", value: item.agg_mass_complience },
+      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", value: item.agg_group_by_length },
       { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", value: item.agg_complience_by_length },
+      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_croup_by_comb_time },
       { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_complience_by_comb_time },
-      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0430\u0442\u043A\u0435", value: item.agg_complience_by_bulbe },
+      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0433\u043E\u0440\u044F\u0449\u0438\u043C \u043A\u0430\u043F\u043B\u044F\u043C", value: item.agg_group_by_bulbe },
+      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0433\u043E\u0440\u044F\u0449\u0438\u043C \u043A\u0430\u043F\u043B\u044F\u043C", value: item.agg_complience_by_bulbe },
       { label: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F", value: item.agg_additional_info_1 }
-    ];
-    const meta = container.createDiv({ cls: "mailer-yougile-task-meta mailer-mb-12" });
-    for (const field of fields) {
-      if (field.value === null || field.value === void 0 || field.value === "") continue;
-      meta.createDiv({ text: `${field.label}: ${field.value}` });
-    }
+    ]);
   }
 };
+_LpiView.METHOD_NAMES = {
+  "method1": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438",
+  "method2": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438",
+  "method3": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u043F\u043B\u0430\u043C\u0435\u043D\u0438",
+  "method4": "\u041A\u0438\u0441\u043B\u043E\u0440\u043E\u0434\u043D\u044B\u0439 \u0438\u043D\u0434\u0435\u043A\u0441",
+  "g56027": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F",
+  "g56927": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F"
+};
+var LpiView = _LpiView;
 var ProductFilterModal = class extends import_obsidian11.Modal {
   constructor(app, allProducts, selected, onSave) {
     super(app);
@@ -69691,13 +69752,14 @@ var ProductFilterModal = class extends import_obsidian11.Modal {
     searchInput.style.width = "100%";
     searchInput.style.marginBottom = "8px";
     searchInput.style.boxSizing = "border-box";
+    searchInput.focus();
     const listContainer = contentEl.createDiv();
     listContainer.style.maxHeight = "400px";
     listContainer.style.overflowY = "auto";
     const renderList = () => {
       listContainer.empty();
       const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? this.allProducts.filter((p) => p.toLowerCase().includes(q)) : this.allProducts;
+      const filtered = q ? this.allProducts.filter((p) => p && p.toLowerCase().includes(q)) : this.allProducts;
       for (const product of filtered) {
         const wrapper = listContainer.createEl("label");
         wrapper.style.display = "flex";
@@ -69720,12 +69782,88 @@ var ProductFilterModal = class extends import_obsidian11.Modal {
     };
     renderList();
     searchInput.addEventListener("input", renderList);
+    searchInput.addEventListener("keyup", renderList);
     const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
     const selectAllBtn = btnRow.createEl("button", { text: "\u0412\u044B\u0431\u0440\u0430\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
     selectAllBtn.addEventListener("click", () => {
       const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? this.allProducts.filter((p) => p.toLowerCase().includes(q)) : this.allProducts;
+      const filtered = q ? this.allProducts.filter((p) => p && p.toLowerCase().includes(q)) : this.allProducts;
       for (const product of filtered) this.selected.add(product);
+      renderList();
+    });
+    const deselectAllBtn = btnRow.createEl("button", { text: "\u0421\u043D\u044F\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
+    deselectAllBtn.addEventListener("click", () => {
+      this.selected.clear();
+      renderList();
+    });
+    const applyBtn = btnRow.createEl("button", { text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    applyBtn.addEventListener("click", () => {
+      this.onSave(this.selected);
+      this.close();
+    });
+    const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
+    cancelBtn.addEventListener("click", () => this.close());
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var MethodFilterModal = class extends import_obsidian11.Modal {
+  constructor(app, allMethods, selected, onSave) {
+    super(app);
+    this.allMethods = allMethods;
+    this.selected = new Set(selected);
+    this.onSave = onSave;
+  }
+  displayName(abbr) {
+    return LpiView.METHOD_NAMES[abbr] || abbr;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h3", { text: "\u0412\u044B\u0431\u043E\u0440 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u0435\u043C\u043E\u0433\u043E \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044F" });
+    const searchInput = contentEl.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044F..." } });
+    searchInput.style.width = "100%";
+    searchInput.style.marginBottom = "8px";
+    searchInput.style.boxSizing = "border-box";
+    searchInput.focus();
+    const listContainer = contentEl.createDiv();
+    listContainer.style.maxHeight = "400px";
+    listContainer.style.overflowY = "auto";
+    const renderList = () => {
+      listContainer.empty();
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allMethods.filter((m) => this.displayName(m).toLowerCase().includes(q)) : this.allMethods;
+      for (const method of filtered) {
+        const wrapper = listContainer.createEl("label");
+        wrapper.style.display = "flex";
+        wrapper.style.alignItems = "center";
+        wrapper.style.padding = "2px 0";
+        wrapper.style.cursor = "pointer";
+        wrapper.style.fontSize = "var(--font-smaller)";
+        const cb = wrapper.createEl("input", { attr: { type: "checkbox" } });
+        cb.style.width = "16px";
+        cb.style.height = "16px";
+        cb.style.margin = "0 6px 0 0";
+        cb.style.flexShrink = "0";
+        cb.checked = this.selected.has(method);
+        cb.addEventListener("change", () => {
+          if (cb.checked) this.selected.add(method);
+          else this.selected.delete(method);
+        });
+        wrapper.createEl("span").setText(this.displayName(method));
+      }
+    };
+    renderList();
+    searchInput.addEventListener("input", renderList);
+    searchInput.addEventListener("keyup", renderList);
+    const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
+    const selectAllBtn = btnRow.createEl("button", { text: "\u0412\u044B\u0431\u0440\u0430\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
+    selectAllBtn.addEventListener("click", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allMethods.filter((m) => this.displayName(m).toLowerCase().includes(q)) : this.allMethods;
+      for (const method of filtered) this.selected.add(method);
       renderList();
     });
     const deselectAllBtn = btnRow.createEl("button", { text: "\u0421\u043D\u044F\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
@@ -70559,6 +70697,16 @@ var CHANGELOG = {
     "LPI: \u043F\u0430\u043A\u0435\u0442\u043D\u043E\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0435 \u2014 \u0432\u0441\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043D\u044B\u0435 \u0437\u0430\u043F\u0438\u0441\u0438 \u0434\u043E\u0431\u0430\u0432\u043B\u044F\u044E\u0442\u0441\u044F \u0432 lpi_data.json + \u0441\u043E\u0437\u0434\u0430\u044E\u0442\u0441\u044F \u0437\u0430\u0434\u0430\u0447\u0438 YouGile \u0441 dateStart/dateEnd",
     "LPI: \u0443\u0434\u0430\u043B\u0451\u043D lpi-db.ts (\u0432\u0441\u0451 \u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0432 lpi_data.json \u043A\u0430\u043A \u0432 \u043F\u0438\u0441\u044C\u043C\u0430\u0445)",
     "\u041F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0430 \u0431\u0438\u0431\u043B\u0438\u043E\u0442\u0435\u043A\u0430 sql.js (WASM) \u0434\u043B\u044F \u0447\u0442\u0435\u043D\u0438\u044F \u0432\u043D\u0435\u0448\u043D\u0435\u0439 SQLite \u0411\u0414"
+  ],
+  "0.4.1": [
+    '\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 LPI: \u043F\u0435\u0440\u0435\u0438\u043C\u0435\u043D\u043E\u0432\u0430\u043D\u044B \u043F\u043E\u043B\u044F ("\u0412\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u0435\u043D\u0438\u0435 \u0432\u0430\u0442\u043A\u0438" \u2192 "\u041F\u0430\u0434\u0435\u043D\u0438\u0435 \u0433\u043E\u0440\u044F\u0449\u0438\u0445 \u043A\u0430\u043F\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043B\u0430\u0432\u0430", "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0430\u0442\u043A\u0435" \u2192 "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0433\u043E\u0440\u044F\u0449\u0438\u043C \u043A\u0430\u043F\u043B\u044F\u043C")',
+    '\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 LPI: \u043F\u043E\u043B\u044F \u0441\u0433\u0440\u0443\u043F\u043F\u0438\u0440\u043E\u0432\u0430\u043D\u044B \u0432 \u0442\u0440\u0438 \u0431\u043B\u043E\u043A\u0430 (\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438, \u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0439, \u0412\u044B\u0432\u043E\u0434\u044B), \u0432\u0441\u0435 \u043F\u043E\u043B\u044F \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0430\u044E\u0442\u0441\u044F \u0432\u0441\u0435\u0433\u0434\u0430 (\u043F\u0443\u0441\u0442\u044B\u0435 \u2014 \u043A\u0430\u043A "\u2014")',
+    '\u0412\u044B\u0432\u043E\u0434\u044B \u0432 \u0434\u0435\u0442\u0430\u043B\u044F\u0445 \u0437\u0430\u044F\u0432\u043A\u0438: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" \u0438 "\u041E\u0431\u0449\u0430\u044F \u043E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" \u0432\u044B\u0434\u0435\u043B\u0435\u043D\u044B \u0436\u0438\u0440\u043D\u044B\u043C, \u041E\u0446\u0435\u043D\u043A\u0430 \u0446\u0432\u0435\u0442\u043D\u0430\u044F (\u0437\u0435\u043B\u0451\u043D\u044B\u0439/\u043A\u0440\u0430\u0441\u043D\u044B\u0439/\u0441\u0435\u0440\u044B\u0439)',
+    '\u0414\u0430\u0448\u0431\u043E\u0440\u0434 LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0444\u0438\u043B\u044C\u0442\u0440 "\u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u0435\u043C\u044B\u0439 \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044C" \u0441 \u0447\u0435\u043B\u043E\u0432\u0435\u0447\u0435\u0441\u043A\u0438\u043C\u0438 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F\u043C\u0438 \u043C\u0435\u0442\u043E\u0434\u043E\u0432',
+    "\u0414\u0430\u0448\u0431\u043E\u0440\u0434 LPI: \u0444\u0438\u043B\u044C\u0442\u0440 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442 \u0432\u0441\u0435 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u044B \u0438\u0437 \u043F\u043E\u043B\u043D\u043E\u0433\u043E \u0441\u043F\u0438\u0441\u043A\u0430 (\u043D\u0435\u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E \u043E\u0442 \u0434\u0440\u0443\u0433\u0438\u0445 \u0444\u0438\u043B\u044C\u0442\u0440\u043E\u0432)",
+    '\u0414\u0430\u0448\u0431\u043E\u0440\u0434 LPI: \u0433\u0440\u0430\u0444\u0438\u043A "\u0417\u0430\u044F\u0432\u043A\u0438 \u043F\u043E \u043C\u0435\u0441\u044F\u0446\u0430\u043C" \u0440\u0430\u0437\u0434\u0435\u043B\u0451\u043D \u043D\u0430 "\u041F\u043E\u0441\u0442\u0443\u043F\u043B\u0435\u043D\u0438\u0435" \u0438 "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0435" (\u0432\u0441\u0435\u0433\u043E 5 \u0433\u0440\u0430\u0444\u0438\u043A\u043E\u0432)',
+    '\u0422\u0430\u0431\u043B\u0438\u0446\u0430 LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u043A\u043E\u043B\u043E\u043D\u043A\u0430 "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" (agg_gen_group)',
+    "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u043E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E\u0438\u0441\u043A\u0430 \u2014 null-safe \u0432\u044B\u0437\u043E\u0432\u044B toLowerCase() \u0434\u043B\u044F \u043F\u043E\u043B\u0435\u0439 \u0441 \u0432\u043E\u0437\u043C\u043E\u0436\u043D\u044B\u043C\u0438 null-\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F\u043C\u0438"
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {
