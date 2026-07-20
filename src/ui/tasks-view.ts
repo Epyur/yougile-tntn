@@ -521,10 +521,16 @@ export class TasksView extends ItemView {
 
     if (task.subtasks && task.subtasks.length > 0) {
       container.createEl('h4', { text: 'Подзадачи' });
+      const ul = container.createEl('ul', { cls: 'mailer-yougile-subtask-list' });
+      ul.style.margin = '4px 0';
+      ul.style.paddingLeft = '20px';
       for (const sub of task.subtasks) {
         const subId = typeof sub === 'string' ? sub : sub.id;
         const subTitle = typeof sub === 'string' ? (this.plugin.db.getTask(subId)?.title || subId) : (sub.title || subId);
-        const linkEl = container.createEl('a', {
+        const li = ul.createEl('li');
+        li.style.listStyle = 'disc';
+        li.style.marginBottom = '2px';
+        const linkEl = li.createEl('a', {
           text: subTitle,
           href: '#',
           cls: 'mailer-yougile-task-link',

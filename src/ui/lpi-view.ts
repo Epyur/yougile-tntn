@@ -10,7 +10,7 @@ const DB_PATH = 'yourbase/lpi_data.json';
 
 export const LPI_VIEW_TYPE = 'yougile-lpi-view';
 
-type ViewMode = 'table' | 'dashboard' | 'completed';
+type ViewMode = 'table' | 'dashboard' | 'sync';
 
 export class LpiView extends ItemView {
   plugin: YouGilePlugin;
@@ -140,16 +140,16 @@ export class LpiView extends ItemView {
     });
     dashBtn.addEventListener('click', () => { this.mode = 'dashboard'; this.renderView(); });
 
-    const completedBtn = btnRow.createEl('button', {
-      text: '✅ Завершённые',
+    const syncBtn = btnRow.createEl('button', {
+      text: '📝 Зарегистрировать изменения в БД',
       cls: 'mailer-yougile-refresh-btn',
     });
-    completedBtn.addEventListener('click', () => { this.mode = 'completed'; this.renderView(); });
+    syncBtn.addEventListener('click', () => { this.mode = 'sync'; this.renderView(); });
 
     if (this.mode === 'dashboard') {
       this.renderDashboard(container);
-    } else if (this.mode === 'completed') {
-      this.renderCompleted(container);
+    } else if (this.mode === 'sync') {
+      this.renderSync(container);
     } else {
       this.renderTable(container);
     }
@@ -224,31 +224,36 @@ export class LpiView extends ItemView {
     }
   }
 
-  private batchDate = '';
-  private batchResults: LpiItem[] = [];
-  private batchReady = false;
+  private syncDate = '';
+  private syncDiff: { new: LpiItem[]; toComplete: LpiItem[] } | null = null;
+  private syncReady = false;
 
-  private renderCompleted(container: HTMLElement): void {
-    const entries = this.items.filter(i => i.completedLocally);
-    container.createEl('h4', { text: `Завершённые заявки (${entries.length})` });
+  private renderSync(container: HTMLElement): void {
+    container.createEl('h4', { text: 'Регистрация изменений из LIMS' });
+
+    const desc = container.createEl('p', {
+      text: 'Загрузка всех записей из таблицы агрегированных результатов. Новые заявки будут созданы в YouGile, завершённые — обновлены.',
+    });
+    desc.style.fontSize = 'var(--font-smaller)';
+    desc.style.opacity = '.7';
 
     const row = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap mailer-mb-8' });
     row.style.alignItems = 'end';
     row.style.gap = '8px';
 
     const dateGroup = row.createDiv();
-    const dateLbl = dateGroup.createEl('label', { text: 'Дата протокола' });
+    const dateLbl = dateGroup.createEl('label', { text: 'Фильтр даты протокола (для завершения)' });
     dateLbl.style.fontSize = 'var(--font-smaller)';
     dateLbl.style.marginRight = '4px';
     const dateInput = dateGroup.createEl('input', { attr: { type: 'date' } });
     dateInput.style.fontSize = 'var(--font-smaller)';
     dateInput.style.padding = '2px 4px';
-    if (!this.batchDate) this.batchDate = new Date().toISOString().split('T')[0];
-    dateInput.value = this.batchDate;
+    if (!this.syncDate) this.syncDate = new Date().toISOString().split('T')[0];
+    dateInput.value = this.syncDate;
     dateInput.addEventListener('change', () => {
-      this.batchDate = dateInput.value;
-      this.batchReady = false;
-      this.batchResults = [];
+      this.syncDate = dateInput.value;
+      this.syncReady = false;
+      this.syncDiff = null;
       this.renderView();
     });
 
@@ -263,51 +268,61 @@ export class LpiView extends ItemView {
       cls: 'mailer-yougile-refresh-btn',
     });
     sendBtn.style.marginLeft = '8px';
-    if (!this.batchReady || this.batchResults.length === 0) {
+    if (!this.syncReady || !this.syncDiff || (this.syncDiff.new.length === 0 && this.syncDiff.toComplete.length === 0)) {
       sendBtn.setAttr('disabled', 'true');
       sendBtn.style.opacity = '.5';
     }
-    sendBtn.addEventListener('click', () => this.batchCompleteEntries());
+    sendBtn.addEventListener('click', () => this.syncChanges());
 
-    if (this.batchResults.length > 0) {
-      container.createEl('h5', { text: `Найдено заявок с протоколом от ${this.batchDate}: ${this.batchResults.length}` });
-      const table = container.createEl('table', { cls: 'mailer-table' });
-      const thead = table.createEl('thead');
-      const hr = thead.createEl('tr');
-      for (const h of ['№ заявки', 'Продукт', 'Дата создания', 'Дата протокола', 'Результат испытания', 'Оценка']) {
-        hr.createEl('th', { cls: 'mailer-th' }).setText(h);
+    if (this.syncDiff) {
+      if (this.syncDiff.new.length > 0) {
+        container.createEl('h5', { text: `🆕 Новые заявки (${this.syncDiff.new.length})` });
+        const table = container.createEl('table', { cls: 'mailer-table' });
+        const thead = table.createEl('thead');
+        const hr = thead.createEl('tr');
+        for (const h of ['№ заявки', 'Продукт', 'Дата создания', 'Статус']) {
+          hr.createEl('th', { cls: 'mailer-th' }).setText(h);
+        }
+        const tbody = table.createEl('tbody');
+        for (const item of this.syncDiff.new) {
+          const r = tbody.createEl('tr');
+          r.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
+          r.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
+          r.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
+          const sc = r.createEl('td', { cls: 'mailer-td' });
+          if (item.protocol_date) {
+            sc.style.color = 'var(--text-success)';
+            sc.setText('Завершена');
+          } else {
+            sc.style.color = 'var(--text-warning)';
+            sc.setText('Активна');
+          }
+        }
       }
-      const tbody = table.createEl('tbody');
-      for (const item of this.batchResults) {
-        const r = tbody.createEl('tr');
-        r.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
-        r.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
-        r.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
-        r.createEl('td', { cls: 'mailer-td' }).setText(item.protocol_date || '');
-        r.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group || '');
-        r.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
-      }
-    }
 
-    const table = container.createEl('table', { cls: 'mailer-table' });
-    const thead = table.createEl('thead');
-    const hr2 = thead.createEl('tr');
-    for (const h of ['№ заявки', 'Продукт', 'Дата завершения', 'Оценка']) {
-      hr2.createEl('th', { cls: 'mailer-th' }).setText(h);
-    }
-    const tbody = table.createEl('tbody');
-    if (entries.length === 0) {
-      const row2 = tbody.createEl('tr');
-      const td = row2.createEl('td', { attr: { colspan: '4' }, cls: 'mailer-text-center mailer-p-24' });
-      td.setText('Нет завершённых заявок');
-      return;
-    }
-    for (const e of entries) {
-      const row2 = tbody.createEl('tr');
-      row2.createEl('td', { cls: 'mailer-td' }).setText(e.application_external_id);
-      row2.createEl('td', { cls: 'mailer-td' }).setText(e.product_name);
-      row2.createEl('td', { cls: 'mailer-td' }).setText(e.completedAt || '');
-      row2.createEl('td', { cls: 'mailer-td' }).setText(e.agg_gen_group_complience || '');
+      if (this.syncDiff.toComplete.length > 0) {
+        container.createEl('h5', { text: `✅ Заявки к завершению (${this.syncDiff.toComplete.length})` });
+        const table = container.createEl('table', { cls: 'mailer-table' });
+        const thead = table.createEl('thead');
+        const hr = thead.createEl('tr');
+        for (const h of ['№ заявки', 'Продукт', 'Дата создания', 'Дата протокола', 'Результат', 'Оценка']) {
+          hr.createEl('th', { cls: 'mailer-th' }).setText(h);
+        }
+        const tbody = table.createEl('tbody');
+        for (const item of this.syncDiff.toComplete) {
+          const r = tbody.createEl('tr');
+          r.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
+          r.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
+          r.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
+          r.createEl('td', { cls: 'mailer-td' }).setText(item.protocol_date || '');
+          r.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group || '');
+          r.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
+        }
+      }
+
+      if (this.syncDiff.new.length === 0 && this.syncDiff.toComplete.length === 0) {
+        container.createEl('p', { text: '✓ Изменений не обнаружено. Локальная БД синхронизирована с LIMS.' });
+      }
     }
   }
 
@@ -391,16 +406,14 @@ export class LpiView extends ItemView {
         ar.agg_complience_by_comb_time,
         ar.agg_complience_by_bulbe,
         ar.agg_additional_info_1
-      FROM applications a
-      LEFT JOIN aggregated_results ar ON ar.application_id = a.application_id
+      FROM aggregated_results ar
+      LEFT JOIN applications a ON ar.application_id = a.application_id
       LEFT JOIN products p ON p.product_id = a.product_id
       LEFT JOIN customers c ON c.customer_id = a.customer_id
       LEFT JOIN objects o ON o.object_id = a.object_id
-      LEFT JOIN methods m ON m.method_id = a.method_id
-      WHERE ar.protocol_date = ?`;
+      LEFT JOIN methods m ON m.method_id = a.method_id`;
       const stmt = db.prepare(sql);
-      stmt.bind([this.batchDate]);
-      this.batchResults = [];
+      const allSqlite: LpiItem[] = [];
       while (stmt.step()) {
         const obj = stmt.getAsObject();
         obj.thickness = obj.thickness !== null ? Number(obj.thickness) : null;
@@ -408,41 +421,53 @@ export class LpiView extends ItemView {
         obj.source_series_range = null;
         obj.calculation_type = null;
         obj.result_data = null;
-        this.batchResults.push(obj as LpiItem);
+        allSqlite.push(obj as LpiItem);
       }
       stmt.free();
       db.close();
-      this.batchReady = true;
+
+      // diff
+      const localIds = new Set(this.items.map(i => i.aggregate_id));
+      const newItems = allSqlite.filter(i => !localIds.has(i.aggregate_id));
+      const activeLocalIds = new Set(
+        this.items.filter(i => i.application_status === 'active' && !i.completedLocally).map(i => i.aggregate_id)
+      );
+      const toComplete = allSqlite.filter(i =>
+        activeLocalIds.has(i.aggregate_id) && i.protocol_date && i.protocol_date === this.syncDate
+      );
+      // filter out toComplete items that were already completed in an older SQLite load
+      const alreadyDoneIds = new Set(
+        this.items.filter(i => i.completedLocally).map(i => i.aggregate_id)
+      );
+      const filteredToComplete = toComplete.filter(i => !alreadyDoneIds.has(i.aggregate_id));
+
+      this.syncDiff = { new: newItems, toComplete: filteredToComplete };
+      this.syncReady = true;
       this.renderView();
     } catch (e: any) {
       new Notice('Ошибка загрузки из SQLite: ' + e.message);
     }
   }
 
-  private async batchCompleteEntries(): Promise<void> {
+  private async syncChanges(): Promise<void> {
     try {
-      if (!this.batchReady || this.batchResults.length === 0) return;
-      const now = new Date().toISOString().split('T')[0];
+      if (!this.syncReady || !this.syncDiff) return;
+      const { new: newItems, toComplete } = this.syncDiff;
       let sent = 0;
-      for (const item of this.batchResults) {
-        const existing = this.items.find(i => i.aggregate_id === item.aggregate_id);
-        if (existing?.completedLocally) continue;
-        item.completedLocally = true;
-        item.completedAt = now;
-        if (existing) {
-          Object.assign(existing, item);
-        } else {
-          this.items.push(item);
-        }
+
+      for (const item of newItems) {
+        if (this.items.find(i => i.aggregate_id === item.aggregate_id)) continue;
+        this.items.push(item);
         try {
           if (this.plugin.client) {
+            const isActive = !item.protocol_date;
             const desc = JSON.stringify({
               type: 'lpi_completed',
               aggregate_id: item.aggregate_id,
               application_external_id: item.application_external_id,
               product_name: item.product_name,
-              completedAt: now,
-              protocol_date: item.protocol_date || now,
+              completedAt: isActive ? '' : (item.protocol_date || ''),
+              protocol_date: item.protocol_date || '',
               agg_gen_group_complience: item.agg_gen_group_complience || '',
               customer_name: item.customer_name || '',
               customer_mail: item.customer_mail || '',
@@ -455,18 +480,85 @@ export class LpiView extends ItemView {
               columnId: '',
             } as any);
             if (result?.id) {
-              await this.plugin.client.updateTask(result.id, { completed: true, dateStart: item.application_created_at, dateEnd: now });
-              if (existing) existing.taskId = result.id;
-              else item.taskId = result.id;
+              item.taskId = result.id;
+              if (isActive) {
+                await this.plugin.client.updateTask(result.id, { completed: false, dateStart: item.application_created_at });
+              } else {
+                item.completedLocally = true;
+                item.completedAt = item.protocol_date || this.syncDate;
+                await this.plugin.client.updateTask(result.id, { completed: true, dateStart: item.application_created_at, dateEnd: item.protocol_date || this.syncDate });
+              }
             }
           }
         } catch {}
         sent++;
       }
+
+      for (const item of toComplete) {
+        const existing = this.items.find(i => i.aggregate_id === item.aggregate_id);
+        if (existing) {
+          Object.assign(existing, item);
+          existing.completedLocally = true;
+          existing.completedAt = item.protocol_date || this.syncDate;
+        } else {
+          item.completedLocally = true;
+          item.completedAt = item.protocol_date || this.syncDate;
+          this.items.push(item);
+        }
+        try {
+          if (this.plugin.client) {
+            if (existing?.taskId) {
+              const desc = JSON.stringify({
+                type: 'lpi_completed',
+                aggregate_id: item.aggregate_id,
+                application_external_id: item.application_external_id,
+                product_name: item.product_name,
+                completedAt: item.protocol_date || this.syncDate,
+                protocol_date: item.protocol_date || '',
+                agg_gen_group_complience: item.agg_gen_group_complience || '',
+                customer_name: item.customer_name || '',
+                customer_mail: item.customer_mail || '',
+                organization: item.organization || '',
+                ekn: item.ekn || '',
+              });
+              await this.plugin.client.updateTask(existing.taskId, {
+                description: desc,
+                completed: true,
+                dateEnd: item.protocol_date || this.syncDate,
+              });
+            } else {
+              const desc = JSON.stringify({
+                type: 'lpi_completed',
+                aggregate_id: item.aggregate_id,
+                application_external_id: item.application_external_id,
+                product_name: item.product_name,
+                completedAt: item.protocol_date || this.syncDate,
+                protocol_date: item.protocol_date || '',
+                agg_gen_group_complience: item.agg_gen_group_complience || '',
+                customer_name: item.customer_name || '',
+                customer_mail: item.customer_mail || '',
+                organization: item.organization || '',
+                ekn: item.ekn || '',
+              });
+              const result: any = await this.plugin.client.createTask({
+                title: `LPI: ${item.application_external_id} — ${item.product_name}`,
+                description: desc,
+                columnId: '',
+              } as any);
+              if (result?.id) {
+                item.taskId = result.id;
+                await this.plugin.client.updateTask(result.id, { completed: true, dateStart: item.application_created_at, dateEnd: item.protocol_date || this.syncDate });
+              }
+            }
+          }
+        } catch {}
+        sent++;
+      }
+
       await this.saveData();
-      this.batchReady = false;
-      this.batchResults = [];
-      new Notice(`Отправлено ${sent} заявок`);
+      this.syncReady = false;
+      this.syncDiff = null;
+      new Notice(`Синхронизировано ${sent} записей`);
       this.renderView();
     } catch (e: any) {
       new Notice('Ошибка: ' + e.message);
