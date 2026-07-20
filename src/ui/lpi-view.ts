@@ -923,6 +923,9 @@ export class LpiView extends ItemView {
       const c5 = chartRow3.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
       c5.createEl('h4', { text: 'Оценка по продуктам' });
       const perProductWrap = c5.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
+      const c6 = chartRow3.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+      c6.createEl('h4', { text: 'Результаты испытаний по продуктам' });
+      const perProductTestWrap = c6.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
       const products = [...this.selectedProducts].sort();
       for (const product of products) {
         const productItems = filtered.filter(i => i.product_name === product);
@@ -934,6 +937,13 @@ export class LpiView extends ItemView {
         title.style.wordBreak = 'break-word';
         title.style.margin = '4px 0';
         this.createChart(card, this.buildComplianceSeries(productItems, true));
+        const testCard = perProductTestWrap.createDiv({ attr: { style: 'width:45%;min-width:160px;margin:2%' } });
+        const testTitle = testCard.createEl('h5', { text: product });
+        testTitle.style.fontSize = 'var(--font-smaller)';
+        testTitle.style.whiteSpace = 'normal';
+        testTitle.style.wordBreak = 'break-word';
+        testTitle.style.margin = '4px 0';
+        this.createChart(testCard, this.buildTestResultSeries(productItems, true));
       }
     } else {
       const c5 = chartRow3.createDiv({ attr: { style: 'width:98%;min-width:280px;margin:1%' } });
@@ -1043,7 +1053,7 @@ export class LpiView extends ItemView {
     return opts;
   }
 
-  private buildTestResultSeries(items: LpiItem[]): Record<string, unknown> {
+  private buildTestResultSeries(items: LpiItem[], small = false): Record<string, unknown> {
     const counts: Record<string, number> = {};
     for (const item of items) {
       const val = item.agg_gen_group;
@@ -1052,7 +1062,7 @@ export class LpiView extends ItemView {
     }
     const labels = Object.keys(counts);
     const data = Object.values(counts);
-    return {
+    const opts: Record<string, unknown> = {
       chart: { type: 'donut' },
       labels,
       series: data,
@@ -1061,6 +1071,11 @@ export class LpiView extends ItemView {
       tooltip: { enabled: true },
       legend: { position: 'bottom', fontSize: '12px' },
     };
+    if (small) {
+      opts.dataLabels = { enabled: false };
+      opts.legend = { show: false };
+    }
+    return opts;
   }
 
   private buildTopProductsSeries(items: LpiItem[]): Record<string, unknown> {

@@ -136,6 +136,9 @@ const CHANGELOG: Record<string, string[]> = {
   '0.4.10': [
     'LPI дашборд: добавлена круговая диаграмма "Результаты испытания" (agg_gen_group)',
   ],
+  '0.4.11': [
+    'LPI дашборд: разбиение результатов испытания по продуктам (per-product test result donuts)',
+  ],
 };
 
 class ChangelogModal extends Modal {

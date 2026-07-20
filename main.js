@@ -69881,6 +69881,9 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       const c5 = chartRow3.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
       c5.createEl("h4", { text: "\u041E\u0446\u0435\u043D\u043A\u0430 \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C" });
       const perProductWrap = c5.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
+      const c62 = chartRow3.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
+      c62.createEl("h4", { text: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439 \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C" });
+      const perProductTestWrap = c62.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
       const products = [...this.selectedProducts].sort();
       for (const product of products) {
         const productItems = filtered.filter((i) => i.product_name === product);
@@ -69892,6 +69895,13 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
         title.style.wordBreak = "break-word";
         title.style.margin = "4px 0";
         this.createChart(card, this.buildComplianceSeries(productItems, true));
+        const testCard = perProductTestWrap.createDiv({ attr: { style: "width:45%;min-width:160px;margin:2%" } });
+        const testTitle = testCard.createEl("h5", { text: product });
+        testTitle.style.fontSize = "var(--font-smaller)";
+        testTitle.style.whiteSpace = "normal";
+        testTitle.style.wordBreak = "break-word";
+        testTitle.style.margin = "4px 0";
+        this.createChart(testCard, this.buildTestResultSeries(productItems, true));
       }
     } else {
       const c5 = chartRow3.createDiv({ attr: { style: "width:98%;min-width:280px;margin:1%" } });
@@ -70000,7 +70010,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     }
     return opts;
   }
-  buildTestResultSeries(items) {
+  buildTestResultSeries(items, small = false) {
     const counts = {};
     for (const item of items) {
       const val = item.agg_gen_group;
@@ -70009,7 +70019,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     }
     const labels = Object.keys(counts);
     const data = Object.values(counts);
-    return {
+    const opts = {
       chart: { type: "donut" },
       labels,
       series: data,
@@ -70018,6 +70028,11 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       tooltip: { enabled: true },
       legend: { position: "bottom", fontSize: "12px" }
     };
+    if (small) {
+      opts.dataLabels = { enabled: false };
+      opts.legend = { show: false };
+    }
+    return opts;
   }
   buildTopProductsSeries(items) {
     const counts = {};
@@ -71143,6 +71158,9 @@ var CHANGELOG = {
   ],
   "0.4.10": [
     'LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u043A\u0440\u0443\u0433\u043E\u0432\u0430\u044F \u0434\u0438\u0430\u0433\u0440\u0430\u043C\u043C\u0430 "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" (agg_gen_group)'
+  ],
+  "0.4.11": [
+    "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0440\u0430\u0437\u0431\u0438\u0435\u043D\u0438\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C (per-product test result donuts)"
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {
