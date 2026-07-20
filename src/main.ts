@@ -100,6 +100,9 @@ const CHANGELOG: Record<string, string[]> = {
     'sql-wasm.wasm читается через fs.readFileSync из папки плагина (не через vault adapter)',
     'Если sql-wasm.wasm не найден локально — скачивается с GitHub raw (для пользователей updater)',
   ],
+  '0.4.4': [
+    'Бамп версии для активации updater на пользовательских машинах',
+  ],
 };
 
 class ChangelogModal extends Modal {
