@@ -133,6 +133,9 @@ const CHANGELOG: Record<string, string[]> = {
     'LPI: детали заявки переведены в read-only, удалена кнопка "Завершить заявку"',
     'LPI: кнопка "Обновить" теперь также вызывает syncFromTasks для YouGile-завершений',
   ],
+  '0.4.10': [
+    'LPI дашборд: добавлена круговая диаграмма "Результаты испытания" (agg_gen_group)',
+  ],
 };
 
 class ChangelogModal extends Modal {

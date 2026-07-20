@@ -941,6 +941,11 @@ export class LpiView extends ItemView {
       this.createChart(c5, this.buildTopProductsSeries(filtered));
     }
 
+    const chartRow4 = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
+    const c6 = chartRow4.createDiv({ attr: { style: 'width:48%;min-width:280px;margin:1%' } });
+    c6.createEl('h4', { text: 'Результаты испытания' });
+    this.createChart(c6, this.buildTestResultSeries(filtered));
+
     this.dashboardTimer = window.setTimeout(() => {
       for (const chart of this.charts) {
         try { chart.render(); } catch {}
@@ -1036,6 +1041,26 @@ export class LpiView extends ItemView {
       opts.legend = { show: false };
     }
     return opts;
+  }
+
+  private buildTestResultSeries(items: LpiItem[]): Record<string, unknown> {
+    const counts: Record<string, number> = {};
+    for (const item of items) {
+      const val = item.agg_gen_group;
+      if (!val) continue;
+      counts[val] = (counts[val] || 0) + 1;
+    }
+    const labels = Object.keys(counts);
+    const data = Object.values(counts);
+    return {
+      chart: { type: 'donut' },
+      labels,
+      series: data,
+      colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'],
+      plotOptions: { pie: { donut: { size: '60%' } } },
+      tooltip: { enabled: true },
+      legend: { position: 'bottom', fontSize: '12px' },
+    };
   }
 
   private buildTopProductsSeries(items: LpiItem[]): Record<string, unknown> {

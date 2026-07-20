@@ -69898,6 +69898,10 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       c5.createEl("h4", { text: "\u0422\u043E\u043F \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0430\u043C" });
       this.createChart(c5, this.buildTopProductsSeries(filtered));
     }
+    const chartRow4 = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
+    const c6 = chartRow4.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
+    c6.createEl("h4", { text: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" });
+    this.createChart(c6, this.buildTestResultSeries(filtered));
     this.dashboardTimer = window.setTimeout(() => {
       for (const chart of this.charts) {
         try {
@@ -69995,6 +69999,25 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       opts.legend = { show: false };
     }
     return opts;
+  }
+  buildTestResultSeries(items) {
+    const counts = {};
+    for (const item of items) {
+      const val = item.agg_gen_group;
+      if (!val) continue;
+      counts[val] = (counts[val] || 0) + 1;
+    }
+    const labels = Object.keys(counts);
+    const data = Object.values(counts);
+    return {
+      chart: { type: "donut" },
+      labels,
+      series: data,
+      colors: ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"],
+      plotOptions: { pie: { donut: { size: "60%" } } },
+      tooltip: { enabled: true },
+      legend: { position: "bottom", fontSize: "12px" }
+    };
   }
   buildTopProductsSeries(items) {
     const counts = {};
@@ -71117,6 +71140,9 @@ var CHANGELOG = {
     "LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D isEffectivelyActive \u2014 completedLocally \u0431\u043B\u043E\u043A\u0438\u0440\u0443\u0435\u0442 \u043E\u0442\u043A\u0430\u0442 \u0441\u0442\u0430\u0442\u0443\u0441\u0430",
     'LPI: \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u044B \u0432 read-only, \u0443\u0434\u0430\u043B\u0435\u043D\u0430 \u043A\u043D\u043E\u043F\u043A\u0430 "\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443"',
     'LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C" \u0442\u0435\u043F\u0435\u0440\u044C \u0442\u0430\u043A\u0436\u0435 \u0432\u044B\u0437\u044B\u0432\u0430\u0435\u0442 syncFromTasks \u0434\u043B\u044F YouGile-\u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0439'
+  ],
+  "0.4.10": [
+    'LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u043A\u0440\u0443\u0433\u043E\u0432\u0430\u044F \u0434\u0438\u0430\u0433\u0440\u0430\u043C\u043C\u0430 "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" (agg_gen_group)'
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {
