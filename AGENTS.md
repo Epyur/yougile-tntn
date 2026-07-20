@@ -119,7 +119,7 @@ src/
 | Письма | проект, доска, автор, AI-ключ, URL, модель, системный промпт, DOCX-шаблон/папка | `moduleEmailsEnabled` |
 | Контакты | проект, доска | `moduleContactsEnabled` |
 | Дашборд | без настроек | `moduleDashboardEnabled` |
-| LPI | без настроек | `moduleLpiEnabled` (по умолч. false) |
+| LPI | путь к SQLite БД | `moduleLpiEnabled` (по умолч. false) |
 
 ## Правила версионирования и коммитов
 

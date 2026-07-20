@@ -313,9 +313,9 @@ export class YouGileSettingTab extends PluginSettingTab {
             this.plugin.activateLpiView();
           }));
 
-      new Setting(body)
+      const dbSetting = new Setting(body)
         .setName('Путь к SQLite БД')
-        .setDesc('Полный путь к внешней базе данных LIMS (lims.db). Используется для генерации yourbase/lpi_data.json.')
+        .setDesc('Полный путь к внешней базе данных LIMS (lims.db). Используется для загрузки завершённых заявок на вкладке "Завершённые".')
         .addText(text => text
           .setPlaceholder('C:/lims/lims.db')
           .setValue(this.plugin.settings.lpiDbPath)
@@ -323,6 +323,25 @@ export class YouGileSettingTab extends PluginSettingTab {
             this.plugin.settings.lpiDbPath = value;
             await this.plugin.saveSettings();
           }));
+      dbSetting.addButton(btn => btn
+        .setButtonText('Обзор...')
+        .onClick(() => {
+          const picker = document.createElement('input');
+          picker.type = 'file';
+          picker.accept = '.db,.sqlite,.sqlite3';
+          picker.style.display = 'none';
+          picker.addEventListener('change', async () => {
+            const file = picker.files?.[0];
+            if (file) {
+              this.plugin.settings.lpiDbPath = (file as any).path?.replace(/\\/g, '/') || file.name;
+              await this.plugin.saveSettings();
+              this.display();
+            }
+            document.body.removeChild(picker);
+          });
+          document.body.appendChild(picker);
+          picker.click();
+        }));
     });
   }
 

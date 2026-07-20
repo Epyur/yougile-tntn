@@ -7066,9 +7066,27 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       new import_obsidian2.Setting(body).setName("\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439").setDesc("\u041F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0437\u0430\u044F\u0432\u043E\u043A \u0438 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u043E\u0432 \u043B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u0438 \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439. \u041F\u0440\u043E\u0435\u043A\u0442, \u0434\u043E\u0441\u043A\u0430 \u0438 \u043A\u043E\u043B\u043E\u043D\u043A\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u044B \u0436\u0451\u0441\u0442\u043A\u043E.").addButton((btn) => btn.setButtonText("\u041E\u0442\u043A\u0440\u044B\u0442\u044C").onClick(() => {
         this.plugin.activateLpiView();
       }));
-      new import_obsidian2.Setting(body).setName("\u041F\u0443\u0442\u044C \u043A SQLite \u0411\u0414").setDesc("\u041F\u043E\u043B\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u043A \u0432\u043D\u0435\u0448\u043D\u0435\u0439 \u0431\u0430\u0437\u0435 \u0434\u0430\u043D\u043D\u044B\u0445 LIMS (lims.db). \u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442\u0441\u044F \u0434\u043B\u044F \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438 yourbase/lpi_data.json.").addText((text) => text.setPlaceholder("C:/lims/lims.db").setValue(this.plugin.settings.lpiDbPath).onChange(async (value) => {
+      const dbSetting = new import_obsidian2.Setting(body).setName("\u041F\u0443\u0442\u044C \u043A SQLite \u0411\u0414").setDesc('\u041F\u043E\u043B\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u043A \u0432\u043D\u0435\u0448\u043D\u0435\u0439 \u0431\u0430\u0437\u0435 \u0434\u0430\u043D\u043D\u044B\u0445 LIMS (lims.db). \u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442\u0441\u044F \u0434\u043B\u044F \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0445 \u0437\u0430\u044F\u0432\u043E\u043A \u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0435 "\u0417\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0435".').addText((text) => text.setPlaceholder("C:/lims/lims.db").setValue(this.plugin.settings.lpiDbPath).onChange(async (value) => {
         this.plugin.settings.lpiDbPath = value;
         await this.plugin.saveSettings();
+      }));
+      dbSetting.addButton((btn) => btn.setButtonText("\u041E\u0431\u0437\u043E\u0440...").onClick(() => {
+        const picker = document.createElement("input");
+        picker.type = "file";
+        picker.accept = ".db,.sqlite,.sqlite3";
+        picker.style.display = "none";
+        picker.addEventListener("change", async () => {
+          var _a, _b;
+          const file = (_a = picker.files) == null ? void 0 : _a[0];
+          if (file) {
+            this.plugin.settings.lpiDbPath = ((_b = file.path) == null ? void 0 : _b.replace(/\\/g, "/")) || file.name;
+            await this.plugin.saveSettings();
+            this.display();
+          }
+          document.body.removeChild(picker);
+        });
+        document.body.appendChild(picker);
+        picker.click();
       }));
     });
   }
@@ -68898,6 +68916,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
 // src/ui/lpi-view.ts
 var import_obsidian11 = require("obsidian");
 var import_sql = __toESM(require_sql_wasm_browser());
+var import_fs = __toESM(require("fs"));
 var DB_PATH = "yourbase/lpi_data.json";
 var LPI_VIEW_TYPE = "yougile-lpi-view";
 var _LpiView = class _LpiView extends import_obsidian11.ItemView {
@@ -69188,19 +69207,19 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
   }
   async loadFromSqlite() {
     try {
-      const dbPath = this.plugin.settings.lpiDbPath;
+      let dbPath = this.plugin.settings.lpiDbPath;
       if (!dbPath) {
         new import_obsidian11.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
         return;
       }
-      const exists = await this.app.vault.adapter.exists(dbPath);
-      if (!exists) {
+      dbPath = dbPath.replace(/\\/g, "/");
+      if (!import_fs.default.existsSync(dbPath)) {
         new import_obsidian11.Notice("\u0424\u0430\u0439\u043B \u0411\u0414 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: " + dbPath);
         return;
       }
       const wasmBinary = await this.getWasmBinary();
       const SQL = await (0, import_sql.default)({ wasmBinary: wasmBinary.slice(0) });
-      const dbBuf = await this.app.vault.adapter.readBinary(dbPath);
+      const dbBuf = import_fs.default.readFileSync(dbPath);
       const db = new SQL.Database(new Uint8Array(dbBuf));
       const sql = `SELECT
         ar.aggregate_id,
@@ -70707,6 +70726,11 @@ var CHANGELOG = {
     '\u0414\u0430\u0448\u0431\u043E\u0440\u0434 LPI: \u0433\u0440\u0430\u0444\u0438\u043A "\u0417\u0430\u044F\u0432\u043A\u0438 \u043F\u043E \u043C\u0435\u0441\u044F\u0446\u0430\u043C" \u0440\u0430\u0437\u0434\u0435\u043B\u0451\u043D \u043D\u0430 "\u041F\u043E\u0441\u0442\u0443\u043F\u043B\u0435\u043D\u0438\u0435" \u0438 "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0435" (\u0432\u0441\u0435\u0433\u043E 5 \u0433\u0440\u0430\u0444\u0438\u043A\u043E\u0432)',
     '\u0422\u0430\u0431\u043B\u0438\u0446\u0430 LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u043A\u043E\u043B\u043E\u043D\u043A\u0430 "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" (agg_gen_group)',
     "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u043E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E\u0438\u0441\u043A\u0430 \u2014 null-safe \u0432\u044B\u0437\u043E\u0432\u044B toLowerCase() \u0434\u043B\u044F \u043F\u043E\u043B\u0435\u0439 \u0441 \u0432\u043E\u0437\u043C\u043E\u0436\u043D\u044B\u043C\u0438 null-\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F\u043C\u0438"
+  ],
+  "0.4.2": [
+    '\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u041E\u0431\u0437\u043E\u0440..." \u0434\u043B\u044F \u0432\u044B\u0431\u043E\u0440\u0430 SQLite \u0411\u0414 \u0447\u0435\u0440\u0435\u0437 \u0434\u0438\u0430\u043B\u043E\u0433 Windows',
+    "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 SQLite \u2014 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442\u0441\u044F fs.existsSync/fs.readFileSync \u0432\u043C\u0435\u0441\u0442\u043E adapter.exists/readBinary \u0434\u043B\u044F \u0432\u043D\u0435\u0448\u043D\u0438\u0445 \u043F\u0443\u0442\u0435\u0439",
+    "\u041D\u043E\u0440\u043C\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u044F \u0441\u043B\u044D\u0448\u0435\u0439 \u0432 \u043F\u0443\u0442\u044F\u0445 \u043A \u0411\u0414 (\\ \u2192 /)"
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {

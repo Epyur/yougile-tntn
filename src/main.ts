@@ -89,6 +89,11 @@ const CHANGELOG: Record<string, string[]> = {
     'Таблица LPI: добавлена колонка "Результат испытания" (agg_gen_group)',
     'Исправлена ошибка поиска — null-safe вызовы toLowerCase() для полей с возможными null-значениями',
   ],
+  '0.4.2': [
+    'Настройки LPI: кнопка "Обзор..." для выбора SQLite БД через диалог Windows',
+    'Исправлена загрузка SQLite — используется fs.existsSync/fs.readFileSync вместо adapter.exists/readBinary для внешних путей',
+    'Нормализация слэшей в путях к БД (\\ → /)',
+  ],
 };
 
 class ChangelogModal extends Modal {

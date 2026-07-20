@@ -3,6 +3,7 @@ import type YouGilePlugin from '../main';
 import type { LpiItem } from '../types/lpi';
 import ApexCharts from 'apexcharts';
 import initSqlJs from 'sql.js';
+import fs from 'fs';
 
 const DB_PATH = 'yourbase/lpi_data.json';
 
@@ -320,19 +321,19 @@ export class LpiView extends ItemView {
 
   private async loadFromSqlite(): Promise<void> {
     try {
-      const dbPath = this.plugin.settings.lpiDbPath;
+      let dbPath = this.plugin.settings.lpiDbPath;
       if (!dbPath) {
         new Notice('Укажите путь к SQLite БД в настройках LPI');
         return;
       }
-      const exists = await this.app.vault.adapter.exists(dbPath);
-      if (!exists) {
+      dbPath = dbPath.replace(/\\/g, '/');
+      if (!fs.existsSync(dbPath)) {
         new Notice('Файл БД не найден: ' + dbPath);
         return;
       }
       const wasmBinary = await this.getWasmBinary();
       const SQL = await initSqlJs({ wasmBinary: wasmBinary.slice(0) });
-      const dbBuf = await this.app.vault.adapter.readBinary(dbPath);
+      const dbBuf = fs.readFileSync(dbPath);
       const db = new SQL.Database(new Uint8Array(dbBuf));
       const sql = `SELECT
         ar.aggregate_id,
