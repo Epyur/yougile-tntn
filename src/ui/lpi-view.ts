@@ -1079,28 +1079,81 @@ export class LpiView extends ItemView {
       }
     };
 
-    addSection('Детали заявки', [
-      { label: 'Название материала', value: item.product_name },
+    meta.createEl('h4', { text: 'Детали заявки', cls: 'mailer-mt-8' });
+
+    const editableFields: Array<{ label: string; key: keyof LpiItem; type?: string; suffix?: string }> = [
+      { label: 'Название материала', key: 'product_name' },
+      { label: 'Заказчик', key: 'customer_name' },
+      { label: 'Email заказчика', key: 'customer_mail' },
+      { label: 'Организация', key: 'organization' },
+      { label: 'Телефон', key: 'customer_phone' },
+      { label: 'Адрес', key: 'customer_address' },
+      { label: 'ЕКН', key: 'ekn' },
+      { label: 'Толщина', key: 'thickness', type: 'number', suffix: ' мм' },
+      { label: 'Цвет', key: 'color' },
+      { label: 'Номер партии', key: 'batch_number' },
+      { label: 'Номер образца', key: 'sample_number' },
+      { label: 'Объект', key: 'object_name' },
+      { label: 'Стандарт', key: 'standard' },
+      { label: 'Целевая группа горючести', key: 'target_comb_group' },
+      { label: 'Целевая группа воспламеняемости', key: 'target_flam_group' },
+      { label: 'Целевая группа распространения', key: 'target_prop_group' },
+    ];
+
+    const inputs: Record<string, HTMLInputElement> = {};
+    for (const f of editableFields) {
+      const row = meta.createDiv({ cls: 'mailer-flex-row' });
+      row.style.alignItems = 'center';
+      row.style.marginBottom = '4px';
+      row.style.gap = '6px';
+      const lbl = row.createEl('label');
+      lbl.setText(f.label + ':');
+      lbl.style.fontSize = 'var(--font-smaller)';
+      lbl.style.minWidth = '180px';
+      lbl.style.flexShrink = '0';
+      const inp = row.createEl('input', { attr: { type: f.type || 'text' } });
+      inp.style.flex = '1';
+      inp.style.fontSize = 'var(--font-smaller)';
+      inp.style.padding = '2px 4px';
+      const val = item[f.key];
+      inp.value = val !== null && val !== undefined ? String(val) : '';
+      inputs[f.key] = inp;
+      if (f.suffix) {
+        const sfx = row.createSpan();
+        sfx.setText(f.suffix);
+        sfx.style.fontSize = 'var(--font-smaller)';
+        sfx.style.flexShrink = '0';
+      }
+    }
+
+    const roFields = [
       { label: 'Дата создания заявки', value: item.application_created_at },
       { label: 'Статус', value: LpiView.statusDisplay(item.application_status) },
       { label: 'Дата протокола', value: this.getProtocolDate(item) },
-      { label: 'Заказчик', value: item.customer_name },
-      { label: 'Email заказчика', value: item.customer_mail },
-      { label: 'Организация', value: item.organization },
-      { label: 'Телефон', value: item.customer_phone },
-      { label: 'Адрес', value: item.customer_address },
-      { label: 'ЕКН', value: item.ekn },
-      { label: 'Толщина', value: item.thickness !== null ? `${item.thickness} мм` : null },
-      { label: 'Цвет', value: item.color },
-      { label: 'Номер партии', value: item.batch_number },
-      { label: 'Номер образца', value: item.sample_number },
-      { label: 'Объект', value: item.object_name },
-      { label: 'Стандарт', value: item.standard },
-      { label: 'Целевая группа горючести', value: item.target_comb_group },
-      { label: 'Целевая группа воспламеняемости', value: item.target_flam_group },
-      { label: 'Целевая группа распространения', value: item.target_prop_group },
       { label: 'Метод испытаний', value: item.method_name },
-    ]);
+    ];
+    for (const rf of roFields) {
+      const div = meta.createDiv();
+      div.style.fontSize = 'var(--font-smaller)';
+      div.style.opacity = '.7';
+      div.style.marginBottom = '2px';
+      div.textContent = `${rf.label}: ${rf.value || '—'}`;
+    }
+
+    const saveBtn = meta.createEl('button', { text: '💾 Сохранить', cls: 'mailer-yougile-refresh-btn' });
+    saveBtn.addEventListener('click', async () => {
+      for (const f of editableFields) {
+        const raw = inputs[f.key].value.trim();
+        if (f.type === 'number') {
+          (item as any)[f.key] = raw ? Number(raw) : null;
+        } else {
+          (item as any)[f.key] = raw || null;
+        }
+      }
+      await this.saveData();
+      new Notice('Детали заявки сохранены');
+      this.renderDetail(item);
+    });
 
     addSection('Результаты измерений', [
       { label: 'Средняя температура дыма', value: item.agg_avg_smog_temp ? `${item.agg_avg_smog_temp} °C` : null },

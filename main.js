@@ -70000,28 +70000,77 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
         }
       }
     };
-    addSection("\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438", [
-      { label: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", value: item.product_name },
+    meta.createEl("h4", { text: "\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438", cls: "mailer-mt-8" });
+    const editableFields = [
+      { label: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", key: "product_name" },
+      { label: "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A", key: "customer_name" },
+      { label: "Email \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", key: "customer_mail" },
+      { label: "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", key: "organization" },
+      { label: "\u0422\u0435\u043B\u0435\u0444\u043E\u043D", key: "customer_phone" },
+      { label: "\u0410\u0434\u0440\u0435\u0441", key: "customer_address" },
+      { label: "\u0415\u041A\u041D", key: "ekn" },
+      { label: "\u0422\u043E\u043B\u0449\u0438\u043D\u0430", key: "thickness", type: "number", suffix: " \u043C\u043C" },
+      { label: "\u0426\u0432\u0435\u0442", key: "color" },
+      { label: "\u041D\u043E\u043C\u0435\u0440 \u043F\u0430\u0440\u0442\u0438\u0438", key: "batch_number" },
+      { label: "\u041D\u043E\u043C\u0435\u0440 \u043E\u0431\u0440\u0430\u0437\u0446\u0430", key: "sample_number" },
+      { label: "\u041E\u0431\u044A\u0435\u043A\u0442", key: "object_name" },
+      { label: "\u0421\u0442\u0430\u043D\u0434\u0430\u0440\u0442", key: "standard" },
+      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438", key: "target_comb_group" },
+      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438", key: "target_flam_group" },
+      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F", key: "target_prop_group" }
+    ];
+    const inputs = {};
+    for (const f of editableFields) {
+      const row = meta.createDiv({ cls: "mailer-flex-row" });
+      row.style.alignItems = "center";
+      row.style.marginBottom = "4px";
+      row.style.gap = "6px";
+      const lbl = row.createEl("label");
+      lbl.setText(f.label + ":");
+      lbl.style.fontSize = "var(--font-smaller)";
+      lbl.style.minWidth = "180px";
+      lbl.style.flexShrink = "0";
+      const inp = row.createEl("input", { attr: { type: f.type || "text" } });
+      inp.style.flex = "1";
+      inp.style.fontSize = "var(--font-smaller)";
+      inp.style.padding = "2px 4px";
+      const val = item[f.key];
+      inp.value = val !== null && val !== void 0 ? String(val) : "";
+      inputs[f.key] = inp;
+      if (f.suffix) {
+        const sfx = row.createSpan();
+        sfx.setText(f.suffix);
+        sfx.style.fontSize = "var(--font-smaller)";
+        sfx.style.flexShrink = "0";
+      }
+    }
+    const roFields = [
       { label: "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0437\u0430\u044F\u0432\u043A\u0438", value: item.application_created_at },
       { label: "\u0421\u0442\u0430\u0442\u0443\u0441", value: _LpiView.statusDisplay(item.application_status) },
       { label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", value: this.getProtocolDate(item) },
-      { label: "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A", value: item.customer_name },
-      { label: "Email \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", value: item.customer_mail },
-      { label: "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", value: item.organization },
-      { label: "\u0422\u0435\u043B\u0435\u0444\u043E\u043D", value: item.customer_phone },
-      { label: "\u0410\u0434\u0440\u0435\u0441", value: item.customer_address },
-      { label: "\u0415\u041A\u041D", value: item.ekn },
-      { label: "\u0422\u043E\u043B\u0449\u0438\u043D\u0430", value: item.thickness !== null ? `${item.thickness} \u043C\u043C` : null },
-      { label: "\u0426\u0432\u0435\u0442", value: item.color },
-      { label: "\u041D\u043E\u043C\u0435\u0440 \u043F\u0430\u0440\u0442\u0438\u0438", value: item.batch_number },
-      { label: "\u041D\u043E\u043C\u0435\u0440 \u043E\u0431\u0440\u0430\u0437\u0446\u0430", value: item.sample_number },
-      { label: "\u041E\u0431\u044A\u0435\u043A\u0442", value: item.object_name },
-      { label: "\u0421\u0442\u0430\u043D\u0434\u0430\u0440\u0442", value: item.standard },
-      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438", value: item.target_comb_group },
-      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438", value: item.target_flam_group },
-      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F", value: item.target_prop_group },
       { label: "\u041C\u0435\u0442\u043E\u0434 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", value: item.method_name }
-    ]);
+    ];
+    for (const rf of roFields) {
+      const div = meta.createDiv();
+      div.style.fontSize = "var(--font-smaller)";
+      div.style.opacity = ".7";
+      div.style.marginBottom = "2px";
+      div.textContent = `${rf.label}: ${rf.value || "\u2014"}`;
+    }
+    const saveBtn = meta.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    saveBtn.addEventListener("click", async () => {
+      for (const f of editableFields) {
+        const raw = inputs[f.key].value.trim();
+        if (f.type === "number") {
+          item[f.key] = raw ? Number(raw) : null;
+        } else {
+          item[f.key] = raw || null;
+        }
+      }
+      await this.saveData();
+      new import_obsidian11.Notice("\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B");
+      this.renderDetail(item);
+    });
     addSection("\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0439", [
       { label: "\u0421\u0440\u0435\u0434\u043D\u044F\u044F \u0442\u0435\u043C\u043F\u0435\u0440\u0430\u0442\u0443\u0440\u0430 \u0434\u044B\u043C\u0430", value: item.agg_avg_smog_temp ? `${item.agg_avg_smog_temp} \xB0C` : null },
       { label: "\u041F\u043E\u0442\u0435\u0440\u044F \u043C\u0430\u0441\u0441\u044B", value: item.agg_mass_loss ? `${item.agg_mass_loss} %` : null },
@@ -71056,6 +71105,10 @@ var CHANGELOG = {
     'LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u0430 "new" \u2014 \u0442\u0435\u043F\u0435\u0440\u044C \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u0430\u043A "\u041D\u043E\u0432\u0430\u044F" (\u0432\u043C\u0435\u0441\u0442\u043E "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430")',
     "LPI: \u0441\u0442\u0430\u0442\u0443\u0441 active/completed \u0442\u0435\u043F\u0435\u0440\u044C \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u044F\u0435\u0442\u0441\u044F \u0438\u0437 \u043F\u043E\u043B\u044F application_status \u0411\u0414 LIMS (\u043D\u0435 \u043F\u043E protocol_date)",
     "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447 YouGile \u2014 columnId: undefined \u0432\u043C\u0435\u0441\u0442\u043E \u043F\u0443\u0441\u0442\u043E\u0439 \u0441\u0442\u0440\u043E\u043A\u0438"
+  ],
+  "0.4.7": [
+    "LPI: \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u2014 \u043F\u043E\u043B\u044F \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u044B \u0432 \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u0443\u0435\u043C\u044B\u0435 (input) \u0441 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F",
+    "LPI: \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0439 \u0438 \u0432\u044B\u0432\u043E\u0434\u044B \u043E\u0441\u0442\u0430\u043B\u0438\u0441\u044C read-only"
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {

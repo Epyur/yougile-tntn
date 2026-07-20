@@ -119,6 +119,10 @@ const CHANGELOG: Record<string, string[]> = {
     'LPI: статус active/completed теперь определяется из поля application_status БД LIMS (не по protocol_date)',
     'LPI: исправлено создание задач YouGile — columnId: undefined вместо пустой строки',
   ],
+  '0.4.7': [
+    'LPI: детали заявки — поля переведены в редактируемые (input) с кнопкой сохранения',
+    'LPI: результаты измерений и выводы остались read-only',
+  ],
 };
 
 class ChangelogModal extends Modal {
