@@ -313,6 +313,41 @@ export class YouGileSettingTab extends PluginSettingTab {
             this.plugin.activateLpiView();
           }));
 
+      const projectSetting = new Setting(body).setName('Проект').setDesc('Проект для заявок ЛПИ');
+      const projectSelect = projectSetting.descEl.parentElement!.createEl('select');
+      projectSelect.addClass('dropdown');
+      this.populateProjectDropdown(projectSelect, this.plugin.settings.lpiProjectId);
+      projectSelect.addEventListener('change', async () => {
+        this.plugin.settings.lpiProjectId = projectSelect.value;
+        await this.plugin.saveSettings();
+        this.populateBoardDropdown(boardSelect, this.plugin.settings.lpiProjectId, this.plugin.settings.lpiBoardId);
+      });
+
+      const boardSetting = new Setting(body).setName('Доска').setDesc('Доска для заявок ЛПИ');
+      const boardSelect = boardSetting.descEl.parentElement!.createEl('select');
+      boardSelect.addClass('dropdown');
+      this.populateBoardDropdown(boardSelect, this.plugin.settings.lpiProjectId, this.plugin.settings.lpiBoardId);
+      boardSelect.addEventListener('change', async () => {
+        this.plugin.settings.lpiBoardId = boardSelect.value;
+        await this.plugin.saveSettings();
+      });
+
+      const columnSetting = new Setting(body).setName('Колонка').setDesc('Колонка для новых заявок ЛПИ');
+      const columnSelect = columnSetting.descEl.parentElement!.createEl('select');
+      columnSelect.addClass('dropdown');
+      const boardColumns = this.plugin.db.getColumns().filter(c => c.boardId === this.plugin.settings.lpiBoardId);
+      columnSelect.empty();
+      columnSelect.createEl('option', { value: '', text: '— не выбрана —' });
+      for (const col of boardColumns) {
+        const opt = columnSelect.createEl('option', { value: col.id, text: col.title });
+        if (col.title === this.plugin.settings.lpiColumnTitle) opt.selected = true;
+      }
+      columnSelect.addEventListener('change', async () => {
+        const selected = columnSelect.options[columnSelect.selectedIndex];
+        this.plugin.settings.lpiColumnTitle = selected ? selected.text : '';
+        await this.plugin.saveSettings();
+      });
+
       const dbSetting = new Setting(body)
         .setName('Путь к SQLite БД')
         .setDesc('Полный путь к внешней базе данных LIMS (lims.db). Используется для загрузки завершённых заявок на вкладке "Завершённые".')

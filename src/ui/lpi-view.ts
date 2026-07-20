@@ -613,7 +613,7 @@ export class LpiView extends ItemView {
             const result: any = await this.plugin.client.createTask({
               title: `LPI: ${item.application_external_id} — ${item.product_name}`,
               description: desc,
-              columnId: undefined,
+              columnId: this.getLpiColumnId(),
             } as any);
             if (result?.id) {
               item.taskId = result.id;
@@ -679,7 +679,7 @@ export class LpiView extends ItemView {
               const result: any = await this.plugin.client.createTask({
                 title: `LPI: ${item.application_external_id} — ${item.product_name}`,
                 description: desc,
-                columnId: undefined,
+                columnId: this.getLpiColumnId(),
               } as any);
               if (result?.id) {
                 item.taskId = result.id;
@@ -701,6 +701,17 @@ export class LpiView extends ItemView {
     }
   }
 
+  private getLpiColumnId(): string | undefined {
+    const cols = this.plugin.db.getColumns();
+    const boardId = this.plugin.settings.lpiBoardId;
+    const colTitle = this.plugin.settings.lpiColumnTitle;
+    if (boardId && colTitle) {
+      const match = cols.find(c => c.boardId === boardId && c.title === colTitle);
+      if (match) return match.id;
+    }
+    return undefined;
+  }
+
   private async completeEntry(item: LpiItem): Promise<void> {
     try {
       const now = new Date().toISOString().split('T')[0];
@@ -713,7 +724,7 @@ export class LpiView extends ItemView {
           const result: any = await this.plugin.client.createTask({
             title: `LPI: ${item.application_external_id} — ${item.product_name}`,
             description: desc,
-            columnId: undefined,
+            columnId: this.getLpiColumnId(),
           } as any);
           if (result?.id) {
             await this.plugin.client.updateTask(result.id, { completed: true });

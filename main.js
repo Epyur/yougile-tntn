@@ -6669,7 +6669,10 @@ var DEFAULT_SETTINGS = {
   contactSelectedColumnIds: "",
   shownVersion: "",
   moduleLpiEnabled: false,
-  lpiDbPath: "C:/Users/adm/Downloads/\u041D\u043E\u0432\u0430\u044F \u043F\u0430\u043F\u043A\u0430/lims/lims.db"
+  lpiDbPath: "C:/Users/adm/Downloads/\u041D\u043E\u0432\u0430\u044F \u043F\u0430\u043F\u043A\u0430/lims/lims.db",
+  lpiProjectId: "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439",
+  lpiBoardId: "\u0417\u0430\u044F\u0432\u043A\u0438",
+  lpiColumnTitle: "\u0417\u0430\u044F\u0432\u043A\u0438"
 };
 
 // src/api/client.ts
@@ -7066,6 +7069,38 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       new import_obsidian2.Setting(body).setName("\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439").setDesc("\u041F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0437\u0430\u044F\u0432\u043E\u043A \u0438 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u043E\u0432 \u043B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u0438 \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439. \u041F\u0440\u043E\u0435\u043A\u0442, \u0434\u043E\u0441\u043A\u0430 \u0438 \u043A\u043E\u043B\u043E\u043D\u043A\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u044B \u0436\u0451\u0441\u0442\u043A\u043E.").addButton((btn) => btn.setButtonText("\u041E\u0442\u043A\u0440\u044B\u0442\u044C").onClick(() => {
         this.plugin.activateLpiView();
       }));
+      const projectSetting = new import_obsidian2.Setting(body).setName("\u041F\u0440\u043E\u0435\u043A\u0442").setDesc("\u041F\u0440\u043E\u0435\u043A\u0442 \u0434\u043B\u044F \u0437\u0430\u044F\u0432\u043E\u043A \u041B\u041F\u0418");
+      const projectSelect = projectSetting.descEl.parentElement.createEl("select");
+      projectSelect.addClass("dropdown");
+      this.populateProjectDropdown(projectSelect, this.plugin.settings.lpiProjectId);
+      projectSelect.addEventListener("change", async () => {
+        this.plugin.settings.lpiProjectId = projectSelect.value;
+        await this.plugin.saveSettings();
+        this.populateBoardDropdown(boardSelect, this.plugin.settings.lpiProjectId, this.plugin.settings.lpiBoardId);
+      });
+      const boardSetting = new import_obsidian2.Setting(body).setName("\u0414\u043E\u0441\u043A\u0430").setDesc("\u0414\u043E\u0441\u043A\u0430 \u0434\u043B\u044F \u0437\u0430\u044F\u0432\u043E\u043A \u041B\u041F\u0418");
+      const boardSelect = boardSetting.descEl.parentElement.createEl("select");
+      boardSelect.addClass("dropdown");
+      this.populateBoardDropdown(boardSelect, this.plugin.settings.lpiProjectId, this.plugin.settings.lpiBoardId);
+      boardSelect.addEventListener("change", async () => {
+        this.plugin.settings.lpiBoardId = boardSelect.value;
+        await this.plugin.saveSettings();
+      });
+      const columnSetting = new import_obsidian2.Setting(body).setName("\u041A\u043E\u043B\u043E\u043D\u043A\u0430").setDesc("\u041A\u043E\u043B\u043E\u043D\u043A\u0430 \u0434\u043B\u044F \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u044F\u0432\u043E\u043A \u041B\u041F\u0418");
+      const columnSelect = columnSetting.descEl.parentElement.createEl("select");
+      columnSelect.addClass("dropdown");
+      const boardColumns = this.plugin.db.getColumns().filter((c) => c.boardId === this.plugin.settings.lpiBoardId);
+      columnSelect.empty();
+      columnSelect.createEl("option", { value: "", text: "\u2014 \u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D\u0430 \u2014" });
+      for (const col of boardColumns) {
+        const opt = columnSelect.createEl("option", { value: col.id, text: col.title });
+        if (col.title === this.plugin.settings.lpiColumnTitle) opt.selected = true;
+      }
+      columnSelect.addEventListener("change", async () => {
+        const selected = columnSelect.options[columnSelect.selectedIndex];
+        this.plugin.settings.lpiColumnTitle = selected ? selected.text : "";
+        await this.plugin.saveSettings();
+      });
       const dbSetting = new import_obsidian2.Setting(body).setName("\u041F\u0443\u0442\u044C \u043A SQLite \u0411\u0414").setDesc('\u041F\u043E\u043B\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u043A \u0432\u043D\u0435\u0448\u043D\u0435\u0439 \u0431\u0430\u0437\u0435 \u0434\u0430\u043D\u043D\u044B\u0445 LIMS (lims.db). \u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442\u0441\u044F \u0434\u043B\u044F \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0445 \u0437\u0430\u044F\u0432\u043E\u043A \u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0435 "\u0417\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0435".').addText((text) => text.setPlaceholder("C:/lims/lims.db").setValue(this.plugin.settings.lpiDbPath).onChange(async (value) => {
         this.plugin.settings.lpiDbPath = value;
         await this.plugin.saveSettings();
@@ -69558,7 +69593,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
             const result = await this.plugin.client.createTask({
               title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
               description: desc,
-              columnId: void 0
+              columnId: this.getLpiColumnId()
             });
             if (result == null ? void 0 : result.id) {
               item.taskId = result.id;
@@ -69624,7 +69659,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
               const result = await this.plugin.client.createTask({
                 title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
                 description: desc,
-                columnId: void 0
+                columnId: this.getLpiColumnId()
               });
               if (result == null ? void 0 : result.id) {
                 item.taskId = result.id;
@@ -69645,6 +69680,16 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
     }
   }
+  getLpiColumnId() {
+    const cols = this.plugin.db.getColumns();
+    const boardId = this.plugin.settings.lpiBoardId;
+    const colTitle = this.plugin.settings.lpiColumnTitle;
+    if (boardId && colTitle) {
+      const match = cols.find((c) => c.boardId === boardId && c.title === colTitle);
+      if (match) return match.id;
+    }
+    return void 0;
+  }
   async completeEntry(item) {
     try {
       const now = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
@@ -69657,7 +69702,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
           const result = await this.plugin.client.createTask({
             title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
             description: desc,
-            columnId: void 0
+            columnId: this.getLpiColumnId()
           });
           if (result == null ? void 0 : result.id) {
             await this.plugin.client.updateTask(result.id, { completed: true });
@@ -71109,6 +71154,10 @@ var CHANGELOG = {
   "0.4.7": [
     "LPI: \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u2014 \u043F\u043E\u043B\u044F \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u044B \u0432 \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u0443\u0435\u043C\u044B\u0435 (input) \u0441 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F",
     "LPI: \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0439 \u0438 \u0432\u044B\u0432\u043E\u0434\u044B \u043E\u0441\u0442\u0430\u043B\u0438\u0441\u044C read-only"
+  ],
+  "0.4.8": [
+    "LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u0440\u043E\u0435\u043A\u0442\u0430/\u0434\u043E\u0441\u043A\u0438/\u043A\u043E\u043B\u043E\u043D\u043A\u0438 \u0432 \u0431\u043B\u043E\u043A\u0435 LPI (\u0432\u044B\u043F\u0430\u0434\u0430\u044E\u0449\u0438\u0435 \u0441\u043F\u0438\u0441\u043A\u0438)",
+    "LPI: \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u043A\u043E\u043B\u043E\u043D\u043A\u0443 \u0438\u0437 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043A \u0432\u043C\u0435\u0441\u0442\u043E undefined"
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {
