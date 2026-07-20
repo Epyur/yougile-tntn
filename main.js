@@ -7335,9 +7335,9 @@ var TasksView = class extends import_obsidian3.ItemView {
   async onOpen() {
     const container = this.contentEl;
     container.addClass("mailer-yougile-container");
-    const headerEl = container.createDiv({ cls: "mailer-yougile-header" });
-    const tasksTab = headerEl.createEl("button", { text: "\u{1F4CB} \u0417\u0430\u0434\u0430\u0447\u0438", cls: "mailer-yougile-refresh-btn" });
-    const chatsTab = headerEl.createEl("button", { text: "\u{1F4AC} \u0427\u0430\u0442\u044B", cls: "mailer-yougile-refresh-btn" });
+    const headerEl2 = container.createDiv({ cls: "mailer-yougile-header" });
+    const tasksTab = headerEl2.createEl("button", { text: "\u{1F4CB} \u0417\u0430\u0434\u0430\u0447\u0438", cls: "mailer-yougile-refresh-btn" });
+    const chatsTab = headerEl2.createEl("button", { text: "\u{1F4AC} \u0427\u0430\u0442\u044B", cls: "mailer-yougile-refresh-btn" });
     this.tabButtons = [tasksTab, chatsTab];
     tasksTab.addEventListener("click", () => this.switchTab("tasks"));
     chatsTab.addEventListener("click", () => this.switchTab("chats"));
@@ -7377,6 +7377,7 @@ var TasksView = class extends import_obsidian3.ItemView {
       this.filterMode = filterToggle.value;
       this.renderFromCache();
     });
+    const headerEl = container.createDiv({ cls: "mailer-yougile-header" });
     const createBtn = headerEl.createEl("button", { text: "\u2795 \u041D\u043E\u0432\u0430\u044F \u0437\u0430\u0434\u0430\u0447\u0430", cls: "mailer-yougile-refresh-btn" });
     createBtn.addEventListener("click", () => this.showCreateForm());
     this.searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u0437\u0430\u0434\u0430\u0447\u0430\u043C..." } });
@@ -7387,7 +7388,7 @@ var TasksView = class extends import_obsidian3.ItemView {
     refreshBtn.addEventListener("click", () => this.syncAndRender());
     this.containerElContent = container.createDiv();
     this.populateFilters();
-    this.switchTab("tasks");
+    this.renderFromCache();
     this.registerInterval(window.setInterval(() => this.syncAndRender(), 5 * 60 * 1e3));
   }
   switchTab(tab) {
@@ -7640,13 +7641,11 @@ var TasksView = class extends import_obsidian3.ItemView {
     container.createDiv({ cls: "mailer-yougile-task-meta", text: this.getSyncStatusText() });
     container.createDiv({ text: "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...", cls: "mailer-yougile-loading" });
     try {
-      const [task, groupChats, subscribers] = await Promise.all([
+      const [task, subscribers, messages] = await Promise.all([
         this.plugin.client.getTaskById(taskId),
-        this.plugin.client.getGroupChats().catch(() => []),
-        this.plugin.client.getTaskChatSubscribers(taskId).catch(() => [])
+        this.plugin.client.getTaskChatSubscribers(taskId).catch(() => []),
+        this.plugin.client.getMessages(taskId).catch(() => [])
       ]);
-      const chats = groupChats.map((c) => ({ id: c.id, title: c.title }));
-      const subList = subscribers;
       container.empty();
       const backBtn2 = container.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434 \u043A \u0441\u043F\u0438\u0441\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
       backBtn2.addEventListener("click", () => {
@@ -7654,7 +7653,7 @@ var TasksView = class extends import_obsidian3.ItemView {
         this.renderFromCache();
       });
       container.createDiv({ cls: "mailer-yougile-task-meta", text: this.getSyncStatusText() });
-      this.renderTaskDetailContent(container, task, chats, subList);
+      this.renderTaskDetailContent(container, task, subscribers, messages);
     } catch (e) {
       container.empty();
       const msg = e instanceof Error ? e.message : String(e);
@@ -7662,7 +7661,7 @@ var TasksView = class extends import_obsidian3.ItemView {
       new import_obsidian3.Notice(`YouGile: ${msg}`);
     }
   }
-  renderTaskDetailContent(container, task, chats, subscribers) {
+  renderTaskDetailContent(container, task, subscribers, messages) {
     var _a, _b, _c, _d, _e, _f, _g;
     const titleRow = container.createDiv({ cls: "mailer-yougile-header" });
     titleRow.createEl("h3", { text: task.title || "\u0411\u0435\u0437 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F" });
@@ -7862,36 +7861,79 @@ var TasksView = class extends import_obsidian3.ItemView {
         }
       }
     });
-    const matchingChat = chats.find((c) => c.title === task.title);
-    if (matchingChat) {
-      const chatBtn = btnRow.createEl("button", {
-        text: "\u{1F4AC} \u041F\u0435\u0440\u0435\u0439\u0442\u0438 \u0432 \u0447\u0430\u0442",
-        cls: "mailer-yougile-refresh-btn"
-      });
-      chatBtn.addEventListener("click", () => {
-        this.detailViewActive = false;
-        this.switchTab("chats");
-      });
+    container.createEl("hr");
+    container.createEl("h4", { text: "\u{1F4AC} \u0427\u0430\u0442 \u0437\u0430\u0434\u0430\u0447\u0438" });
+    const msgContainer = container.createDiv();
+    msgContainer.style.maxHeight = "400px";
+    msgContainer.style.overflowY = "auto";
+    msgContainer.style.marginBottom = "8px";
+    if (messages.length === 0) {
+      msgContainer.createDiv({ text: "\u041D\u0435\u0442 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0439", cls: "mailer-yougile-empty" });
     } else {
-      const createBtn = btnRow.createEl("button", {
-        text: "\u2795 \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0447\u0430\u0442",
-        cls: "mailer-yougile-refresh-btn"
-      });
-      createBtn.addEventListener("click", async () => {
-        createBtn.setText("\u23F3");
-        createBtn.setAttr("disabled", "true");
-        try {
-          await this.plugin.client.createGroupChat({ title: task.title, users: {}, userRoleMap: {}, roleConfigMap: {} });
-          new import_obsidian3.Notice("YouGile: \u0427\u0430\u0442 \u0441\u043E\u0437\u0434\u0430\u043D");
-          this.renderTaskDetail(this.detailTaskId);
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          new import_obsidian3.Notice(`YouGile: \u041E\u0448\u0438\u0431\u043A\u0430 \u2014 ${msg}`);
-          createBtn.setText("\u2795 \u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0447\u0430\u0442");
-          createBtn.removeAttribute("disabled");
-        }
-      });
+      for (const msg of messages) {
+        const msgEl = msgContainer.createDiv({ cls: "mailer-yougile-task-item" });
+        msgEl.createDiv({ cls: "mailer-yougile-task-meta", text: this.plugin.db.getUserName(msg.fromUserId) });
+        const textDiv = msgEl.createDiv({ cls: "mailer-yougile-task-title" });
+        textDiv.innerHTML = msg.text;
+        if (msg.label) msgEl.createDiv({ cls: "mailer-yougile-task-meta", text: `\u{1F3F7} ${msg.label}` });
+      }
     }
+    const inputRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
+    inputRow.style.gap = "4px";
+    inputRow.style.alignItems = "start";
+    const inputEl = inputRow.createEl("textarea", { attr: { placeholder: "\u0421\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u0435...", rows: "2" } });
+    inputEl.style.flex = "1";
+    inputEl.addClass("mailer-textarea");
+    let pendingAttachment = "";
+    const attachBtn = inputRow.createEl("button", { text: "\u{1F4CE}", cls: "mailer-yougile-refresh-btn" });
+    attachBtn.style.fontSize = "18px";
+    attachBtn.style.lineHeight = "1";
+    attachBtn.style.padding = "4px 8px";
+    const chatFileInput = container.createEl("input", { attr: { type: "file", hidden: "true" } });
+    attachBtn.addEventListener("click", () => chatFileInput.click());
+    chatFileInput.addEventListener("change", async () => {
+      var _a2;
+      const file = (_a2 = chatFileInput.files) == null ? void 0 : _a2[0];
+      if (!file) return;
+      attachBtn.setText("\u23F3");
+      attachBtn.setAttr("disabled", "true");
+      try {
+        const buffer = await file.arrayBuffer();
+        const result = await this.plugin.client.uploadFile(buffer, file.name);
+        const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(file.name);
+        if (isImage) {
+          pendingAttachment = `<br><img src="${result.fullUrl}" alt="${file.name}" style="max-width:100%">`;
+        } else {
+          pendingAttachment = `<br><a href="${result.fullUrl}">${file.name}</a>`;
+        }
+        new import_obsidian3.Notice("YouGile: \u0424\u0430\u0439\u043B \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D");
+      } catch (e) {
+        new import_obsidian3.Notice(`YouGile: \u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u2014 ${e instanceof Error ? e.message : String(e)}`);
+      }
+      attachBtn.setText("\u{1F4CE}");
+      attachBtn.removeAttribute("disabled");
+    });
+    const sendBtn = inputRow.createEl("button", { text: "\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    sendBtn.addEventListener("click", async () => {
+      let text = inputEl.value.trim();
+      if (!text && !pendingAttachment) return;
+      if (pendingAttachment) {
+        text = text + pendingAttachment;
+        pendingAttachment = "";
+      }
+      sendBtn.setText("\u23F3");
+      sendBtn.setAttr("disabled", "true");
+      try {
+        await this.plugin.client.sendMessage(task.id, text);
+        inputEl.value = "";
+        this.renderTaskDetail(this.detailTaskId);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        new import_obsidian3.Notice(`YouGile: \u041E\u0448\u0438\u0431\u043A\u0430 \u2014 ${msg}`);
+        sendBtn.setText("\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C");
+        sendBtn.removeAttribute("disabled");
+      }
+    });
   }
   // --- Вкладка Создание задачи ---
   showCreateForm() {
@@ -8032,6 +8074,20 @@ var TasksView = class extends import_obsidian3.ItemView {
     }
     container.createDiv({ text: "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...", cls: "mailer-yougile-loading" });
     try {
+      const taskIdRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
+      taskIdRow.style.gap = "8px";
+      taskIdRow.style.marginBottom = "8px";
+      const taskIdInput = taskIdRow.createEl("input", { attr: { type: "text", placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 ID \u0437\u0430\u0434\u0430\u0447\u0438 \u0434\u043B\u044F \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0447\u0430\u0442\u0430..." } });
+      taskIdInput.style.flex = "1";
+      const loadBtn = taskIdRow.createEl("button", { text: "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+      loadBtn.addEventListener("click", () => {
+        const id = taskIdInput.value.trim();
+        if (id) {
+          this.currentChatId = id;
+          this.currentChatTitle = id;
+          this.renderChats();
+        }
+      });
       const chats = await this.plugin.client.getGroupChats();
       container.empty();
       if (chats.length === 0) {
@@ -70869,6 +70925,11 @@ var CHANGELOG = {
     "LPI: \u043D\u043E\u0432\u044B\u0435 \u0437\u0430\u044F\u0432\u043A\u0438 \u0441\u043E\u0437\u0434\u0430\u044E\u0442\u0441\u044F \u043A\u0430\u043A \u0437\u0430\u0434\u0430\u0447\u0438 YouGile (\u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435/\u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0435 \u0432 \u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E\u0441\u0442\u0438 \u043E\u0442 protocol_date)",
     "LPI: \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 \u0441 \u043F\u043E\u044F\u0432\u0438\u0432\u0448\u0435\u0439\u0441\u044F \u0434\u0430\u0442\u043E\u0439 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0437\u0430\u0432\u0435\u0440\u0448\u0430\u044E\u0442\u0441\u044F",
     "\u0417\u0430\u0434\u0430\u0447\u0438: \u043F\u043E\u0434\u0437\u0430\u0434\u0430\u0447\u0438 \u0432 \u0434\u0435\u0442\u0430\u043B\u044F\u0445 \u0432\u044B\u0432\u043E\u0434\u044F\u0442\u0441\u044F \u0441\u043F\u0438\u0441\u043A\u043E\u043C \u0441 \u043C\u0430\u0440\u043A\u0435\u0440\u0430\u043C\u0438 (\u0432\u043C\u0435\u0441\u0442\u043E \u043E\u0434\u043D\u043E\u0439 \u0441\u0442\u0440\u043E\u043A\u0438)"
+  ],
+  "0.4.6": [
+    "\u0417\u0430\u0434\u0430\u0447\u0438: \u0447\u0430\u0442 \u043F\u0435\u0440\u0435\u043D\u0435\u0441\u0451\u043D \u0432 \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u0434\u0430\u0447\u0438 (\u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u0439, \u0441 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u043E\u0439 \u0444\u0430\u0439\u043B\u043E\u0432/\u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439)",
+    "\u0417\u0430\u0434\u0430\u0447\u0438: \u0432 \u0447\u0430\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0444\u0430\u0439\u043B\u043E\u0432 \u2014 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u043E\u0431\u043E\u0440\u0430\u0447\u0438\u0432\u0430\u044E\u0442\u0441\u044F \u0432 <img>, \u043E\u0441\u0442\u0430\u043B\u044C\u043D\u044B\u0435 \u2014 \u0432 <a>",
+    '\u0417\u0430\u0434\u0430\u0447\u0438: \u0433\u0440\u0443\u043F\u043F\u043E\u0432\u0430\u044F \u0432\u043A\u043B\u0430\u0434\u043A\u0430 "\u0427\u0430\u0442\u044B" \u0432\u043E\u0441\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u0430 (\u0441\u043F\u0438\u0441\u043E\u043A group-chats + \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u043F\u043E ID \u0437\u0430\u0434\u0430\u0447\u0438)'
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {

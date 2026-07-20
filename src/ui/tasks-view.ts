@@ -1,7 +1,7 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { CachedTask } from '../types/cache';
-import type { YouGileTaskFull, CreateTaskPayload } from '../types/yougile';
+import type { YouGileTaskFull, CreateTaskPayload, YouGileChatMessage } from '../types/yougile';
 import { AssigneeSelector } from './assignee-selector';
 
 function stripHtml(html: string): string {
@@ -56,17 +56,14 @@ export class TasksView extends ItemView {
     const container = this.contentEl;
     container.addClass('mailer-yougile-container');
 
-    const headerEl = container.createDiv({ cls: 'mailer-yougile-header' });
-
-    const tasksTab = headerEl.createEl('button', { text: '📋 Задачи', cls: 'mailer-yougile-refresh-btn' });
-    const chatsTab = headerEl.createEl('button', { text: '💬 Чаты', cls: 'mailer-yougile-refresh-btn' });
+    const headerEl2 = container.createDiv({ cls: 'mailer-yougile-header' });
+    const tasksTab = headerEl2.createEl('button', { text: '📋 Задачи', cls: 'mailer-yougile-refresh-btn' });
+    const chatsTab = headerEl2.createEl('button', { text: '💬 Чаты', cls: 'mailer-yougile-refresh-btn' });
     this.tabButtons = [tasksTab, chatsTab];
-
     tasksTab.addEventListener('click', () => this.switchTab('tasks'));
     chatsTab.addEventListener('click', () => this.switchTab('chats'));
 
     const filtersEl = container.createDiv({ cls: 'mailer-yougile-header' });
-
     this.selectProject = filtersEl.createEl('select');
     this.selectProject.addClass('dropdown');
     this.selectProject.addEventListener('change', () => {
@@ -108,6 +105,7 @@ export class TasksView extends ItemView {
       this.renderFromCache();
     });
 
+    const headerEl = container.createDiv({ cls: 'mailer-yougile-header' });
     const createBtn = headerEl.createEl('button', { text: '➕ Новая задача', cls: 'mailer-yougile-refresh-btn' });
     createBtn.addEventListener('click', () => this.showCreateForm());
 
@@ -122,7 +120,7 @@ export class TasksView extends ItemView {
     this.containerElContent = container.createDiv();
 
     this.populateFilters();
-    this.switchTab('tasks');
+    this.renderFromCache();
 
     this.registerInterval(window.setInterval(() => this.syncAndRender(), 5 * 60 * 1000));
   }
@@ -199,7 +197,7 @@ export class TasksView extends ItemView {
     this.selectStatus.value = savedStatus;
   }
 
-  async syncAndRender(): Promise<void> {
+  private async syncAndRender(): Promise<void> {
     if (!this.plugin.settings.apiKeySecret || !this.plugin.getSecretValue(this.plugin.settings.apiKeySecret)) {
       this.containerElContent.empty();
       this.containerElContent.createDiv({ text: 'Настройте API ключ в настройках плагина', cls: 'mailer-yougile-empty' });
@@ -415,13 +413,11 @@ export class TasksView extends ItemView {
     container.createDiv({ text: 'Загрузка...', cls: 'mailer-yougile-loading' });
 
     try {
-      const [task, groupChats, subscribers] = await Promise.all([
+      const [task, subscribers, messages] = await Promise.all([
         this.plugin.client.getTaskById(taskId) as Promise<YouGileTaskFull>,
-        this.plugin.client.getGroupChats().catch(() => []),
         this.plugin.client.getTaskChatSubscribers(taskId).catch(() => []),
+        this.plugin.client.getMessages(taskId).catch(() => []),
       ]);
-      const chats = groupChats.map(c => ({ id: c.id, title: c.title }));
-      const subList = subscribers;
       container.empty();
 
       const backBtn2 = container.createEl('button', { text: '← Назад к списку', cls: 'mailer-yougile-refresh-btn' });
@@ -432,7 +428,7 @@ export class TasksView extends ItemView {
 
       container.createDiv({ cls: 'mailer-yougile-task-meta', text: this.getSyncStatusText() });
 
-      this.renderTaskDetailContent(container, task, chats, subList);
+      this.renderTaskDetailContent(container, task, subscribers, messages);
     } catch (e: unknown) {
       container.empty();
       const msg = e instanceof Error ? e.message : String(e);
@@ -441,7 +437,7 @@ export class TasksView extends ItemView {
     }
   }
 
-  private renderTaskDetailContent(container: HTMLElement, task: YouGileTaskFull, chats: Array<{ id: string; title: string }>, subscribers: string[]): void {
+  private renderTaskDetailContent(container: HTMLElement, task: YouGileTaskFull, subscribers: string[], messages: YouGileChatMessage[]): void {
     const titleRow = container.createDiv({ cls: 'mailer-yougile-header' });
     titleRow.createEl('h3', { text: task.title || 'Без названия' });
 
@@ -664,36 +660,85 @@ export class TasksView extends ItemView {
       }
     });
 
-    const matchingChat = chats.find(c => c.title === task.title);
-    if (matchingChat) {
-      const chatBtn = btnRow.createEl('button', {
-        text: '💬 Перейти в чат',
-        cls: 'mailer-yougile-refresh-btn',
-      });
-      chatBtn.addEventListener('click', () => {
-        this.detailViewActive = false;
-        this.switchTab('chats');
-      });
+    // --- Чат задачи ---
+    container.createEl('hr');
+    container.createEl('h4', { text: '💬 Чат задачи' });
+
+    const msgContainer = container.createDiv();
+    msgContainer.style.maxHeight = '400px';
+    msgContainer.style.overflowY = 'auto';
+    msgContainer.style.marginBottom = '8px';
+
+    if (messages.length === 0) {
+      msgContainer.createDiv({ text: 'Нет сообщений', cls: 'mailer-yougile-empty' });
     } else {
-      const createBtn = btnRow.createEl('button', {
-        text: '➕ Создать чат',
-        cls: 'mailer-yougile-refresh-btn',
-      });
-      createBtn.addEventListener('click', async () => {
-        createBtn.setText('⏳');
-        createBtn.setAttr('disabled', 'true');
-        try {
-          await this.plugin.client.createGroupChat({ title: task.title, users: {}, userRoleMap: {}, roleConfigMap: {} });
-          new Notice('YouGile: Чат создан');
-          this.renderTaskDetail(this.detailTaskId);
-        } catch (e: unknown) {
-          const msg = e instanceof Error ? e.message : String(e);
-          new Notice(`YouGile: Ошибка — ${msg}`);
-          createBtn.setText('➕ Создать чат');
-          createBtn.removeAttribute('disabled');
-        }
-      });
+      for (const msg of messages) {
+        const msgEl = msgContainer.createDiv({ cls: 'mailer-yougile-task-item' });
+        msgEl.createDiv({ cls: 'mailer-yougile-task-meta', text: this.plugin.db.getUserName(msg.fromUserId) });
+        const textDiv = msgEl.createDiv({ cls: 'mailer-yougile-task-title' });
+        textDiv.innerHTML = msg.text;
+        if (msg.label) msgEl.createDiv({ cls: 'mailer-yougile-task-meta', text: `🏷 ${msg.label}` });
+      }
     }
+
+    const inputRow = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
+    inputRow.style.gap = '4px';
+    inputRow.style.alignItems = 'start';
+    const inputEl = inputRow.createEl('textarea', { attr: { placeholder: 'Сообщение...', rows: '2' } });
+    inputEl.style.flex = '1';
+    inputEl.addClass('mailer-textarea');
+
+    let pendingAttachment = '';
+
+    const attachBtn = inputRow.createEl('button', { text: '📎', cls: 'mailer-yougile-refresh-btn' });
+    attachBtn.style.fontSize = '18px';
+    attachBtn.style.lineHeight = '1';
+    attachBtn.style.padding = '4px 8px';
+    const chatFileInput = container.createEl('input', { attr: { type: 'file', hidden: 'true' } });
+    attachBtn.addEventListener('click', () => chatFileInput.click());
+    chatFileInput.addEventListener('change', async () => {
+      const file = chatFileInput.files?.[0];
+      if (!file) return;
+      attachBtn.setText('⏳');
+      attachBtn.setAttr('disabled', 'true');
+      try {
+        const buffer = await file.arrayBuffer();
+        const result = await this.plugin.client.uploadFile(buffer, file.name);
+        const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(file.name);
+        if (isImage) {
+          pendingAttachment = `<br><img src="${result.fullUrl}" alt="${file.name}" style="max-width:100%">`;
+        } else {
+          pendingAttachment = `<br><a href="${result.fullUrl}">${file.name}</a>`;
+        }
+        new Notice('YouGile: Файл загружен');
+      } catch (e: unknown) {
+        new Notice(`YouGile: Ошибка загрузки — ${e instanceof Error ? e.message : String(e)}`);
+      }
+      attachBtn.setText('📎');
+      attachBtn.removeAttribute('disabled');
+    });
+
+    const sendBtn = inputRow.createEl('button', { text: 'Отправить', cls: 'mailer-yougile-refresh-btn' });
+    sendBtn.addEventListener('click', async () => {
+      let text = inputEl.value.trim();
+      if (!text && !pendingAttachment) return;
+      if (pendingAttachment) {
+        text = text + pendingAttachment;
+        pendingAttachment = '';
+      }
+      sendBtn.setText('⏳');
+      sendBtn.setAttr('disabled', 'true');
+      try {
+        await this.plugin.client.sendMessage(task.id, text);
+        inputEl.value = '';
+        this.renderTaskDetail(this.detailTaskId);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        new Notice(`YouGile: Ошибка — ${msg}`);
+        sendBtn.setText('Отправить');
+        sendBtn.removeAttribute('disabled');
+      }
+    });
   }
 
   // --- Вкладка Создание задачи ---
@@ -863,6 +908,21 @@ export class TasksView extends ItemView {
     container.createDiv({ text: 'Загрузка...', cls: 'mailer-yougile-loading' });
 
     try {
+      const taskIdRow = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap' });
+      taskIdRow.style.gap = '8px';
+      taskIdRow.style.marginBottom = '8px';
+      const taskIdInput = taskIdRow.createEl('input', { attr: { type: 'text', placeholder: 'Введите ID задачи для загрузки чата...' } });
+      taskIdInput.style.flex = '1';
+      const loadBtn = taskIdRow.createEl('button', { text: 'Загрузить', cls: 'mailer-yougile-refresh-btn' });
+      loadBtn.addEventListener('click', () => {
+        const id = taskIdInput.value.trim();
+        if (id) {
+          this.currentChatId = id;
+          this.currentChatTitle = id;
+          this.renderChats();
+        }
+      });
+
       const chats = await this.plugin.client.getGroupChats();
       container.empty();
       if (chats.length === 0) {
