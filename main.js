@@ -69087,9 +69087,17 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     } catch (e) {
     }
   }
+  static isStatusActive(status) {
+    return status !== "completed";
+  }
+  static statusDisplay(status) {
+    if (status === "completed") return "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430";
+    if (status === "new") return "\u041D\u043E\u0432\u0430\u044F";
+    return "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
+  }
   getProtocolDate(item) {
-    if (item.application_status === "active") return "\u2014";
-    return item.protocol_date || "";
+    if (!_LpiView.isStatusActive(item.application_status)) return item.protocol_date || "";
+    return "\u2014";
   }
   renderView() {
     const container = this.containerElContent;
@@ -69116,6 +69124,11 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       this.mode = "table";
       this.renderView();
     });
+    const refreshBtn = btnRow.createEl("button", {
+      text: "\u{1F504} \u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    refreshBtn.addEventListener("click", () => this.loadFromSqliteToLocal());
     const dashBtn = btnRow.createEl("button", {
       text: "\u{1F4CA} \u0414\u0430\u0448\u0431\u043E\u0440\u0434",
       cls: "mailer-yougile-refresh-btn"
@@ -69192,9 +69205,9 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       row.createEl("td", { cls: "mailer-td" }).setText(item.product_name);
       row.createEl("td", { cls: "mailer-td" }).setText(item.application_created_at);
       const statusCell = row.createEl("td", { cls: "mailer-td" });
-      if (item.application_status === "active") {
+      if (_LpiView.isStatusActive(item.application_status)) {
         statusCell.style.color = "var(--text-warning)";
-        statusCell.setText("\u0410\u043A\u0442\u0438\u0432\u043D\u0430");
+        statusCell.setText(_LpiView.statusDisplay(item.application_status));
       } else {
         statusCell.style.color = "var(--text-success)";
         statusCell.setText("\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430");
@@ -69233,7 +69246,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       text: "\u{1F504} \u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C",
       cls: "mailer-yougile-refresh-btn"
     });
-    refreshBtn.addEventListener("click", () => this.loadFromSqlite());
+    refreshBtn.addEventListener("click", () => this.loadFromSqliteDiff());
     const sendBtn = row.createEl("button", {
       text: "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C",
       cls: "mailer-yougile-refresh-btn"
@@ -69311,7 +69324,116 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       return this.wasmBinary;
     }
   }
-  async loadFromSqlite() {
+  async loadFromSqliteToLocal() {
+    try {
+      let dbPath = this.plugin.settings.lpiDbPath;
+      if (!dbPath) {
+        new import_obsidian11.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
+        return;
+      }
+      dbPath = dbPath.replace(/\\/g, "/");
+      if (!import_fs.default.existsSync(dbPath)) {
+        new import_obsidian11.Notice("\u0424\u0430\u0439\u043B \u0411\u0414 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: " + dbPath);
+        return;
+      }
+      const wasmBinary = await this.getWasmBinary();
+      const SQL = await (0, import_sql.default)({ wasmBinary: wasmBinary.slice(0) });
+      const dbBuf = import_fs.default.readFileSync(dbPath);
+      const db = new SQL.Database(new Uint8Array(dbBuf));
+      const sql = `SELECT
+        ar.aggregate_id,
+        a.external_id AS application_external_id,
+        a.created_at AS application_created_at,
+        a.status AS application_status,
+        COALESCE(p.product_name, '') AS product_name,
+        ar.protocol_date,
+        ar.agg_gen_group_complience,
+        COALESCE(c.customer_name, '') AS customer_name,
+        COALESCE(c.customer_email, '') AS customer_mail,
+        COALESCE(c.organization, '') AS organization,
+        COALESCE(c.customer_tel, '') AS customer_phone,
+        COALESCE(c.address, '') AS customer_address,
+        COALESCE(p.ekn, '') AS ekn,
+        p.thickness,
+        COALESCE(p.color, '') AS color,
+        COALESCE(o.batch_number, '') AS batch_number,
+        COALESCE(o.sample_number, '') AS sample_number,
+        COALESCE(o.object_name, '') AS object_name,
+        COALESCE(p.standard, '') AS standard,
+        COALESCE(p.target_comb_group, '') AS target_comb_group,
+        COALESCE(p.target_flam_group, '') AS target_flam_group,
+        COALESCE(p.target_prop_group, '') AS target_prop_group,
+        COALESCE(m.method_abbreviation, '') AS method_abbreviation,
+        COALESCE(m.method_name, '') AS method_name,
+        COALESCE(m.method_standard, '') AS method_standard,
+        ar.agg_avg_smog_temp,
+        ar.agg_smog_group,
+        ar.agg_smog_complience,
+        ar.agg_mass_loss,
+        ar.agg_comb_time,
+        ar.agg_dam_length,
+        ar.agg_comb_bulb,
+        ar.agg_group_by_mass,
+        ar.agg_group_by_length,
+        ar.agg_croup_by_comb_time,
+        ar.agg_group_by_bulbe,
+        ar.agg_gen_group,
+        ar.agg_mass_complience,
+        ar.agg_complience_by_length,
+        ar.agg_complience_by_comb_time,
+        ar.agg_complience_by_bulbe,
+        ar.agg_additional_info_1
+      FROM aggregated_results ar
+      LEFT JOIN applications a ON ar.application_id = a.application_id
+      LEFT JOIN products p ON p.product_id = a.product_id
+      LEFT JOIN customers c ON c.customer_id = a.customer_id
+      LEFT JOIN objects o ON o.object_id = a.object_id
+      LEFT JOIN methods m ON m.method_id = a.method_id`;
+      const stmt = db.prepare(sql);
+      const sqliteItems = [];
+      while (stmt.step()) {
+        const obj = stmt.getAsObject();
+        obj.thickness = obj.thickness !== null ? Number(obj.thickness) : null;
+        obj.source_series_count = null;
+        obj.source_series_range = null;
+        obj.calculation_type = null;
+        obj.result_data = null;
+        sqliteItems.push(obj);
+      }
+      stmt.free();
+      db.close();
+      let added = 0;
+      let updated = 0;
+      const sqliteIds = new Set(sqliteItems.map((i) => i.aggregate_id));
+      const localIds = new Set(this.items.map((i) => i.aggregate_id));
+      for (const item of sqliteItems) {
+        const existing = this.items.find((i) => i.aggregate_id === item.aggregate_id);
+        if (existing) {
+          const changed = existing.application_status !== item.application_status || existing.protocol_date !== item.protocol_date || existing.agg_gen_group_complience !== item.agg_gen_group_complience || existing.agg_gen_group !== item.agg_gen_group;
+          if (changed) {
+            const { completedLocally, completedAt, taskId } = existing;
+            Object.assign(existing, item);
+            existing.completedLocally = completedLocally;
+            existing.completedAt = completedAt;
+            existing.taskId = taskId;
+            updated++;
+          }
+        } else {
+          this.items.push(item);
+          added++;
+        }
+      }
+      const before = this.items.length;
+      this.items = this.items.filter((i) => sqliteIds.has(i.aggregate_id));
+      const removed = before - this.items.length;
+      await this.saveData();
+      new import_obsidian11.Notice(`LPI: \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E. \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: ${added}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}, \u0443\u0434\u0430\u043B\u0435\u043D\u043E: ${removed}`);
+      this.renderView();
+    } catch (e) {
+      new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u0438\u0437 SQLite: " + e.message);
+    }
+  }
+  async loadFromSqliteDiff() {
     try {
       let dbPath = this.plugin.settings.lpiDbPath;
       if (!dbPath) {
@@ -69393,7 +69515,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       const localIds = new Set(this.items.map((i) => i.aggregate_id));
       const newItems = allSqlite.filter((i) => !localIds.has(i.aggregate_id));
       const activeLocalIds = new Set(
-        this.items.filter((i) => i.application_status === "active" && !i.completedLocally).map((i) => i.aggregate_id)
+        this.items.filter((i) => _LpiView.isStatusActive(i.application_status) && !i.completedLocally).map((i) => i.aggregate_id)
       );
       const toComplete = allSqlite.filter(
         (i) => activeLocalIds.has(i.aggregate_id) && i.protocol_date && i.protocol_date === this.syncDate
@@ -69419,7 +69541,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
         this.items.push(item);
         try {
           if (this.plugin.client) {
-            const isActive = !item.protocol_date;
+            const isActive = _LpiView.isStatusActive(item.application_status);
             const desc = JSON.stringify({
               type: "lpi_completed",
               aggregate_id: item.aggregate_id,
@@ -69436,7 +69558,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
             const result = await this.plugin.client.createTask({
               title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
               description: desc,
-              columnId: ""
+              columnId: void 0
             });
             if (result == null ? void 0 : result.id) {
               item.taskId = result.id;
@@ -69502,7 +69624,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
               const result = await this.plugin.client.createTask({
                 title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
                 description: desc,
-                columnId: ""
+                columnId: void 0
               });
               if (result == null ? void 0 : result.id) {
                 item.taskId = result.id;
@@ -69535,7 +69657,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
           const result = await this.plugin.client.createTask({
             title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
             description: desc,
-            columnId: ""
+            columnId: void 0
           });
           if (result == null ? void 0 : result.id) {
             await this.plugin.client.updateTask(result.id, { completed: true });
@@ -69674,8 +69796,8 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       filtered = filtered.filter((item) => this.selectedProducts.has(item.product_name));
     }
     const total = filtered.length;
-    const active = filtered.filter((i) => i.application_status === "active").length;
-    const completed = filtered.filter((i) => i.application_status === "completed").length;
+    const active = filtered.filter((i) => _LpiView.isStatusActive(i.application_status)).length;
+    const completed = filtered.filter((i) => !_LpiView.isStatusActive(i.application_status)).length;
     const withProtocol = filtered.filter((i) => i.protocol_date).length;
     const metricsRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap mailer-mb-8" });
     const metricStyle = "min-width:120px;padding:8px 12px;margin:4px;background:var(--background-modifier-hover);border-radius:6px;text-align:center";
@@ -69739,8 +69861,8 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     return chart;
   }
   buildStatusSeries(items) {
-    const active = items.filter((i) => i.application_status === "active").length;
-    const completed = items.filter((i) => i.application_status === "completed").length;
+    const active = items.filter((i) => _LpiView.isStatusActive(i.application_status)).length;
+    const completed = items.filter((i) => !_LpiView.isStatusActive(i.application_status)).length;
     return {
       chart: { type: "donut" },
       labels: ["\u0410\u043A\u0442\u0438\u0432\u043D\u043E", "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E"],
@@ -69854,7 +69976,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     container.empty();
     const backBtn = container.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434 \u043A \u0441\u043F\u0438\u0441\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
     backBtn.addEventListener("click", () => this.renderView());
-    if (item.application_status === "active") {
+    if (_LpiView.isStatusActive(item.application_status)) {
       const completeBtn = container.createEl("button", {
         text: "\u2705 \u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C \u0437\u0430\u044F\u0432\u043A\u0443",
         cls: "mailer-yougile-refresh-btn"
@@ -69881,7 +70003,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     addSection("\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438", [
       { label: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", value: item.product_name },
       { label: "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0437\u0430\u044F\u0432\u043A\u0438", value: item.application_created_at },
-      { label: "\u0421\u0442\u0430\u0442\u0443\u0441", value: item.application_status === "active" ? "\u0410\u043A\u0442\u0438\u0432\u043D\u0430" : "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" },
+      { label: "\u0421\u0442\u0430\u0442\u0443\u0441", value: _LpiView.statusDisplay(item.application_status) },
       { label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", value: this.getProtocolDate(item) },
       { label: "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A", value: item.customer_name },
       { label: "Email \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", value: item.customer_mail },
@@ -70929,7 +71051,11 @@ var CHANGELOG = {
   "0.4.6": [
     "\u0417\u0430\u0434\u0430\u0447\u0438: \u0447\u0430\u0442 \u043F\u0435\u0440\u0435\u043D\u0435\u0441\u0451\u043D \u0432 \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u0434\u0430\u0447\u0438 (\u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u0439, \u0441 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u043E\u0439 \u0444\u0430\u0439\u043B\u043E\u0432/\u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439)",
     "\u0417\u0430\u0434\u0430\u0447\u0438: \u0432 \u0447\u0430\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0444\u0430\u0439\u043B\u043E\u0432 \u2014 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u043E\u0431\u043E\u0440\u0430\u0447\u0438\u0432\u0430\u044E\u0442\u0441\u044F \u0432 <img>, \u043E\u0441\u0442\u0430\u043B\u044C\u043D\u044B\u0435 \u2014 \u0432 <a>",
-    '\u0417\u0430\u0434\u0430\u0447\u0438: \u0433\u0440\u0443\u043F\u043F\u043E\u0432\u0430\u044F \u0432\u043A\u043B\u0430\u0434\u043A\u0430 "\u0427\u0430\u0442\u044B" \u0432\u043E\u0441\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u0430 (\u0441\u043F\u0438\u0441\u043E\u043A group-chats + \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u043F\u043E ID \u0437\u0430\u0434\u0430\u0447\u0438)'
+    '\u0417\u0430\u0434\u0430\u0447\u0438: \u0433\u0440\u0443\u043F\u043F\u043E\u0432\u0430\u044F \u0432\u043A\u043B\u0430\u0434\u043A\u0430 "\u0427\u0430\u0442\u044B" \u0432\u043E\u0441\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u0430 (\u0441\u043F\u0438\u0441\u043E\u043A group-chats + \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u043F\u043E ID \u0437\u0430\u0434\u0430\u0447\u0438)',
+    'LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u043A\u043D\u043E\u043F\u043A\u0430 "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C" \u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0443 \u0442\u0430\u0431\u043B\u0438\u0446\u044B (\u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0432\u0441\u0435\u0445 \u0434\u0430\u043D\u043D\u044B\u0445 \u0438\u0437 SQLite \u0432 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u0443\u044E \u0411\u0414)',
+    'LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u0430 "new" \u2014 \u0442\u0435\u043F\u0435\u0440\u044C \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043A\u0430\u043A "\u041D\u043E\u0432\u0430\u044F" (\u0432\u043C\u0435\u0441\u0442\u043E "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430")',
+    "LPI: \u0441\u0442\u0430\u0442\u0443\u0441 active/completed \u0442\u0435\u043F\u0435\u0440\u044C \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u044F\u0435\u0442\u0441\u044F \u0438\u0437 \u043F\u043E\u043B\u044F application_status \u0411\u0414 LIMS (\u043D\u0435 \u043F\u043E protocol_date)",
+    "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447 YouGile \u2014 columnId: undefined \u0432\u043C\u0435\u0441\u0442\u043E \u043F\u0443\u0441\u0442\u043E\u0439 \u0441\u0442\u0440\u043E\u043A\u0438"
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {

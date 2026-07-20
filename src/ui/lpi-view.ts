@@ -112,9 +112,19 @@ export class LpiView extends ItemView {
     } catch {}
   }
 
+  private static isStatusActive(status: string): boolean {
+    return status !== 'completed';
+  }
+
+  private static statusDisplay(status: string): string {
+    if (status === 'completed') return 'Завершена';
+    if (status === 'new') return 'Новая';
+    return 'Активна';
+  }
+
   private getProtocolDate(item: LpiItem): string {
-    if (item.application_status === 'active') return '—';
-    return item.protocol_date || '';
+    if (!LpiView.isStatusActive(item.application_status)) return item.protocol_date || '';
+    return '—';
   }
 
   private renderView(): void {
@@ -133,6 +143,12 @@ export class LpiView extends ItemView {
       cls: 'mailer-yougile-refresh-btn',
     });
     tableBtn.addEventListener('click', () => { this.mode = 'table'; this.renderView(); });
+
+    const refreshBtn = btnRow.createEl('button', {
+      text: '🔄 Обновить',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    refreshBtn.addEventListener('click', () => this.loadFromSqliteToLocal());
 
     const dashBtn = btnRow.createEl('button', {
       text: '📊 Дашборд',
@@ -211,9 +227,9 @@ export class LpiView extends ItemView {
       row.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
       const statusCell = row.createEl('td', { cls: 'mailer-td' });
-      if (item.application_status === 'active') {
+      if (LpiView.isStatusActive(item.application_status)) {
         statusCell.style.color = 'var(--text-warning)';
-        statusCell.setText('Активна');
+        statusCell.setText(LpiView.statusDisplay(item.application_status));
       } else {
         statusCell.style.color = 'var(--text-success)';
         statusCell.setText('Завершена');
@@ -261,7 +277,7 @@ export class LpiView extends ItemView {
       text: '🔄 Обновить',
       cls: 'mailer-yougile-refresh-btn',
     });
-    refreshBtn.addEventListener('click', () => this.loadFromSqlite());
+    refreshBtn.addEventListener('click', () => this.loadFromSqliteDiff());
 
     const sendBtn = row.createEl('button', {
       text: '📤 Отправить',
@@ -346,7 +362,127 @@ export class LpiView extends ItemView {
     }
   }
 
-  private async loadFromSqlite(): Promise<void> {
+  private async loadFromSqliteToLocal(): Promise<void> {
+    try {
+      let dbPath = this.plugin.settings.lpiDbPath;
+      if (!dbPath) {
+        new Notice('Укажите путь к SQLite БД в настройках LPI');
+        return;
+      }
+      dbPath = dbPath.replace(/\\/g, '/');
+      if (!fs.existsSync(dbPath)) {
+        new Notice('Файл БД не найден: ' + dbPath);
+        return;
+      }
+      const wasmBinary = await this.getWasmBinary();
+      const SQL = await initSqlJs({ wasmBinary: wasmBinary.slice(0) });
+      const dbBuf = fs.readFileSync(dbPath);
+      const db = new SQL.Database(new Uint8Array(dbBuf));
+      const sql = `SELECT
+        ar.aggregate_id,
+        a.external_id AS application_external_id,
+        a.created_at AS application_created_at,
+        a.status AS application_status,
+        COALESCE(p.product_name, '') AS product_name,
+        ar.protocol_date,
+        ar.agg_gen_group_complience,
+        COALESCE(c.customer_name, '') AS customer_name,
+        COALESCE(c.customer_email, '') AS customer_mail,
+        COALESCE(c.organization, '') AS organization,
+        COALESCE(c.customer_tel, '') AS customer_phone,
+        COALESCE(c.address, '') AS customer_address,
+        COALESCE(p.ekn, '') AS ekn,
+        p.thickness,
+        COALESCE(p.color, '') AS color,
+        COALESCE(o.batch_number, '') AS batch_number,
+        COALESCE(o.sample_number, '') AS sample_number,
+        COALESCE(o.object_name, '') AS object_name,
+        COALESCE(p.standard, '') AS standard,
+        COALESCE(p.target_comb_group, '') AS target_comb_group,
+        COALESCE(p.target_flam_group, '') AS target_flam_group,
+        COALESCE(p.target_prop_group, '') AS target_prop_group,
+        COALESCE(m.method_abbreviation, '') AS method_abbreviation,
+        COALESCE(m.method_name, '') AS method_name,
+        COALESCE(m.method_standard, '') AS method_standard,
+        ar.agg_avg_smog_temp,
+        ar.agg_smog_group,
+        ar.agg_smog_complience,
+        ar.agg_mass_loss,
+        ar.agg_comb_time,
+        ar.agg_dam_length,
+        ar.agg_comb_bulb,
+        ar.agg_group_by_mass,
+        ar.agg_group_by_length,
+        ar.agg_croup_by_comb_time,
+        ar.agg_group_by_bulbe,
+        ar.agg_gen_group,
+        ar.agg_mass_complience,
+        ar.agg_complience_by_length,
+        ar.agg_complience_by_comb_time,
+        ar.agg_complience_by_bulbe,
+        ar.agg_additional_info_1
+      FROM aggregated_results ar
+      LEFT JOIN applications a ON ar.application_id = a.application_id
+      LEFT JOIN products p ON p.product_id = a.product_id
+      LEFT JOIN customers c ON c.customer_id = a.customer_id
+      LEFT JOIN objects o ON o.object_id = a.object_id
+      LEFT JOIN methods m ON m.method_id = a.method_id`;
+      const stmt = db.prepare(sql);
+      const sqliteItems: LpiItem[] = [];
+      while (stmt.step()) {
+        const obj = stmt.getAsObject();
+        obj.thickness = obj.thickness !== null ? Number(obj.thickness) : null;
+        obj.source_series_count = null;
+        obj.source_series_range = null;
+        obj.calculation_type = null;
+        obj.result_data = null;
+        sqliteItems.push(obj as LpiItem);
+      }
+      stmt.free();
+      db.close();
+
+      // обновляем локальную БД: новые записи добавляем, существующие обновляем
+      let added = 0;
+      let updated = 0;
+      const sqliteIds = new Set(sqliteItems.map(i => i.aggregate_id));
+      const localIds = new Set(this.items.map(i => i.aggregate_id));
+
+      for (const item of sqliteItems) {
+        const existing = this.items.find(i => i.aggregate_id === item.aggregate_id);
+        if (existing) {
+          const changed = existing.application_status !== item.application_status
+            || existing.protocol_date !== item.protocol_date
+            || existing.agg_gen_group_complience !== item.agg_gen_group_complience
+            || existing.agg_gen_group !== item.agg_gen_group;
+          if (changed) {
+            // сохраняем локальные поля (completedLocally, completedAt, taskId)
+            const { completedLocally, completedAt, taskId } = existing;
+            Object.assign(existing, item);
+            existing.completedLocally = completedLocally;
+            existing.completedAt = completedAt;
+            existing.taskId = taskId;
+            updated++;
+          }
+        } else {
+          this.items.push(item);
+          added++;
+        }
+      }
+
+      // удаляем записи, которых больше нет в SQLite
+      const before = this.items.length;
+      this.items = this.items.filter(i => sqliteIds.has(i.aggregate_id));
+      const removed = before - this.items.length;
+
+      await this.saveData();
+      new Notice(`LPI: обновлено. Добавлено: ${added}, обновлено: ${updated}, удалено: ${removed}`);
+      this.renderView();
+    } catch (e: any) {
+      new Notice('Ошибка обновления из SQLite: ' + e.message);
+    }
+  }
+
+  private async loadFromSqliteDiff(): Promise<void> {
     try {
       let dbPath = this.plugin.settings.lpiDbPath;
       if (!dbPath) {
@@ -430,7 +566,7 @@ export class LpiView extends ItemView {
       const localIds = new Set(this.items.map(i => i.aggregate_id));
       const newItems = allSqlite.filter(i => !localIds.has(i.aggregate_id));
       const activeLocalIds = new Set(
-        this.items.filter(i => i.application_status === 'active' && !i.completedLocally).map(i => i.aggregate_id)
+        this.items.filter(i => LpiView.isStatusActive(i.application_status) && !i.completedLocally).map(i => i.aggregate_id)
       );
       const toComplete = allSqlite.filter(i =>
         activeLocalIds.has(i.aggregate_id) && i.protocol_date && i.protocol_date === this.syncDate
@@ -460,7 +596,7 @@ export class LpiView extends ItemView {
         this.items.push(item);
         try {
           if (this.plugin.client) {
-            const isActive = !item.protocol_date;
+            const isActive = LpiView.isStatusActive(item.application_status);
             const desc = JSON.stringify({
               type: 'lpi_completed',
               aggregate_id: item.aggregate_id,
@@ -477,7 +613,7 @@ export class LpiView extends ItemView {
             const result: any = await this.plugin.client.createTask({
               title: `LPI: ${item.application_external_id} — ${item.product_name}`,
               description: desc,
-              columnId: '',
+              columnId: undefined,
             } as any);
             if (result?.id) {
               item.taskId = result.id;
@@ -543,7 +679,7 @@ export class LpiView extends ItemView {
               const result: any = await this.plugin.client.createTask({
                 title: `LPI: ${item.application_external_id} — ${item.product_name}`,
                 description: desc,
-                columnId: '',
+                columnId: undefined,
               } as any);
               if (result?.id) {
                 item.taskId = result.id;
@@ -577,7 +713,7 @@ export class LpiView extends ItemView {
           const result: any = await this.plugin.client.createTask({
             title: `LPI: ${item.application_external_id} — ${item.product_name}`,
             description: desc,
-            columnId: '',
+            columnId: undefined,
           } as any);
           if (result?.id) {
             await this.plugin.client.updateTask(result.id, { completed: true });
@@ -724,8 +860,8 @@ export class LpiView extends ItemView {
     }
 
     const total = filtered.length;
-    const active = filtered.filter(i => i.application_status === 'active').length;
-    const completed = filtered.filter(i => i.application_status === 'completed').length;
+    const active = filtered.filter(i => LpiView.isStatusActive(i.application_status)).length;
+    const completed = filtered.filter(i => !LpiView.isStatusActive(i.application_status)).length;
     const withProtocol = filtered.filter(i => i.protocol_date).length;
 
     const metricsRow = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap mailer-mb-8' });
@@ -798,8 +934,8 @@ export class LpiView extends ItemView {
   }
 
   private buildStatusSeries(items: LpiItem[]): Record<string, unknown> {
-    const active = items.filter(i => i.application_status === 'active').length;
-    const completed = items.filter(i => i.application_status === 'completed').length;
+    const active = items.filter(i => LpiView.isStatusActive(i.application_status)).length;
+    const completed = items.filter(i => !LpiView.isStatusActive(i.application_status)).length;
     return {
       chart: { type: 'donut' },
       labels: ['Активно', 'Завершено'],
@@ -916,7 +1052,7 @@ export class LpiView extends ItemView {
     const backBtn = container.createEl('button', { text: '← Назад к списку', cls: 'mailer-yougile-refresh-btn' });
     backBtn.addEventListener('click', () => this.renderView());
 
-    if (item.application_status === 'active') {
+    if (LpiView.isStatusActive(item.application_status)) {
       const completeBtn = container.createEl('button', {
         text: '✅ Завершить заявку',
         cls: 'mailer-yougile-refresh-btn',
@@ -946,7 +1082,7 @@ export class LpiView extends ItemView {
     addSection('Детали заявки', [
       { label: 'Название материала', value: item.product_name },
       { label: 'Дата создания заявки', value: item.application_created_at },
-      { label: 'Статус', value: item.application_status === 'active' ? 'Активна' : 'Завершена' },
+      { label: 'Статус', value: LpiView.statusDisplay(item.application_status) },
       { label: 'Дата протокола', value: this.getProtocolDate(item) },
       { label: 'Заказчик', value: item.customer_name },
       { label: 'Email заказчика', value: item.customer_mail },
