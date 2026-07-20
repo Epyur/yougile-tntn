@@ -7070,23 +7070,41 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.plugin.settings.lpiDbPath = value;
         await this.plugin.saveSettings();
       }));
-      dbSetting.addButton((btn) => btn.setButtonText("\u041E\u0431\u0437\u043E\u0440...").onClick(() => {
-        const picker = document.createElement("input");
-        picker.type = "file";
-        picker.accept = ".db,.sqlite,.sqlite3";
-        picker.style.display = "none";
-        picker.addEventListener("change", async () => {
-          var _a, _b;
-          const file = (_a = picker.files) == null ? void 0 : _a[0];
-          if (file) {
-            this.plugin.settings.lpiDbPath = ((_b = file.path) == null ? void 0 : _b.replace(/\\/g, "/")) || file.name;
-            await this.plugin.saveSettings();
-            this.display();
-          }
-          document.body.removeChild(picker);
-        });
-        document.body.appendChild(picker);
-        picker.click();
+      dbSetting.addButton((btn) => btn.setButtonText("\u041E\u0431\u0437\u043E\u0440...").onClick(async () => {
+        try {
+          const { remote } = require("electron");
+          const result = await remote.dialog.showOpenDialog({
+            properties: ["openFile"],
+            filters: [{ name: "SQLite", extensions: ["db", "sqlite", "sqlite3"] }]
+          });
+          if (result.canceled || result.filePaths.length === 0) return;
+          const chosen = result.filePaths[0].replace(/\\/g, "/");
+          this.plugin.settings.lpiDbPath = chosen;
+          await this.plugin.saveSettings();
+          this.display();
+        } catch (e) {
+          const fallback = document.createElement("input");
+          fallback.type = "file";
+          fallback.accept = ".db,.sqlite,.sqlite3";
+          fallback.style.display = "none";
+          fallback.addEventListener("change", async () => {
+            var _a;
+            const file = (_a = fallback.files) == null ? void 0 : _a[0];
+            if (file) {
+              const p = file.path;
+              if (p) {
+                this.plugin.settings.lpiDbPath = p.replace(/\\/g, "/");
+                await this.plugin.saveSettings();
+                this.display();
+              } else {
+                new import_obsidian2.Notice('\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0444\u0430\u0439\u043B \u0447\u0435\u0440\u0435\u0437 \u043C\u0435\u043D\u044E "\u0424\u0430\u0439\u043B" \u2192 "\u041E\u0442\u043A\u0440\u044B\u0442\u044C", \u043B\u0438\u0431\u043E \u0443\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u0432\u0440\u0443\u0447\u043D\u0443\u044E');
+              }
+            }
+            document.body.removeChild(fallback);
+          });
+          document.body.appendChild(fallback);
+          fallback.click();
+        }
       }));
     });
   }
@@ -69214,6 +69232,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       }
       dbPath = dbPath.replace(/\\/g, "/");
       if (!import_fs.default.existsSync(dbPath)) {
+        console.error("LPI: DB file not found at", dbPath);
         new import_obsidian11.Notice("\u0424\u0430\u0439\u043B \u0411\u0414 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: " + dbPath);
         return;
       }
@@ -70731,6 +70750,11 @@ var CHANGELOG = {
     '\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u041E\u0431\u0437\u043E\u0440..." \u0434\u043B\u044F \u0432\u044B\u0431\u043E\u0440\u0430 SQLite \u0411\u0414 \u0447\u0435\u0440\u0435\u0437 \u0434\u0438\u0430\u043B\u043E\u0433 Windows',
     "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 SQLite \u2014 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442\u0441\u044F fs.existsSync/fs.readFileSync \u0432\u043C\u0435\u0441\u0442\u043E adapter.exists/readBinary \u0434\u043B\u044F \u0432\u043D\u0435\u0448\u043D\u0438\u0445 \u043F\u0443\u0442\u0435\u0439",
     "\u041D\u043E\u0440\u043C\u0430\u043B\u0438\u0437\u0430\u0446\u0438\u044F \u0441\u043B\u044D\u0448\u0435\u0439 \u0432 \u043F\u0443\u0442\u044F\u0445 \u043A \u0411\u0414 (\\ \u2192 /)"
+  ],
+  "0.4.3": [
+    '\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u041E\u0431\u0437\u043E\u0440..." \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u0430 \u043D\u0430 Electron dialog.showOpenDialog (\u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u0432\u044B\u0431\u043E\u0440 \u0432\u043D\u0435\u0448\u043D\u0438\u0445 \u0444\u0430\u0439\u043B\u043E\u0432)',
+    "\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D fallback \u0447\u0435\u0440\u0435\u0437 input[type=file] \u0435\u0441\u043B\u0438 Electron API \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D",
+    "\u041F\u0443\u0442\u044C \u043A \u0411\u0414 \u043D\u043E\u0440\u043C\u0430\u043B\u0438\u0437\u0443\u0435\u0442\u0441\u044F \u0438 \u043F\u0440\u043E\u0432\u0435\u0440\u044F\u0435\u0442\u0441\u044F fs.existsSync"
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {

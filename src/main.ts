@@ -94,6 +94,11 @@ const CHANGELOG: Record<string, string[]> = {
     'Исправлена загрузка SQLite — используется fs.existsSync/fs.readFileSync вместо adapter.exists/readBinary для внешних путей',
     'Нормализация слэшей в путях к БД (\\ → /)',
   ],
+  '0.4.3': [
+    'Настройки LPI: кнопка "Обзор..." переведена на Electron dialog.showOpenDialog (исправлен выбор внешних файлов)',
+    'Добавлен fallback через input[type=file] если Electron API недоступен',
+    'Путь к БД нормализуется и проверяется fs.existsSync',
+  ],
 };
 
 class ChangelogModal extends Modal {

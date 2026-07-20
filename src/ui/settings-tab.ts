@@ -325,22 +325,41 @@ export class YouGileSettingTab extends PluginSettingTab {
           }));
       dbSetting.addButton(btn => btn
         .setButtonText('Обзор...')
-        .onClick(() => {
-          const picker = document.createElement('input');
-          picker.type = 'file';
-          picker.accept = '.db,.sqlite,.sqlite3';
-          picker.style.display = 'none';
-          picker.addEventListener('change', async () => {
-            const file = picker.files?.[0];
-            if (file) {
-              this.plugin.settings.lpiDbPath = (file as any).path?.replace(/\\/g, '/') || file.name;
-              await this.plugin.saveSettings();
-              this.display();
-            }
-            document.body.removeChild(picker);
-          });
-          document.body.appendChild(picker);
-          picker.click();
+        .onClick(async () => {
+          try {
+            const { remote } = require('electron');
+            const result = await remote.dialog.showOpenDialog({
+              properties: ['openFile'],
+              filters: [{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3'] }],
+            });
+            if (result.canceled || result.filePaths.length === 0) return;
+            const chosen = result.filePaths[0].replace(/\\/g, '/');
+            this.plugin.settings.lpiDbPath = chosen;
+            await this.plugin.saveSettings();
+            this.display();
+          } catch {
+            // Fallback: if Electron dialog fails, use input[type=file]
+            const fallback = document.createElement('input');
+            fallback.type = 'file';
+            fallback.accept = '.db,.sqlite,.sqlite3';
+            fallback.style.display = 'none';
+            fallback.addEventListener('change', async () => {
+              const file = fallback.files?.[0];
+              if (file) {
+                const p = (file as any).path;
+                if (p) {
+                  this.plugin.settings.lpiDbPath = p.replace(/\\/g, '/');
+                  await this.plugin.saveSettings();
+                  this.display();
+                } else {
+                  new Notice('Выберите файл через меню "Файл" → "Открыть", либо укажите путь вручную');
+                }
+              }
+              document.body.removeChild(fallback);
+            });
+            document.body.appendChild(fallback);
+            fallback.click();
+          }
         }));
     });
   }

@@ -328,6 +328,7 @@ export class LpiView extends ItemView {
       }
       dbPath = dbPath.replace(/\\/g, '/');
       if (!fs.existsSync(dbPath)) {
+        console.error('LPI: DB file not found at', dbPath);
         new Notice('Файл БД не найден: ' + dbPath);
         return;
       }
