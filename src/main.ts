@@ -127,6 +127,12 @@ const CHANGELOG: Record<string, string[]> = {
     'LPI: добавлены настройки проекта/доски/колонки в блоке LPI (выпадающие списки)',
     'LPI: создание задач использует колонку из настроек вместо undefined',
   ],
+  '0.4.9': [
+    'LPI: статус received теперь считается завершённым (TERMINAL_STATUSES)',
+    'LPI: добавлен isEffectivelyActive — completedLocally блокирует откат статуса',
+    'LPI: детали заявки переведены в read-only, удалена кнопка "Завершить заявку"',
+    'LPI: кнопка "Обновить" теперь также вызывает syncFromTasks для YouGile-завершений',
+  ],
 };
 
 class ChangelogModal extends Modal {

@@ -112,19 +112,26 @@ export class LpiView extends ItemView {
     } catch {}
   }
 
+  private static TERMINAL_STATUSES = new Set(['completed', 'received']);
+
   private static isStatusActive(status: string): boolean {
-    return status !== 'completed';
+    return !LpiView.TERMINAL_STATUSES.has(status);
   }
 
   private static statusDisplay(status: string): string {
-    if (status === 'completed') return 'Завершена';
+    if (LpiView.TERMINAL_STATUSES.has(status)) return 'Завершена';
     if (status === 'new') return 'Новая';
     return 'Активна';
   }
 
+  private isEffectivelyActive(item: LpiItem): boolean {
+    if (item.completedLocally) return false;
+    return LpiView.isStatusActive(item.application_status);
+  }
+
   private getProtocolDate(item: LpiItem): string {
-    if (!LpiView.isStatusActive(item.application_status)) return item.protocol_date || '';
-    return '—';
+    if (this.isEffectivelyActive(item)) return '—';
+    return item.protocol_date || '';
   }
 
   private renderView(): void {
@@ -148,7 +155,10 @@ export class LpiView extends ItemView {
       text: '🔄 Обновить',
       cls: 'mailer-yougile-refresh-btn',
     });
-    refreshBtn.addEventListener('click', () => this.loadFromSqliteToLocal());
+    refreshBtn.addEventListener('click', async () => {
+      await this.syncFromTasks();
+      await this.loadFromSqliteToLocal();
+    });
 
     const dashBtn = btnRow.createEl('button', {
       text: '📊 Дашборд',
@@ -227,7 +237,7 @@ export class LpiView extends ItemView {
       row.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
       const statusCell = row.createEl('td', { cls: 'mailer-td' });
-      if (LpiView.isStatusActive(item.application_status)) {
+      if (this.isEffectivelyActive(item)) {
         statusCell.style.color = 'var(--text-warning)';
         statusCell.setText(LpiView.statusDisplay(item.application_status));
       } else {
@@ -871,8 +881,8 @@ export class LpiView extends ItemView {
     }
 
     const total = filtered.length;
-    const active = filtered.filter(i => LpiView.isStatusActive(i.application_status)).length;
-    const completed = filtered.filter(i => !LpiView.isStatusActive(i.application_status)).length;
+    const active = filtered.filter(i => this.isEffectivelyActive(i)).length;
+    const completed = filtered.filter(i => !this.isEffectivelyActive(i)).length;
     const withProtocol = filtered.filter(i => i.protocol_date).length;
 
     const metricsRow = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap mailer-mb-8' });
@@ -945,8 +955,8 @@ export class LpiView extends ItemView {
   }
 
   private buildStatusSeries(items: LpiItem[]): Record<string, unknown> {
-    const active = items.filter(i => LpiView.isStatusActive(i.application_status)).length;
-    const completed = items.filter(i => !LpiView.isStatusActive(i.application_status)).length;
+    const active = items.filter(i => this.isEffectivelyActive(i)).length;
+    const completed = items.filter(i => !this.isEffectivelyActive(i)).length;
     return {
       chart: { type: 'donut' },
       labels: ['Активно', 'Завершено'],
@@ -1063,15 +1073,6 @@ export class LpiView extends ItemView {
     const backBtn = container.createEl('button', { text: '← Назад к списку', cls: 'mailer-yougile-refresh-btn' });
     backBtn.addEventListener('click', () => this.renderView());
 
-    if (LpiView.isStatusActive(item.application_status)) {
-      const completeBtn = container.createEl('button', {
-        text: '✅ Завершить заявку',
-        cls: 'mailer-yougile-refresh-btn',
-      });
-      completeBtn.style.marginLeft = '8px';
-      completeBtn.addEventListener('click', () => this.completeEntry(item));
-    }
-
     container.createEl('h3', { text: `Заявка №${item.application_external_id}` });
 
     const meta = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-mb-12' });
@@ -1090,81 +1091,30 @@ export class LpiView extends ItemView {
       }
     };
 
-    meta.createEl('h4', { text: 'Детали заявки', cls: 'mailer-mt-8' });
-
-    const editableFields: Array<{ label: string; key: keyof LpiItem; type?: string; suffix?: string }> = [
-      { label: 'Название материала', key: 'product_name' },
-      { label: 'Заказчик', key: 'customer_name' },
-      { label: 'Email заказчика', key: 'customer_mail' },
-      { label: 'Организация', key: 'organization' },
-      { label: 'Телефон', key: 'customer_phone' },
-      { label: 'Адрес', key: 'customer_address' },
-      { label: 'ЕКН', key: 'ekn' },
-      { label: 'Толщина', key: 'thickness', type: 'number', suffix: ' мм' },
-      { label: 'Цвет', key: 'color' },
-      { label: 'Номер партии', key: 'batch_number' },
-      { label: 'Номер образца', key: 'sample_number' },
-      { label: 'Объект', key: 'object_name' },
-      { label: 'Стандарт', key: 'standard' },
-      { label: 'Целевая группа горючести', key: 'target_comb_group' },
-      { label: 'Целевая группа воспламеняемости', key: 'target_flam_group' },
-      { label: 'Целевая группа распространения', key: 'target_prop_group' },
-    ];
-
-    const inputs: Record<string, HTMLInputElement> = {};
-    for (const f of editableFields) {
-      const row = meta.createDiv({ cls: 'mailer-flex-row' });
-      row.style.alignItems = 'center';
-      row.style.marginBottom = '4px';
-      row.style.gap = '6px';
-      const lbl = row.createEl('label');
-      lbl.setText(f.label + ':');
-      lbl.style.fontSize = 'var(--font-smaller)';
-      lbl.style.minWidth = '180px';
-      lbl.style.flexShrink = '0';
-      const inp = row.createEl('input', { attr: { type: f.type || 'text' } });
-      inp.style.flex = '1';
-      inp.style.fontSize = 'var(--font-smaller)';
-      inp.style.padding = '2px 4px';
-      const val = item[f.key];
-      inp.value = val !== null && val !== undefined ? String(val) : '';
-      inputs[f.key] = inp;
-      if (f.suffix) {
-        const sfx = row.createSpan();
-        sfx.setText(f.suffix);
-        sfx.style.fontSize = 'var(--font-smaller)';
-        sfx.style.flexShrink = '0';
-      }
-    }
-
-    const roFields = [
-      { label: 'Дата создания заявки', value: item.application_created_at },
+    const detailFields = [
+      { label: '№ заявки', value: item.application_external_id },
+      { label: 'Дата создания', value: item.application_created_at },
       { label: 'Статус', value: LpiView.statusDisplay(item.application_status) },
-      { label: 'Дата протокола', value: this.getProtocolDate(item) },
+      { label: 'Название материала', value: item.product_name },
+      { label: 'Заказчик', value: item.customer_name },
+      { label: 'Email заказчика', value: item.customer_mail },
+      { label: 'Организация', value: item.organization },
+      { label: 'Телефон', value: item.customer_phone },
+      { label: 'Адрес', value: item.customer_address },
+      { label: 'ЕКН', value: item.ekn },
+      { label: 'Толщина', value: item.thickness !== null && item.thickness !== undefined ? `${item.thickness} мм` : null },
+      { label: 'Цвет', value: item.color },
+      { label: 'Номер партии', value: item.batch_number },
+      { label: 'Номер образца', value: item.sample_number },
+      { label: 'Объект', value: item.object_name },
+      { label: 'Стандарт', value: item.standard },
+      { label: 'Целевая группа горючести', value: item.target_comb_group },
+      { label: 'Целевая группа воспламеняемости', value: item.target_flam_group },
+      { label: 'Целевая группа распространения', value: item.target_prop_group },
       { label: 'Метод испытаний', value: item.method_name },
+      { label: 'Дата протокола', value: this.getProtocolDate(item) },
     ];
-    for (const rf of roFields) {
-      const div = meta.createDiv();
-      div.style.fontSize = 'var(--font-smaller)';
-      div.style.opacity = '.7';
-      div.style.marginBottom = '2px';
-      div.textContent = `${rf.label}: ${rf.value || '—'}`;
-    }
-
-    const saveBtn = meta.createEl('button', { text: '💾 Сохранить', cls: 'mailer-yougile-refresh-btn' });
-    saveBtn.addEventListener('click', async () => {
-      for (const f of editableFields) {
-        const raw = inputs[f.key].value.trim();
-        if (f.type === 'number') {
-          (item as any)[f.key] = raw ? Number(raw) : null;
-        } else {
-          (item as any)[f.key] = raw || null;
-        }
-      }
-      await this.saveData();
-      new Notice('Детали заявки сохранены');
-      this.renderDetail(item);
-    });
+    addSection('Детали заявки', detailFields);
 
     addSection('Результаты измерений', [
       { label: 'Средняя температура дыма', value: item.agg_avg_smog_temp ? `${item.agg_avg_smog_temp} °C` : null },
