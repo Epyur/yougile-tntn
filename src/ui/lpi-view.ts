@@ -1,9 +1,10 @@
-import { ItemView, WorkspaceLeaf, Modal, App, Notice } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Modal, App, Notice, requestUrl } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { LpiItem } from '../types/lpi';
 import ApexCharts from 'apexcharts';
 import initSqlJs from 'sql.js';
 import fs from 'fs';
+import path from 'path';
 
 const DB_PATH = 'yourbase/lpi_data.json';
 
@@ -314,9 +315,20 @@ export class LpiView extends ItemView {
 
   private async getWasmBinary(): Promise<ArrayBuffer> {
     if (this.wasmBinary) return this.wasmBinary;
-    const wasmPath = '.obsidian/plugins/yougile-tntn/sql-wasm.wasm';
-    this.wasmBinary = await this.app.vault.adapter.readBinary(wasmPath);
-    return this.wasmBinary;
+    const wasmPath = path.join(__dirname, 'sql-wasm.wasm');
+    try {
+      const buf = fs.readFileSync(wasmPath);
+      this.wasmBinary = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+      return this.wasmBinary;
+    } catch {
+      // fallback: скачиваем с GitHub (для пользователей updater)
+      const url = 'https://raw.githubusercontent.com/Epyur/yougile-tntn/main/sql-wasm.wasm';
+      const resp = await requestUrl({ url });
+      this.wasmBinary = resp.arrayBuffer;
+      // сохраняем локально для следующих запусков
+      try { fs.writeFileSync(wasmPath, Buffer.from(resp.arrayBuffer)); } catch {}
+      return this.wasmBinary;
+    }
   }
 
   private async loadFromSqlite(): Promise<void> {

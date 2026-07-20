@@ -3947,10 +3947,10 @@ var require_segments = __commonJS({
       const segs = getSegmentsFromString(data, Utils3.isKanjiModeEnabled());
       const nodes = buildNodes(segs);
       const graph = buildGraph(nodes, version);
-      const path = dijkstra.find_path(graph.map, "start", "end");
+      const path2 = dijkstra.find_path(graph.map, "start", "end");
       const optimizedSegs = [];
-      for (let i = 1; i < path.length - 1; i++) {
-        optimizedSegs.push(graph.table[path[i]].node);
+      for (let i = 1; i < path2.length - 1; i++) {
+        optimizedSegs.push(graph.table[path2[i]].node);
       }
       return exports.fromArray(mergeSegments(optimizedSegs));
     };
@@ -4371,7 +4371,7 @@ var require_svg_tag = __commonJS({
       return str;
     }
     function qrToPath(data, size, margin) {
-      let path = "";
+      let path2 = "";
       let moveBy = 0;
       let newRow = false;
       let lineLength = 0;
@@ -4382,19 +4382,19 @@ var require_svg_tag = __commonJS({
         if (data[i]) {
           lineLength++;
           if (!(i > 0 && col > 0 && data[i - 1])) {
-            path += newRow ? svgCmd("M", col + margin, 0.5 + row + margin) : svgCmd("m", moveBy, 0);
+            path2 += newRow ? svgCmd("M", col + margin, 0.5 + row + margin) : svgCmd("m", moveBy, 0);
             moveBy = 0;
             newRow = false;
           }
           if (!(col + 1 < size && data[i + 1])) {
-            path += svgCmd("h", lineLength);
+            path2 += svgCmd("h", lineLength);
             lineLength = 0;
           }
         } else {
           moveBy++;
         }
       }
-      return path;
+      return path2;
     }
     exports.render = function render(qrData, options2, cb) {
       const opts = Utils3.getOptions(options2);
@@ -4402,10 +4402,10 @@ var require_svg_tag = __commonJS({
       const data = qrData.modules.data;
       const qrcodesize = size + opts.margin * 2;
       const bg = !opts.color.light.a ? "" : "<path " + getColorAttrib(opts.color.light, "fill") + ' d="M0 0h' + qrcodesize + "v" + qrcodesize + 'H0z"/>';
-      const path = "<path " + getColorAttrib(opts.color.dark, "stroke") + ' d="' + qrToPath(data, size, opts.margin) + '"/>';
+      const path2 = "<path " + getColorAttrib(opts.color.dark, "stroke") + ' d="' + qrToPath(data, size, opts.margin) + '"/>';
       const viewBox = 'viewBox="0 0 ' + qrcodesize + " " + qrcodesize + '"';
       const width = !opts.width ? "" : 'width="' + opts.width + '" height="' + opts.width + '" ';
-      const svgTag = '<svg xmlns="http://www.w3.org/2000/svg" ' + width + viewBox + ' shape-rendering="crispEdges">' + bg + path + "</svg>\n";
+      const svgTag = '<svg xmlns="http://www.w3.org/2000/svg" ' + width + viewBox + ' shape-rendering="crispEdges">' + bg + path2 + "</svg>\n";
       if (typeof cb === "function") {
         cb(null, svgTag);
       }
@@ -7026,8 +7026,8 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.plugin.settings.docxTemplatePath = value;
         await this.plugin.saveSettings();
       })).addButton((btn) => btn.setButtonText("\u041E\u0431\u0437\u043E\u0440...").onClick(() => {
-        const modal = new DocxTemplateSuggestModal(this.app, this.plugin, (path) => {
-          this.plugin.settings.docxTemplatePath = path;
+        const modal = new DocxTemplateSuggestModal(this.app, this.plugin, (path2) => {
+          this.plugin.settings.docxTemplatePath = path2;
           this.plugin.saveSettings();
           this.display();
         });
@@ -28102,16 +28102,16 @@ var replacer = ({ json, patch, patchText, context, keepOriginalStyles = true }) 
     didFindOccurrence: true
   };
 };
-var goToElementFromPath = (json, path) => {
+var goToElementFromPath = (json, path2) => {
   let element = json;
-  for (let i = 1; i < path.length; i++) {
-    const index = path[i];
+  for (let i = 1; i < path2.length; i++) {
+    const index = path2[i];
     element = element.elements[index];
   }
   return element;
 };
-var goToParentElementFromPath = (json, path) => goToElementFromPath(json, path.slice(0, path.length - 1));
-var getLastElementIndexFromPath = (path) => path[path.length - 1];
+var goToParentElementFromPath = (json, path2) => goToElementFromPath(json, path2.slice(0, path2.length - 1));
+var getLastElementIndexFromPath = (path2) => path2[path2.length - 1];
 var PatchType = {
   /** Replace entire file-level elements (e.g., whole paragraphs) */
   DOCUMENT: "file",
@@ -28340,13 +28340,13 @@ var DocumentService = class {
     }
     return result.join("");
   }
-  async getImageSize(path) {
+  async getImageSize(path2) {
     var _a;
     try {
       const adapter = this.app.vault.adapter;
-      const data = await adapter.readBinary(path);
+      const data = await adapter.readBinary(path2);
       const buffer = new Uint8Array(data);
-      const ext = ((_a = path.split(".").pop()) == null ? void 0 : _a.toLowerCase()) || "png";
+      const ext = ((_a = path2.split(".").pop()) == null ? void 0 : _a.toLowerCase()) || "png";
       if (ext === "png") {
         return { width: this.readInt(buffer, 16), height: this.readInt(buffer, 20) };
       }
@@ -28372,7 +28372,7 @@ var DocumentService = class {
         return { width, height };
       }
     } catch (e) {
-      console.warn("\u26A0\uFE0F \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0438\u0442\u044C \u0440\u0430\u0437\u043C\u0435\u0440 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F:", path, e);
+      console.warn("\u26A0\uFE0F \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0438\u0442\u044C \u0440\u0430\u0437\u043C\u0435\u0440 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F:", path2, e);
     }
     return { width: 400, height: 300 };
   }
@@ -37237,7 +37237,7 @@ var Graphics = class _Graphics {
    * @returns {any} The created marker.
    */
   drawMarkerShape(x, y, type, size, opts) {
-    const path = this.drawPath({
+    const path2 = this.drawPath({
       d: this.getMarkerPath(x, y, type, size),
       stroke: opts.pointStrokeColor,
       strokeDashArray: opts.pointStrokeDashArray,
@@ -37246,13 +37246,13 @@ var Graphics = class _Graphics {
       fillOpacity: opts.pointFillOpacity,
       strokeOpacity: opts.pointStrokeOpacity
     });
-    path.attr({
+    path2.attr({
       cx: x,
       cy: y,
       shape: opts.shape,
       class: opts.class ? opts.class : ""
     });
-    return path;
+    return path2;
   }
   /**
    * @param {number} x
@@ -37275,12 +37275,12 @@ var Graphics = class _Graphics {
    * @param {any} path
    * @param {Event | null} [e]
    */
-  pathMouseEnter(path, e) {
+  pathMouseEnter(path2, e) {
     var _a, _b;
     const w = this.w;
     const filters = new Filters(this.w);
-    const i = parseInt((_a = path.node.getAttribute("index")) != null ? _a : "", 10);
-    const j = parseInt((_b = path.node.getAttribute("j")) != null ? _b : "", 10);
+    const i = parseInt((_a = path2.node.getAttribute("index")) != null ? _a : "", 10);
+    const j = parseInt((_b = path2.node.getAttribute("j")) != null ? _b : "", 10);
     if (isNaN(i) || isNaN(j)) return;
     if (typeof w.config.chart.events.dataPointMouseEnter === "function") {
       w.config.chart.events.dataPointMouseEnter(e, this.ctx, {
@@ -37295,14 +37295,14 @@ var Graphics = class _Graphics {
       { seriesIndex: i, dataPointIndex: j, w }
     ]);
     if (w.config.states.active.filter.type !== "none") {
-      if (path.node.getAttribute("selected") === "true") {
+      if (path2.node.getAttribute("selected") === "true") {
         return;
       }
     }
     if (w.config.states.hover.filter.type !== "none") {
       if (!w.interact.isTouchDevice) {
         const hoverFilter = w.config.states.hover.filter;
-        filters.applyFilter(path, i, hoverFilter.type);
+        filters.applyFilter(path2, i, hoverFilter.type);
       }
     }
   }
@@ -37310,12 +37310,12 @@ var Graphics = class _Graphics {
    * @param {any} path
    * @param {Event | null} [e]
    */
-  pathMouseLeave(path, e) {
+  pathMouseLeave(path2, e) {
     var _a, _b;
     const w = this.w;
     const filters = new Filters(this.w);
-    const i = parseInt((_a = path.node.getAttribute("index")) != null ? _a : "", 10);
-    const j = parseInt((_b = path.node.getAttribute("j")) != null ? _b : "", 10);
+    const i = parseInt((_a = path2.node.getAttribute("index")) != null ? _a : "", 10);
+    const j = parseInt((_b = path2.node.getAttribute("j")) != null ? _b : "", 10);
     if (isNaN(i) || isNaN(j)) return;
     if (typeof w.config.chart.events.dataPointMouseLeave === "function") {
       w.config.chart.events.dataPointMouseLeave(e, this.ctx, {
@@ -37330,28 +37330,28 @@ var Graphics = class _Graphics {
       { seriesIndex: i, dataPointIndex: j, w }
     ]);
     if (w.config.states.active.filter.type !== "none") {
-      if (path.node.getAttribute("selected") === "true") {
+      if (path2.node.getAttribute("selected") === "true") {
         return;
       }
     }
     if (w.config.states.hover.filter.type !== "none") {
-      filters.getDefaultFilter(path, i);
+      filters.getDefaultFilter(path2, i);
     }
   }
   /**
    * @param {any} path
    * @param {Event | null} e
    */
-  pathMouseDown(path, e) {
+  pathMouseDown(path2, e) {
     var _a, _b;
     const w = this.w;
     const filters = new Filters(this.w);
-    const i = parseInt((_a = path.node.getAttribute("index")) != null ? _a : "", 10);
-    const j = parseInt((_b = path.node.getAttribute("j")) != null ? _b : "", 10);
+    const i = parseInt((_a = path2.node.getAttribute("index")) != null ? _a : "", 10);
+    const j = parseInt((_b = path2.node.getAttribute("j")) != null ? _b : "", 10);
     if (isNaN(i) || isNaN(j)) return;
     let selected = "false";
-    if (path.node.getAttribute("selected") === "true") {
-      path.node.setAttribute("selected", "false");
+    if (path2.node.getAttribute("selected") === "true") {
+      path2.node.setAttribute("selected", "false");
       const index = w.interact.selectedDataPoints[i].indexOf(j);
       if (index > -1) {
         w.interact.selectedDataPoints[i].splice(index, 1);
@@ -37374,7 +37374,7 @@ var Graphics = class _Graphics {
         deSelect(elPaths);
         deSelect(elCircles);
       }
-      path.node.setAttribute("selected", "true");
+      path2.node.setAttribute("selected", "true");
       selected = "true";
       if (typeof w.interact.selectedDataPoints[i] === "undefined") {
         w.interact.selectedDataPoints[i] = [];
@@ -37384,12 +37384,12 @@ var Graphics = class _Graphics {
     if (selected === "true") {
       const activeFilter = w.config.states.active.filter;
       if (activeFilter !== "none") {
-        filters.applyFilter(path, i, activeFilter.type);
+        filters.applyFilter(path2, i, activeFilter.type);
       } else {
         if (w.config.states.hover.filter !== "none") {
           if (!w.interact.isTouchDevice) {
             const hoverFilter = w.config.states.hover.filter;
-            filters.applyFilter(path, i, hoverFilter.type);
+            filters.applyFilter(path2, i, hoverFilter.type);
           }
         }
       }
@@ -37397,9 +37397,9 @@ var Graphics = class _Graphics {
       if (w.config.states.active.filter.type !== "none") {
         if (w.config.states.hover.filter.type !== "none" && !w.interact.isTouchDevice) {
           const hoverFilter = w.config.states.hover.filter;
-          filters.applyFilter(path, i, hoverFilter.type);
+          filters.applyFilter(path2, i, hoverFilter.type);
         } else {
-          filters.getDefaultFilter(path, i);
+          filters.getDefaultFilter(path2, i);
         }
       }
     }
@@ -45841,17 +45841,17 @@ var Data = class _Data {
    * @param {string} path - Dot notation path (e.g., 'user.profile.name')
    * @returns {*} The value at the path, or undefined if not found
    */
-  getNestedValue(obj, path) {
-    if (!obj || typeof obj !== "object" || !path) {
+  getNestedValue(obj, path2) {
+    if (!obj || typeof obj !== "object" || !path2) {
       return void 0;
     }
-    if (path.indexOf(".") === -1) {
+    if (path2.indexOf(".") === -1) {
       return (
         /** @type {any} */
-        obj[path]
+        obj[path2]
       );
     }
-    const keys = path.split(".");
+    const keys = path2.split(".");
     let current = obj;
     for (let i = 0; i < keys.length; i++) {
       if (current === null || current === void 0 || typeof current !== "object") {
@@ -47933,8 +47933,8 @@ var Position = class {
     );
     if (point && cy < w.layout.gridHeight && cy > 0) {
       const shape = (_e = point.getAttribute("shape")) != null ? _e : "circle";
-      const path = graphics.getMarkerPath(cx, cy, shape, hoverSize * 1.5);
-      point.setAttribute("d", path);
+      const path2 = graphics.getMarkerPath(cx, cy, shape, hoverSize * 1.5);
+      point.setAttribute("d", path2);
     }
     this.moveXCrosshairs(cx);
     if (!ttCtx.fixedTooltip) {
@@ -47991,8 +47991,8 @@ var Position = class {
             pcy = pcy - pcyDiff;
           }
           if (pcy !== null && !isNaN(pcy) && pcy < w.layout.gridHeight + hoverSize && pcy + hoverSize > 0) {
-            const path = graphics.getMarkerPath(cx, pcy, shape, hoverSize);
-            points[p].setAttribute("d", path);
+            const path2 = graphics.getMarkerPath(cx, pcy, shape, hoverSize);
+            points[p].setAttribute("d", path2);
           } else {
             points[p].setAttribute("d", "");
           }
@@ -48362,8 +48362,8 @@ var Marker = class {
       if (newSize < 0) {
         newSize = 0;
       }
-      const path = this.ttCtx.tooltipUtil.getPathFromPoint(point, newSize);
-      point.setAttribute("d", path);
+      const path2 = this.ttCtx.tooltipUtil.getPathFromPoint(point, newSize);
+      point.setAttribute("d", path2);
     }
   }
   /**
@@ -48371,8 +48371,8 @@ var Marker = class {
    */
   oldPointSize(point) {
     const size = parseFloat(point.getAttribute("default-marker-size"));
-    const path = this.ttCtx.tooltipUtil.getPathFromPoint(point, size);
-    point.setAttribute("d", path);
+    const path2 = this.ttCtx.tooltipUtil.getPathFromPoint(point, size);
+    point.setAttribute("d", path2);
   }
   resetPointsSize() {
     var _a;
@@ -48385,8 +48385,8 @@ var Marker = class {
         (_a = points[p].getAttribute("default-marker-size")) != null ? _a : "0"
       );
       if (Utils$1.isNumber(size) && size > 0) {
-        const path = this.ttCtx.tooltipUtil.getPathFromPoint(points[p], size);
-        points[p].setAttribute("d", path);
+        const path2 = this.ttCtx.tooltipUtil.getPathFromPoint(points[p], size);
+        points[p].setAttribute("d", path2);
       } else {
         points[p].setAttribute("d", "M0,0");
       }
@@ -56996,14 +56996,14 @@ var Annotations = class {
   addImage(params) {
     const w = this.w;
     const {
-      path,
+      path: path2,
       x = 0,
       y = 0,
       width = 20,
       height = 20,
       appendTo = ".apexcharts-svg"
     } = params;
-    const img = w.dom.Paper.image(path);
+    const img = w.dom.Paper.image(path2);
     img.size(width, height).move(x, y);
     const parent = w.dom.baseEl.querySelector(appendTo);
     if (parent) {
@@ -58532,7 +58532,7 @@ var Breadcrumb = class {
   /**
    * @param {Array<string|number>} path - ['root', id, id, ...]
    */
-  render(path) {
+  render(path2) {
     if (!Environment.isBrowser()) return;
     const w = this.w;
     const elWrap = w.dom.elWrap;
@@ -58549,7 +58549,7 @@ var Breadcrumb = class {
     nav.setAttribute("aria-label", "Drilldown breadcrumb");
     this._position(nav, cfg);
     const separator = cfg.separator != null ? cfg.separator : " / ";
-    path.forEach((id, i) => {
+    path2.forEach((id, i) => {
       if (i > 0) {
         const sep = BrowserAPIs.createElementNS(XHTML, "span");
         sep.setAttribute("class", "apexcharts-breadcrumb-separator");
@@ -58558,7 +58558,7 @@ var Breadcrumb = class {
         nav.appendChild(sep);
       }
       const label = this._label(id, i);
-      const isCurrent = i === path.length - 1;
+      const isCurrent = i === path2.length - 1;
       if (isCurrent) {
         const cur = BrowserAPIs.createElementNS(XHTML, "span");
         cur.setAttribute(
@@ -64149,19 +64149,19 @@ var Line = class {
       }
       default: {
         const pathToPoint = (curve2, x2, y3) => {
-          let path = "";
+          let path2 = "";
           switch (curve2) {
             case "stepline":
-              path = graphics.line(x2, null, "H") + graphics.line(null, y3, "V");
+              path2 = graphics.line(x2, null, "H") + graphics.line(null, y3, "V");
               break;
             case "linestep":
-              path = graphics.line(null, y3, "V") + graphics.line(x2, null, "H");
+              path2 = graphics.line(null, y3, "V") + graphics.line(x2, null, "H");
               break;
             case "straight":
-              path = graphics.line(x2, y3);
+              path2 = graphics.line(x2, y3);
               break;
           }
-          return path;
+          return path2;
         };
         if (series[i][j] === null) {
           pathState = 0;
@@ -64647,9 +64647,9 @@ var Pie = class {
         value: series[i]
       });
       const morphFrom = morphActive ? this.ctx.morphTypeChange.getInitialPathFor(i, 0) : null;
-      const path = morphFrom || this.getChangedPath(prevStartAngle, prevEndAngle);
+      const path2 = morphFrom || this.getChangedPath(prevStartAngle, prevEndAngle);
       const elPath = graphics.drawPath({
-        d: path,
+        d: path2,
         // Pie/donut/polarArea data is a single series, so a user-supplied
         // `stroke.colors` shorter than the slice count is NOT padded by the
         // theme engine (unlike fill colors, which cycle). Without this, only
@@ -64976,7 +64976,7 @@ var Pie = class {
     const w = this.w;
     const animations = new Animations(this.w);
     const size = opts.size;
-    let path;
+    let path2;
     if (isNaN(fromStartAngle) || isNaN(prevAngle)) {
       fromStartAngle = toStartAngle;
       prevAngle = angle;
@@ -64987,13 +64987,13 @@ var Pie = class {
     const fromAngle = fromStartAngle < toStartAngle ? this.fullAngle + fromStartAngle - toStartAngle : fromStartAngle - toStartAngle;
     if (w.globals.dataChanged && opts.shouldSetPrevPaths) {
       if (opts.prevEndAngle) {
-        path = me.getPiePath({
+        path2 = me.getPiePath({
           me,
           startAngle: opts.prevStartAngle,
           angle: opts.prevEndAngle < opts.prevStartAngle ? this.fullAngle + opts.prevEndAngle - opts.prevStartAngle : opts.prevEndAngle - opts.prevStartAngle,
           size
         });
-        el.attr({ d: path });
+        el.attr({ d: path2 });
       }
     }
     if (opts.dur !== 0) {
@@ -65017,19 +65017,19 @@ var Pie = class {
           currAngle = prevAngle + (angle - prevAngle) * pos;
           startAngle = fromStartAngle - prevAngle + (toStartAngle - (fromStartAngle - prevAngle)) * pos;
         }
-        path = me.getPiePath({
+        path2 = me.getPiePath({
           me,
           startAngle,
           angle: currAngle,
           size
         });
-        el.node.setAttribute("data:pathOrig", path);
+        el.node.setAttribute("data:pathOrig", path2);
         el.attr({
-          d: path
+          d: path2
         });
       });
     } else {
-      path = me.getPiePath({
+      path2 = me.getPiePath({
         me,
         startAngle,
         angle,
@@ -65038,9 +65038,9 @@ var Pie = class {
       if (!opts.isTrack) {
         w.globals.animationEnded = true;
       }
-      el.node.setAttribute("data:pathOrig", path);
+      el.node.setAttribute("data:pathOrig", path2);
       el.attr({
-        d: path,
+        d: path2,
         "stroke-width": me.strokeWidth
       });
     }
@@ -65079,23 +65079,23 @@ var Pie = class {
     }
     const startAngle = parseInt(elPath.attr("data:startAngle"), 10);
     const angle = parseInt(elPath.attr("data:angle"), 10);
-    const path = me.getPiePath({
+    const path2 = me.getPiePath({
       me,
       startAngle,
       angle,
       size
     });
     if (angle === 360) return;
-    elPath.plot(path);
+    elPath.plot(path2);
   }
   /**
    * @param {number} prevStartAngle
    * @param {number} prevEndAngle
    */
   getChangedPath(prevStartAngle, prevEndAngle) {
-    let path = "";
+    let path2 = "";
     if (this.dynamicAnim && this.w.globals.dataChanged) {
-      path = this.getPiePath({
+      path2 = this.getPiePath({
         me: this,
         startAngle: prevStartAngle,
         angle: prevEndAngle - prevStartAngle,
@@ -65103,11 +65103,11 @@ var Pie = class {
         size: this.size
       });
     }
-    return path;
+    return path2;
   }
   /** @param {{me: any, startAngle: any, angle: any, size: any}} opts */
   getPiePath({ me, startAngle, angle, size }) {
-    let path;
+    let path2;
     const graphics = new Graphics(this.w);
     const startDeg = startAngle;
     const startRadians = Math.PI * (startDeg - 90) / 180;
@@ -65136,7 +65136,7 @@ var Pie = class {
     const largeArc = angle > 180 ? 1 : 0;
     const pathBeginning = ["M", x1, y1, "A", size, size, 0, largeArc, 1, x2, y2];
     if (me.chartType === "donut") {
-      path = [
+      path2 = [
         ...pathBeginning,
         "L",
         startInner.x,
@@ -65155,13 +65155,13 @@ var Pie = class {
         "z"
       ].join(" ");
     } else if (me.chartType === "pie" || me.chartType === "polarArea") {
-      path = [...pathBeginning, "L", me.centerX, me.centerY, "L", x1, y1].join(
+      path2 = [...pathBeginning, "L", me.centerX, me.centerY, "L", x1, y1].join(
         " "
       );
     } else {
-      path = [...pathBeginning].join(" ");
+      path2 = [...pathBeginning].join(" ");
     }
-    return graphics.roundPathCorners(path, this.strokeWidth * 2);
+    return graphics.roundPathCorners(path2, this.strokeWidth * 2);
   }
   /**
    * @param {any} parent
@@ -66462,9 +66462,9 @@ var Radial = class extends Pie {
     const cx = opts.centerX;
     const needleOffsetY = Number((_c = cfg.offsetY) != null ? _c : 0);
     const cy = opts.centerY + needleOffsetY;
-    const path = `M ${cx + baseW / 2} ${cy} A ${baseW / 2} ${baseW / 2} 0 0 1 ${cx - baseW / 2} ${cy} L ${cx - tipW / 2} ${cy - length} L ${cx + tipW / 2} ${cy - length} Z`;
+    const path2 = `M ${cx + baseW / 2} ${cy} A ${baseW / 2} ${baseW / 2} 0 0 1 ${cx - baseW / 2} ${cy} L ${cx - tipW / 2} ${cy - length} L ${cx + tipW / 2} ${cy - length} Z`;
     const elNeedle = graphics.drawPath({
-      d: path,
+      d: path2,
       stroke: color,
       strokeWidth: 0,
       fill: color,
@@ -68935,6 +68935,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
 var import_obsidian11 = require("obsidian");
 var import_sql = __toESM(require_sql_wasm_browser());
 var import_fs = __toESM(require("fs"));
+var import_path = __toESM(require("path"));
 var DB_PATH = "yourbase/lpi_data.json";
 var LPI_VIEW_TYPE = "yougile-lpi-view";
 var _LpiView = class _LpiView extends import_obsidian11.ItemView {
@@ -69219,9 +69220,21 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
   }
   async getWasmBinary() {
     if (this.wasmBinary) return this.wasmBinary;
-    const wasmPath = ".obsidian/plugins/yougile-tntn/sql-wasm.wasm";
-    this.wasmBinary = await this.app.vault.adapter.readBinary(wasmPath);
-    return this.wasmBinary;
+    const wasmPath = import_path.default.join(__dirname, "sql-wasm.wasm");
+    try {
+      const buf = import_fs.default.readFileSync(wasmPath);
+      this.wasmBinary = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+      return this.wasmBinary;
+    } catch (e) {
+      const url = "https://raw.githubusercontent.com/Epyur/yougile-tntn/main/sql-wasm.wasm";
+      const resp = await (0, import_obsidian11.requestUrl)({ url });
+      this.wasmBinary = resp.arrayBuffer;
+      try {
+        import_fs.default.writeFileSync(wasmPath, Buffer.from(resp.arrayBuffer));
+      } catch (e2) {
+      }
+      return this.wasmBinary;
+    }
   }
   async loadFromSqlite() {
     try {
@@ -70754,7 +70767,8 @@ var CHANGELOG = {
   "0.4.3": [
     '\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u041E\u0431\u0437\u043E\u0440..." \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u0430 \u043D\u0430 Electron dialog.showOpenDialog (\u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u0432\u044B\u0431\u043E\u0440 \u0432\u043D\u0435\u0448\u043D\u0438\u0445 \u0444\u0430\u0439\u043B\u043E\u0432)',
     "\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D fallback \u0447\u0435\u0440\u0435\u0437 input[type=file] \u0435\u0441\u043B\u0438 Electron API \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D",
-    "\u041F\u0443\u0442\u044C \u043A \u0411\u0414 \u043D\u043E\u0440\u043C\u0430\u043B\u0438\u0437\u0443\u0435\u0442\u0441\u044F \u0438 \u043F\u0440\u043E\u0432\u0435\u0440\u044F\u0435\u0442\u0441\u044F fs.existsSync"
+    "sql-wasm.wasm \u0447\u0438\u0442\u0430\u0435\u0442\u0441\u044F \u0447\u0435\u0440\u0435\u0437 fs.readFileSync \u0438\u0437 \u043F\u0430\u043F\u043A\u0438 \u043F\u043B\u0430\u0433\u0438\u043D\u0430 (\u043D\u0435 \u0447\u0435\u0440\u0435\u0437 vault adapter)",
+    "\u0415\u0441\u043B\u0438 sql-wasm.wasm \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E \u2014 \u0441\u043A\u0430\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u0441 GitHub raw (\u0434\u043B\u044F \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u0435\u0439 updater)"
   ]
 };
 var ChangelogModal = class extends import_obsidian14.Modal {

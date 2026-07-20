@@ -97,7 +97,8 @@ const CHANGELOG: Record<string, string[]> = {
   '0.4.3': [
     'Настройки LPI: кнопка "Обзор..." переведена на Electron dialog.showOpenDialog (исправлен выбор внешних файлов)',
     'Добавлен fallback через input[type=file] если Electron API недоступен',
-    'Путь к БД нормализуется и проверяется fs.existsSync',
+    'sql-wasm.wasm читается через fs.readFileSync из папки плагина (не через vault adapter)',
+    'Если sql-wasm.wasm не найден локально — скачивается с GitHub raw (для пользователей updater)',
   ],
 };
 
