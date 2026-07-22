@@ -69298,13 +69298,23 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       this.mode = "table";
       this.renderView();
     });
-    const refreshBtn = btnRow.createEl("button", {
-      text: "\u{1F504} \u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C",
+    const sqlBtn = btnRow.createEl("button", {
+      text: "\u{1F4E5} SQL \u2192 \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E",
       cls: "mailer-yougile-refresh-btn"
     });
-    refreshBtn.addEventListener("click", async () => {
-      await this.syncFromTasks();
+    sqlBtn.addEventListener("click", async () => {
+      sqlBtn.disabled = true;
+      sqlBtn.textContent = "\u23F3 \u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...";
       await this.loadFromSqliteToLocal();
+      sqlBtn.disabled = false;
+      sqlBtn.textContent = "\u{1F4E5} SQL \u2192 \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E";
+    });
+    const syncBtn = btnRow.createEl("button", {
+      text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    syncBtn.addEventListener("click", () => {
+      new YougileSyncModal(this.app, this.plugin, this).open();
     });
     const dashBtn = btnRow.createEl("button", {
       text: "\u{1F4CA} \u0414\u0430\u0448\u0431\u043E\u0440\u0434",
@@ -70226,6 +70236,192 @@ var MethodFilterModal = class extends import_obsidian11.Modal {
     this.contentEl.empty();
   }
 };
+var YougileSyncModal = class extends import_obsidian11.Modal {
+  constructor(app, plugin, view) {
+    super(app);
+    this.plugin = plugin;
+    this.view = view;
+  }
+  async onOpen() {
+    var _a, _b;
+    const { contentEl } = this;
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h2", { text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile" });
+    if (!this.plugin.client) {
+      contentEl.createEl("p", { text: "\u274C \u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile" });
+      const closeBtn2 = contentEl.createEl("button", { text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+      closeBtn2.addEventListener("click", () => this.close());
+      return;
+    }
+    contentEl.createEl("p", { text: "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0437\u0430\u0434\u0430\u0447 \u0438\u0437 YouGile..." });
+    const tasks = await this.plugin.client.getTasks();
+    const lpiTasks = tasks.filter((t) => {
+      try {
+        const desc = JSON.parse(t.description || "{}");
+        return desc.type === "lpi_completed" || desc.type === "lpi_data";
+      } catch (e) {
+        return false;
+      }
+    });
+    const items = this.view.items;
+    const byExtId = /* @__PURE__ */ new Map();
+    const byAggId = /* @__PURE__ */ new Map();
+    const existingTaskIds = new Set(items.filter((i) => i.taskId).map((i) => i.taskId));
+    const existingExtIds = new Set(items.filter((i) => i.application_external_id).map((i) => i.application_external_id));
+    for (const task of lpiTasks) {
+      const desc = JSON.parse(task.description || "{}");
+      if (desc.application_external_id) byExtId.set(desc.application_external_id, { task, desc });
+      if (desc.aggregate_id) byAggId.set(desc.aggregate_id, { task, desc });
+    }
+    const matchingDiffs = [];
+    const imported = [];
+    for (const task of lpiTasks) {
+      const desc = JSON.parse(task.description || "{}");
+      const extId = desc.application_external_id || "";
+      let localItem = items.find((i) => i.taskId === task.id);
+      if (!localItem && extId) localItem = items.find((i) => i.application_external_id === extId);
+      if (!localItem && desc.aggregate_id) localItem = items.find((i) => i.aggregate_id === desc.aggregate_id);
+      if (!localItem) {
+        if (desc.application_created_at && desc.application_created_at < "2026-07-20") continue;
+        imported.push({ task, desc });
+        continue;
+      }
+      const diffs = [];
+      const compareFields = [
+        { key: "application_status", label: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u044F\u0432\u043A\u0438" },
+        { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
+        { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
+        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" }
+      ];
+      for (const { key, label } of compareFields) {
+        const lv = String((_a = localItem[key]) != null ? _a : "");
+        const yv = String((_b = desc[key]) != null ? _b : "");
+        if (lv !== yv) diffs.push({ label, local: lv || "\u2014", yougile: yv || "\u2014" });
+      }
+      const lc = localItem.completedLocally ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
+      const yc = task.completed ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
+      if (lc !== yc) diffs.push({ label: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F", local: lc, yougile: yc });
+      if (diffs.length > 0) {
+        matchingDiffs.push({ item: localItem, task, yougileDesc: desc, diffs });
+      }
+    }
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile" });
+    let autoImported = 0;
+    for (const imp of imported) {
+      const newItem = { ...imp.desc, taskId: imp.task.id };
+      newItem.completedLocally = !!imp.task.completed;
+      if (imp.task.completed) newItem.completedAt = imp.desc.completedAt || "";
+      const hasItem = items.some((i) => i.aggregate_id === newItem.aggregate_id || i.application_external_id === newItem.application_external_id);
+      if (!hasItem) {
+        items.push(newItem);
+        autoImported++;
+      }
+    }
+    if (matchingDiffs.length === 0) {
+      if (autoImported > 0) {
+        await this.view.saveData();
+        contentEl.createEl("p", { text: `\u2705 \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile: ${autoImported} \u0437\u0430\u044F\u0432\u043E\u043A. \u0420\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043D\u0435\u0442.` });
+      } else {
+        contentEl.createEl("p", { text: "\u2705 \u0420\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043D\u0435\u0442. \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u044B \u0441 YouGile." });
+      }
+      const closeBtn2 = contentEl.createEl("button", { text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+      closeBtn2.addEventListener("click", () => this.close());
+      return;
+    }
+    if (autoImported > 0) {
+      contentEl.createEl("p", { text: `\u2705 \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile: ${autoImported} \u0437\u0430\u044F\u0432\u043E\u043A.` });
+    }
+    contentEl.createEl("p", { text: `\u041D\u0430\u0439\u0434\u0435\u043D\u043E \u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043F\u043E ${matchingDiffs.length} \u0437\u0430\u044F\u0432\u043A\u0430\u043C. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043B\u044F \u043A\u0430\u0436\u0434\u043E\u0439:` });
+    const cardsContainer = contentEl.createDiv();
+    cardsContainer.style.maxHeight = "500px";
+    cardsContainer.style.overflowY = "auto";
+    for (const md of matchingDiffs) {
+      const card = cardsContainer.createEl("div");
+      card.style.border = "1px solid var(--background-modifier-border)";
+      card.style.borderRadius = "6px";
+      card.style.padding = "8px 10px";
+      card.style.marginBottom = "8px";
+      card.style.backgroundColor = "var(--background-secondary)";
+      const headerLine = card.createEl("div");
+      headerLine.style.fontWeight = "bold";
+      headerLine.style.marginBottom = "6px";
+      headerLine.setText(`\u2116${md.item.application_external_id} \u2014 ${md.item.product_name || "\u043D\u0435\u0442 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430"}`);
+      const diffTable = card.createEl("table");
+      diffTable.style.width = "100%";
+      diffTable.style.fontSize = "var(--font-smaller)";
+      diffTable.style.borderCollapse = "collapse";
+      diffTable.style.marginBottom = "6px";
+      for (const d of md.diffs) {
+        const tr = diffTable.insertRow();
+        for (const text of [d.label, d.local, "\u2192", d.yougile]) {
+          const td = tr.insertCell();
+          td.style.padding = "2px 6px";
+          td.style.borderBottom = "1px solid var(--background-modifier-border)";
+          td.setText(text);
+        }
+      }
+      const btnLine = card.createDiv();
+      btnLine.style.display = "flex";
+      btnLine.style.gap = "6px";
+      btnLine.style.justifyContent = "flex-end";
+      const applyBtn = btnLine.createEl("button", {
+        text: "\u2713 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C YouGile",
+        cls: "mailer-yougile-refresh-btn"
+      });
+      applyBtn.addEventListener("click", async () => {
+        var _a2;
+        applyBtn.disabled = true;
+        applyBtn.setText("\u23F3");
+        try {
+          const fullJson = this.view.buildFullJson(md.item);
+          await this.plugin.client.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
+          const isTerminal = !this.view.isEffectivelyActive(md.item);
+          if (isTerminal && !md.task.completed) {
+            await this.plugin.client.updateTask(md.task.id, { completed: true });
+          }
+          if (!md.item.taskId) md.item.taskId = md.task.id;
+          if (md.task.completed && !md.item.completedLocally) {
+            md.item.completedLocally = true;
+            md.item.completedAt = md.yougileDesc.completedAt || "";
+          }
+          for (const key of ["application_status", "protocol_date", "agg_gen_group_complience", "agg_gen_group"]) {
+            const yv = md.yougileDesc[key];
+            if (yv && String((_a2 = md.item[key]) != null ? _a2 : "") !== String(yv)) {
+              md.item[key] = yv;
+            }
+          }
+          await this.view.saveData();
+          card.style.opacity = "0.4";
+          card.style.pointerEvents = "none";
+          applyBtn.setText("\u2713 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E");
+        } catch (e) {
+          new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
+          applyBtn.disabled = false;
+          applyBtn.setText("\u2713 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C YouGile");
+        }
+      });
+      const skipBtn = btnLine.createEl("button", {
+        text: "\u2717 \u041F\u0440\u043E\u043F\u0443\u0441\u0442\u0438\u0442\u044C",
+        cls: "mailer-yougile-refresh-btn"
+      });
+      skipBtn.addEventListener("click", () => {
+        card.style.opacity = "0.4";
+        card.style.pointerEvents = "none";
+        skipBtn.setText("\u2717 \u041F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u043E");
+      });
+    }
+    const closeBtn = contentEl.createEl("button", {
+      text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    closeBtn.style.marginTop = "8px";
+    closeBtn.addEventListener("click", () => {
+      this.view.renderView();
+      this.close();
+    });
+  }
+};
 
 // src/commands.ts
 var import_obsidian12 = require("obsidian");
@@ -71102,6 +71298,12 @@ var CHANGELOG = {
   ],
   "0.4.11": [
     "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0440\u0430\u0437\u0431\u0438\u0435\u043D\u0438\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C (per-product test result donuts)"
+  ],
+  "0.5.1": [
+    'LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C" \u0440\u0430\u0437\u0434\u0435\u043B\u0435\u043D\u0430 \u043D\u0430 "SQL \u2192 \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E" \u0438 "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile"',
+    "LPI: \u043F\u0440\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 YouGile \u2192 \u043F\u043B\u0430\u0433\u0438\u043D \u0437\u0430\u044F\u0432\u043A\u0438 \u0431\u0435\u0437 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438",
+    "LPI: \u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u044F \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0430\u043C \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u0432 \u043C\u043E\u0434\u0430\u043B\u044C\u043D\u043E\u043C \u043E\u043A\u043D\u0435 \u0441 \u043F\u043E\u0448\u0442\u0443\u0447\u043D\u044B\u043C \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043D\u0438\u0435\u043C",
+    "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D unsafe cast getTaskById: \u0442\u0438\u043F \u0432\u043E\u0437\u0432\u0440\u0430\u0442\u0430 \u0438\u0437\u043C\u0435\u043D\u0451\u043D \u0441 YouGileTask \u043D\u0430 YouGileTaskFull"
   ],
   "0.5.0": [
     'LPI: \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0435 \u0437\u0430\u044F\u0432\u043A\u0438 \u0441 taskId \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u0432 YouGile \u043F\u0440\u0438 \u043A\u0430\u0436\u0434\u043E\u043C "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C"',

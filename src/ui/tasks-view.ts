@@ -414,7 +414,7 @@ export class TasksView extends ItemView {
 
     try {
       const [task, subscribers, messages] = await Promise.all([
-        this.plugin.client.getTaskById(taskId) as Promise<YouGileTaskFull>,
+        this.plugin.client.getTaskById(taskId),
         this.plugin.client.getTaskChatSubscribers(taskId).catch(() => []),
         this.plugin.client.getMessages(taskId).catch(() => []),
       ]);

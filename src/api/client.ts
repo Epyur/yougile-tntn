@@ -1,6 +1,7 @@
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import {
   YouGileTask,
+  YouGileTaskFull,
   YouGileTaskListResponse,
   CreateTaskPayload,
   YouGileProject,
@@ -101,7 +102,7 @@ export class YouGileClient {
     return this.request<{ id: string }>('POST', '/tasks', payload as unknown as Record<string, unknown>);
   }
 
-  async getTaskById(id: string): Promise<YouGileTask> {
+  async getTaskById(id: string): Promise<YouGileTaskFull> {
     return this.request<YouGileTask>('GET', `/tasks/${encodeURIComponent(id)}`);
   }
 
