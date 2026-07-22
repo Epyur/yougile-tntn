@@ -303,7 +303,7 @@ export class YouGileSettingTab extends PluginSettingTab {
     });
 
     // ===== Block 7: Лаборатория пожарных испытаний =====
-    this.renderCollapsibleBlock(containerEl, 'Лаборатория пожарных испытаний', false, true, (body) => {
+    this.renderCollapsibleBlock(containerEl, 'Лаборатория пожарных испытаний', true, true, (body) => {
       new Setting(body)
         .setName('Лаборатория пожарных испытаний')
         .setDesc('Просмотр заявок и протоколов лаборатории пожарных испытаний. Проект, доска и колонка настроены жёстко.')
@@ -321,6 +321,7 @@ export class YouGileSettingTab extends PluginSettingTab {
         this.plugin.settings.lpiProjectId = projectSelect.value;
         await this.plugin.saveSettings();
         this.populateBoardDropdown(boardSelect, this.plugin.settings.lpiProjectId, this.plugin.settings.lpiBoardId);
+        this.populateColumnDropdown(columnSelect, this.plugin.settings.lpiBoardId, this.plugin.settings.lpiColumnTitle);
       });
 
       const boardSetting = new Setting(body).setName('Доска').setDesc('Доска для заявок ЛПИ');
@@ -330,18 +331,13 @@ export class YouGileSettingTab extends PluginSettingTab {
       boardSelect.addEventListener('change', async () => {
         this.plugin.settings.lpiBoardId = boardSelect.value;
         await this.plugin.saveSettings();
+        this.populateColumnDropdown(columnSelect, this.plugin.settings.lpiBoardId, this.plugin.settings.lpiColumnTitle);
       });
 
       const columnSetting = new Setting(body).setName('Колонка').setDesc('Колонка для новых заявок ЛПИ');
       const columnSelect = columnSetting.descEl.parentElement!.createEl('select');
       columnSelect.addClass('dropdown');
-      const boardColumns = this.plugin.db.getColumns().filter(c => c.boardId === this.plugin.settings.lpiBoardId);
-      columnSelect.empty();
-      columnSelect.createEl('option', { value: '', text: '— не выбрана —' });
-      for (const col of boardColumns) {
-        const opt = columnSelect.createEl('option', { value: col.id, text: col.title });
-        if (col.title === this.plugin.settings.lpiColumnTitle) opt.selected = true;
-      }
+      this.populateColumnDropdown(columnSelect, this.plugin.settings.lpiBoardId, this.plugin.settings.lpiColumnTitle);
       columnSelect.addEventListener('change', async () => {
         const selected = columnSelect.options[columnSelect.selectedIndex];
         this.plugin.settings.lpiColumnTitle = selected ? selected.text : '';
@@ -396,7 +392,7 @@ export class YouGileSettingTab extends PluginSettingTab {
             fallback.click();
           }
         }));
-    });
+    }, true);
   }
 
   private renderCollapsibleBlock(
@@ -405,6 +401,7 @@ export class YouGileSettingTab extends PluginSettingTab {
     collapsible: boolean,
     hasToggle: boolean,
     renderBody: (body: HTMLElement) => void,
+    startCollapsed = false,
   ): void {
     const block = container.createDiv();
     block.addClass('mailer-mb-8');
@@ -413,11 +410,11 @@ export class YouGileSettingTab extends PluginSettingTab {
     header.addClass('mailer-block-header');
 
     let bodyEl: HTMLElement | null = null;
-    let collapsed = false;
+    let collapsed = startCollapsed;
 
     if (collapsible) {
       const arrow = header.createSpan();
-      arrow.setText('▼');
+      arrow.setText(collapsed ? '▶' : '▼');
       arrow.addClass('mailer-arrow');
 
       const toggleCollapse = () => {
@@ -546,6 +543,17 @@ export class YouGileSettingTab extends PluginSettingTab {
         const byTitle = boards.find(b => b.title === selectedId);
         if (byTitle) select.value = byTitle.id;
       }
+    }
+  }
+
+  private populateColumnDropdown(select: HTMLSelectElement, boardId: string, selectedTitle: string): void {
+    select.empty();
+    select.createEl('option', { value: '', text: '— не выбрана —' });
+    if (!boardId) return;
+    const columns = this.plugin.db.getColumns().filter(c => c.boardId === boardId);
+    for (const col of columns) {
+      const opt = select.createEl('option', { value: col.id, text: col.title });
+      if (col.title === selectedTitle) opt.selected = true;
     }
   }
 }

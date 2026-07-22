@@ -50,6 +50,12 @@ export class AssigneeSelector {
     }
   }
 
+  setSelectedIds(ids: string[]): void {
+    for (const [id, cb] of this.checkboxes) {
+      cb.checked = ids.includes(id);
+    }
+  }
+
   getSelectedIds(): string[] {
     const ids: string[] = [];
     for (const [id, cb] of this.checkboxes) {

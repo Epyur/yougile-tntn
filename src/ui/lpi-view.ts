@@ -10,7 +10,7 @@ const DB_PATH = 'yourbase/lpi_data.json';
 
 export const LPI_VIEW_TYPE = 'yougile-lpi-view';
 
-type ViewMode = 'table' | 'dashboard' | 'sync';
+type ViewMode = 'table' | 'dashboard';
 
 export class LpiView extends ItemView {
   plugin: YouGilePlugin;
@@ -94,7 +94,7 @@ export class LpiView extends ItemView {
       const lpiTasks = tasks.filter((t: any) => {
         try {
           const desc = JSON.parse(t.description || '{}');
-          return desc.type === 'lpi_completed' && t.completed;
+          return (desc.type === 'lpi_completed' || desc.type === 'lpi_data') && t.completed;
         } catch { return false; }
       });
       let changed = false;
@@ -166,16 +166,8 @@ export class LpiView extends ItemView {
     });
     dashBtn.addEventListener('click', () => { this.mode = 'dashboard'; this.renderView(); });
 
-    const syncBtn = btnRow.createEl('button', {
-      text: '📝 Зарегистрировать изменения в БД',
-      cls: 'mailer-yougile-refresh-btn',
-    });
-    syncBtn.addEventListener('click', () => { this.mode = 'sync'; this.renderView(); });
-
     if (this.mode === 'dashboard') {
       this.renderDashboard(container);
-    } else if (this.mode === 'sync') {
-      this.renderSync(container);
     } else {
       this.renderTable(container);
     }
@@ -247,108 +239,6 @@ export class LpiView extends ItemView {
       row.createEl('td', { cls: 'mailer-td' }).setText(this.getProtocolDate(item));
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group || '');
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
-    }
-  }
-
-  private syncDate = '';
-  private syncDiff: { new: LpiItem[]; toComplete: LpiItem[] } | null = null;
-  private syncReady = false;
-
-  private renderSync(container: HTMLElement): void {
-    container.createEl('h4', { text: 'Регистрация изменений из LIMS' });
-
-    const desc = container.createEl('p', {
-      text: 'Загрузка всех записей из таблицы агрегированных результатов. Новые заявки будут созданы в YouGile, завершённые — обновлены.',
-    });
-    desc.style.fontSize = 'var(--font-smaller)';
-    desc.style.opacity = '.7';
-
-    const row = container.createDiv({ cls: 'mailer-flex-row mailer-flex-wrap mailer-mb-8' });
-    row.style.alignItems = 'end';
-    row.style.gap = '8px';
-
-    const dateGroup = row.createDiv();
-    const dateLbl = dateGroup.createEl('label', { text: 'Фильтр даты протокола (для завершения)' });
-    dateLbl.style.fontSize = 'var(--font-smaller)';
-    dateLbl.style.marginRight = '4px';
-    const dateInput = dateGroup.createEl('input', { attr: { type: 'date' } });
-    dateInput.style.fontSize = 'var(--font-smaller)';
-    dateInput.style.padding = '2px 4px';
-    if (!this.syncDate) this.syncDate = new Date().toISOString().split('T')[0];
-    dateInput.value = this.syncDate;
-    dateInput.addEventListener('change', () => {
-      this.syncDate = dateInput.value;
-      this.syncReady = false;
-      this.syncDiff = null;
-      this.renderView();
-    });
-
-    const refreshBtn = row.createEl('button', {
-      text: '🔄 Обновить',
-      cls: 'mailer-yougile-refresh-btn',
-    });
-    refreshBtn.addEventListener('click', () => this.loadFromSqliteDiff());
-
-    const sendBtn = row.createEl('button', {
-      text: '📤 Отправить',
-      cls: 'mailer-yougile-refresh-btn',
-    });
-    sendBtn.style.marginLeft = '8px';
-    if (!this.syncReady || !this.syncDiff || (this.syncDiff.new.length === 0 && this.syncDiff.toComplete.length === 0)) {
-      sendBtn.setAttr('disabled', 'true');
-      sendBtn.style.opacity = '.5';
-    }
-    sendBtn.addEventListener('click', () => this.syncChanges());
-
-    if (this.syncDiff) {
-      if (this.syncDiff.new.length > 0) {
-        container.createEl('h5', { text: `🆕 Новые заявки (${this.syncDiff.new.length})` });
-        const table = container.createEl('table', { cls: 'mailer-table' });
-        const thead = table.createEl('thead');
-        const hr = thead.createEl('tr');
-        for (const h of ['№ заявки', 'Продукт', 'Дата создания', 'Статус']) {
-          hr.createEl('th', { cls: 'mailer-th' }).setText(h);
-        }
-        const tbody = table.createEl('tbody');
-        for (const item of this.syncDiff.new) {
-          const r = tbody.createEl('tr');
-          r.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
-          r.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
-          r.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
-          const sc = r.createEl('td', { cls: 'mailer-td' });
-          if (item.protocol_date) {
-            sc.style.color = 'var(--text-success)';
-            sc.setText('Завершена');
-          } else {
-            sc.style.color = 'var(--text-warning)';
-            sc.setText('Активна');
-          }
-        }
-      }
-
-      if (this.syncDiff.toComplete.length > 0) {
-        container.createEl('h5', { text: `✅ Заявки к завершению (${this.syncDiff.toComplete.length})` });
-        const table = container.createEl('table', { cls: 'mailer-table' });
-        const thead = table.createEl('thead');
-        const hr = thead.createEl('tr');
-        for (const h of ['№ заявки', 'Продукт', 'Дата создания', 'Дата протокола', 'Результат', 'Оценка']) {
-          hr.createEl('th', { cls: 'mailer-th' }).setText(h);
-        }
-        const tbody = table.createEl('tbody');
-        for (const item of this.syncDiff.toComplete) {
-          const r = tbody.createEl('tr');
-          r.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
-          r.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
-          r.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
-          r.createEl('td', { cls: 'mailer-td' }).setText(item.protocol_date || '');
-          r.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group || '');
-          r.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
-        }
-      }
-
-      if (this.syncDiff.new.length === 0 && this.syncDiff.toComplete.length === 0) {
-        container.createEl('p', { text: '✓ Изменений не обнаружено. Локальная БД синхронизирована с LIMS.' });
-      }
     }
   }
 
@@ -451,264 +341,137 @@ export class LpiView extends ItemView {
       stmt.free();
       db.close();
 
-      // обновляем локальную БД: новые записи добавляем, существующие обновляем
       let added = 0;
       let updated = 0;
+      let syncedToYougile = 0;
       const sqliteIds = new Set(sqliteItems.map(i => i.aggregate_id));
-      const localIds = new Set(this.items.map(i => i.aggregate_id));
 
       for (const item of sqliteItems) {
         const existing = this.items.find(i => i.aggregate_id === item.aggregate_id);
         if (existing) {
-          const changed = existing.application_status !== item.application_status
+          const wasActive = this.isEffectivelyActive(existing);
+          const hadTaskId = !!existing.taskId;
+          const { completedLocally, completedAt, taskId } = existing;
+          const dataChanged = existing.application_status !== item.application_status
             || existing.protocol_date !== item.protocol_date
             || existing.agg_gen_group_complience !== item.agg_gen_group_complience
             || existing.agg_gen_group !== item.agg_gen_group;
-          if (changed) {
-            // сохраняем локальные поля (completedLocally, completedAt, taskId)
-            const { completedLocally, completedAt, taskId } = existing;
-            Object.assign(existing, item);
-            existing.completedLocally = completedLocally;
-            existing.completedAt = completedAt;
-            existing.taskId = taskId;
+          Object.assign(existing, item);
+          existing.completedLocally = completedLocally;
+          existing.completedAt = completedAt;
+          existing.taskId = taskId;
+
+          if (dataChanged || !hadTaskId) {
             updated++;
+            if (this.plugin.client) {
+              await this.syncItemToYougile(existing, wasActive);
+              syncedToYougile++;
+            }
           }
         } else {
           this.items.push(item);
           added++;
+          if (this.plugin.client) {
+            try {
+              await this.syncItemToYougile(item, true);
+              syncedToYougile++;
+            } catch {}
+          }
         }
       }
 
-      // удаляем записи, которых больше нет в SQLite
       const before = this.items.length;
       this.items = this.items.filter(i => sqliteIds.has(i.aggregate_id));
       const removed = before - this.items.length;
 
       await this.saveData();
-      new Notice(`LPI: обновлено. Добавлено: ${added}, обновлено: ${updated}, удалено: ${removed}`);
+      new Notice(`LPI: обновлено. Добавлено: ${added}, обновлено: ${updated}, синхронизировано с YouGile: ${syncedToYougile}, удалено: ${removed}`);
       this.renderView();
     } catch (e: any) {
       new Notice('Ошибка обновления из SQLite: ' + e.message);
     }
   }
 
-  private async loadFromSqliteDiff(): Promise<void> {
-    try {
-      let dbPath = this.plugin.settings.lpiDbPath;
-      if (!dbPath) {
-        new Notice('Укажите путь к SQLite БД в настройках LPI');
-        return;
-      }
-      dbPath = dbPath.replace(/\\/g, '/');
-      if (!fs.existsSync(dbPath)) {
-        console.error('LPI: DB file not found at', dbPath);
-        new Notice('Файл БД не найден: ' + dbPath);
-        return;
-      }
-      const wasmBinary = await this.getWasmBinary();
-      const SQL = await initSqlJs({ wasmBinary: wasmBinary.slice(0) });
-      const dbBuf = fs.readFileSync(dbPath);
-      const db = new SQL.Database(new Uint8Array(dbBuf));
-      const sql = `SELECT
-        ar.aggregate_id,
-        a.external_id AS application_external_id,
-        a.created_at AS application_created_at,
-        a.status AS application_status,
-        COALESCE(p.product_name, '') AS product_name,
-        ar.protocol_date,
-        ar.agg_gen_group_complience,
-        COALESCE(c.customer_name, '') AS customer_name,
-        COALESCE(c.customer_email, '') AS customer_mail,
-        COALESCE(c.organization, '') AS organization,
-        COALESCE(c.customer_tel, '') AS customer_phone,
-        COALESCE(c.address, '') AS customer_address,
-        COALESCE(p.ekn, '') AS ekn,
-        p.thickness,
-        COALESCE(p.color, '') AS color,
-        COALESCE(o.batch_number, '') AS batch_number,
-        COALESCE(o.sample_number, '') AS sample_number,
-        COALESCE(o.object_name, '') AS object_name,
-        COALESCE(p.standard, '') AS standard,
-        COALESCE(p.target_comb_group, '') AS target_comb_group,
-        COALESCE(p.target_flam_group, '') AS target_flam_group,
-        COALESCE(p.target_prop_group, '') AS target_prop_group,
-        COALESCE(m.method_abbreviation, '') AS method_abbreviation,
-        COALESCE(m.method_name, '') AS method_name,
-        COALESCE(m.method_standard, '') AS method_standard,
-        ar.agg_avg_smog_temp,
-        ar.agg_smog_group,
-        ar.agg_smog_complience,
-        ar.agg_mass_loss,
-        ar.agg_comb_time,
-        ar.agg_dam_length,
-        ar.agg_comb_bulb,
-        ar.agg_group_by_mass,
-        ar.agg_group_by_length,
-        ar.agg_croup_by_comb_time,
-        ar.agg_group_by_bulbe,
-        ar.agg_gen_group,
-        ar.agg_mass_complience,
-        ar.agg_complience_by_length,
-        ar.agg_complience_by_comb_time,
-        ar.agg_complience_by_bulbe,
-        ar.agg_additional_info_1
-      FROM aggregated_results ar
-      LEFT JOIN applications a ON ar.application_id = a.application_id
-      LEFT JOIN products p ON p.product_id = a.product_id
-      LEFT JOIN customers c ON c.customer_id = a.customer_id
-      LEFT JOIN objects o ON o.object_id = a.object_id
-      LEFT JOIN methods m ON m.method_id = a.method_id`;
-      const stmt = db.prepare(sql);
-      const allSqlite: LpiItem[] = [];
-      while (stmt.step()) {
-        const obj = stmt.getAsObject();
-        obj.thickness = obj.thickness !== null ? Number(obj.thickness) : null;
-        obj.source_series_count = null;
-        obj.source_series_range = null;
-        obj.calculation_type = null;
-        obj.result_data = null;
-        allSqlite.push(obj as LpiItem);
-      }
-      stmt.free();
-      db.close();
+  private async syncItemToYougile(item: LpiItem, wasActive: boolean): Promise<void> {
+    const isTerminal = !this.isEffectivelyActive(item);
+    const fullJson = this.buildFullJson(item);
+    const desc = JSON.stringify(fullJson);
 
-      // diff
-      const localIds = new Set(this.items.map(i => i.aggregate_id));
-      const newItems = allSqlite.filter(i => !localIds.has(i.aggregate_id));
-      const activeLocalIds = new Set(
-        this.items.filter(i => LpiView.isStatusActive(i.application_status) && !i.completedLocally).map(i => i.aggregate_id)
-      );
-      const toComplete = allSqlite.filter(i =>
-        activeLocalIds.has(i.aggregate_id) && i.protocol_date && i.protocol_date === this.syncDate
-      );
-      // filter out toComplete items that were already completed in an older SQLite load
-      const alreadyDoneIds = new Set(
-        this.items.filter(i => i.completedLocally).map(i => i.aggregate_id)
-      );
-      const filteredToComplete = toComplete.filter(i => !alreadyDoneIds.has(i.aggregate_id));
-
-      this.syncDiff = { new: newItems, toComplete: filteredToComplete };
-      this.syncReady = true;
-      this.renderView();
-    } catch (e: any) {
-      new Notice('Ошибка загрузки из SQLite: ' + e.message);
+    if (item.taskId) {
+      const payload: Record<string, unknown> = { description: desc };
+      if (isTerminal && wasActive) {
+        payload.completed = true;
+      }
+      await this.plugin.client!.updateTask(item.taskId, payload);
+      if (isTerminal && !item.completedLocally) {
+        item.completedLocally = true;
+        item.completedAt = item.protocol_date || new Date().toISOString().split('T')[0];
+      }
+    } else {
+      const result: any = await this.plugin.client!.createTask({
+        title: `LPI: ${item.application_external_id} — ${item.product_name}`,
+        description: desc,
+        columnId: this.getLpiColumnId(),
+      } as any);
+      if (result?.id) {
+        item.taskId = result.id;
+        if (isTerminal) {
+          item.completedLocally = true;
+          item.completedAt = item.protocol_date || new Date().toISOString().split('T')[0];
+          await this.plugin.client!.updateTask(result.id, {
+            completed: true,
+          });
+        }
+      }
     }
   }
 
-  private async syncChanges(): Promise<void> {
-    try {
-      if (!this.syncReady || !this.syncDiff) return;
-      const { new: newItems, toComplete } = this.syncDiff;
-      let sent = 0;
-
-      for (const item of newItems) {
-        if (this.items.find(i => i.aggregate_id === item.aggregate_id)) continue;
-        this.items.push(item);
-        try {
-          if (this.plugin.client) {
-            const isActive = LpiView.isStatusActive(item.application_status);
-            const desc = JSON.stringify({
-              type: 'lpi_completed',
-              aggregate_id: item.aggregate_id,
-              application_external_id: item.application_external_id,
-              product_name: item.product_name,
-              completedAt: isActive ? '' : (item.protocol_date || ''),
-              protocol_date: item.protocol_date || '',
-              agg_gen_group_complience: item.agg_gen_group_complience || '',
-              customer_name: item.customer_name || '',
-              customer_mail: item.customer_mail || '',
-              organization: item.organization || '',
-              ekn: item.ekn || '',
-            });
-            const result: any = await this.plugin.client.createTask({
-              title: `LPI: ${item.application_external_id} — ${item.product_name}`,
-              description: desc,
-              columnId: this.getLpiColumnId(),
-            } as any);
-            if (result?.id) {
-              item.taskId = result.id;
-              if (isActive) {
-                await this.plugin.client.updateTask(result.id, { completed: false, dateStart: item.application_created_at });
-              } else {
-                item.completedLocally = true;
-                item.completedAt = item.protocol_date || this.syncDate;
-                await this.plugin.client.updateTask(result.id, { completed: true, dateStart: item.application_created_at, dateEnd: item.protocol_date || this.syncDate });
-              }
-            }
-          }
-        } catch {}
-        sent++;
-      }
-
-      for (const item of toComplete) {
-        const existing = this.items.find(i => i.aggregate_id === item.aggregate_id);
-        if (existing) {
-          Object.assign(existing, item);
-          existing.completedLocally = true;
-          existing.completedAt = item.protocol_date || this.syncDate;
-        } else {
-          item.completedLocally = true;
-          item.completedAt = item.protocol_date || this.syncDate;
-          this.items.push(item);
-        }
-        try {
-          if (this.plugin.client) {
-            if (existing?.taskId) {
-              const desc = JSON.stringify({
-                type: 'lpi_completed',
-                aggregate_id: item.aggregate_id,
-                application_external_id: item.application_external_id,
-                product_name: item.product_name,
-                completedAt: item.protocol_date || this.syncDate,
-                protocol_date: item.protocol_date || '',
-                agg_gen_group_complience: item.agg_gen_group_complience || '',
-                customer_name: item.customer_name || '',
-                customer_mail: item.customer_mail || '',
-                organization: item.organization || '',
-                ekn: item.ekn || '',
-              });
-              await this.plugin.client.updateTask(existing.taskId, {
-                description: desc,
-                completed: true,
-                dateEnd: item.protocol_date || this.syncDate,
-              });
-            } else {
-              const desc = JSON.stringify({
-                type: 'lpi_completed',
-                aggregate_id: item.aggregate_id,
-                application_external_id: item.application_external_id,
-                product_name: item.product_name,
-                completedAt: item.protocol_date || this.syncDate,
-                protocol_date: item.protocol_date || '',
-                agg_gen_group_complience: item.agg_gen_group_complience || '',
-                customer_name: item.customer_name || '',
-                customer_mail: item.customer_mail || '',
-                organization: item.organization || '',
-                ekn: item.ekn || '',
-              });
-              const result: any = await this.plugin.client.createTask({
-                title: `LPI: ${item.application_external_id} — ${item.product_name}`,
-                description: desc,
-                columnId: this.getLpiColumnId(),
-              } as any);
-              if (result?.id) {
-                item.taskId = result.id;
-                await this.plugin.client.updateTask(result.id, { completed: true, dateStart: item.application_created_at, dateEnd: item.protocol_date || this.syncDate });
-              }
-            }
-          }
-        } catch {}
-        sent++;
-      }
-
-      await this.saveData();
-      this.syncReady = false;
-      this.syncDiff = null;
-      new Notice(`Синхронизировано ${sent} записей`);
-      this.renderView();
-    } catch (e: any) {
-      new Notice('Ошибка: ' + e.message);
-    }
+  private buildFullJson(item: LpiItem): Record<string, unknown> {
+    return {
+      type: 'lpi_data',
+      aggregate_id: item.aggregate_id,
+      application_external_id: item.application_external_id,
+      application_created_at: item.application_created_at,
+      application_status: item.application_status,
+      product_name: item.product_name,
+      protocol_date: item.protocol_date,
+      agg_gen_group_complience: item.agg_gen_group_complience,
+      customer_name: item.customer_name,
+      customer_mail: item.customer_mail,
+      organization: item.organization,
+      customer_phone: item.customer_phone,
+      customer_address: item.customer_address,
+      ekn: item.ekn,
+      thickness: item.thickness,
+      color: item.color,
+      batch_number: item.batch_number,
+      sample_number: item.sample_number,
+      object_name: item.object_name,
+      standard: item.standard,
+      target_comb_group: item.target_comb_group,
+      target_flam_group: item.target_flam_group,
+      target_prop_group: item.target_prop_group,
+      method_abbreviation: item.method_abbreviation,
+      method_name: item.method_name,
+      method_standard: item.method_standard,
+      agg_avg_smog_temp: item.agg_avg_smog_temp,
+      agg_smog_group: item.agg_smog_group,
+      agg_smog_complience: item.agg_smog_complience,
+      agg_mass_loss: item.agg_mass_loss,
+      agg_comb_time: item.agg_comb_time,
+      agg_dam_length: item.agg_dam_length,
+      agg_comb_bulb: item.agg_comb_bulb,
+      agg_group_by_mass: item.agg_group_by_mass,
+      agg_group_by_length: item.agg_group_by_length,
+      agg_croup_by_comb_time: item.agg_croup_by_comb_time,
+      agg_group_by_bulbe: item.agg_group_by_bulbe,
+      agg_gen_group: item.agg_gen_group,
+      agg_mass_complience: item.agg_mass_complience,
+      agg_complience_by_length: item.agg_complience_by_length,
+      agg_complience_by_comb_time: item.agg_complience_by_comb_time,
+      agg_complience_by_bulbe: item.agg_complience_by_bulbe,
+      agg_additional_info_1: item.agg_additional_info_1,
+    };
   }
 
   private getLpiColumnId(): string | undefined {

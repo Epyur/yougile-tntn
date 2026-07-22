@@ -623,6 +623,9 @@ export class TasksView extends ItemView {
       completeBtn.addEventListener('click', () => setCompleted(true));
     }
 
+    const editBtn = btnRow.createEl('button', { text: '✏️ Редактировать', cls: 'mailer-yougile-refresh-btn' });
+    editBtn.addEventListener('click', () => this.renderEditForm(task));
+
     const fileBtn = btnRow.createEl('button', { text: '📎 Прикрепить файл', cls: 'mailer-yougile-refresh-btn' });
     const fileInput = container.createEl('input', { attr: { type: 'file', hidden: 'true' } });
     fileBtn.addEventListener('click', () => fileInput.click());
@@ -884,6 +887,139 @@ export class TasksView extends ItemView {
       this.createViewActive = false;
       this.renderFromCache();
     });
+  }
+
+  // --- Вкладка Редактирование задачи ---
+
+  private renderEditForm(task: YouGileTaskFull): void {
+    const container = this.containerElContent;
+    container.empty();
+
+    const backBtn = container.createEl('button', { text: '← Назад к деталям', cls: 'mailer-yougile-refresh-btn' });
+    backBtn.addEventListener('click', () => this.renderTaskDetail(task.id));
+
+    container.createEl('h3', { text: `Редактирование: ${task.title}` });
+
+    const nameInput = container.createEl('input', { attr: { type: 'text', placeholder: 'Название задачи' } });
+    nameInput.addClass('mailer-input');
+    nameInput.value = task.title || '';
+
+    const descInput = container.createEl('textarea', { attr: { placeholder: 'Описание', rows: '3' } });
+    descInput.addClass('mailer-textarea');
+    descInput.value = stripHtml(task.description || '');
+
+    const projects = this.plugin.db.getProjects();
+    const projectSelect = container.createEl('select');
+    projectSelect.addClass('mailer-select');
+
+    const col = this.plugin.db.getColumns().find(c => c.id === task.columnId);
+    const board = col ? this.plugin.db.getBoards().find(b => b.id === col.boardId) : undefined;
+    const currentProject = board ? projects.find(p => p.id === board.projectId) : undefined;
+
+    projectSelect.createEl('option', { value: '', text: '— выберите проект —' });
+    for (const p of projects) {
+      projectSelect.createEl('option', { value: p.id, text: p.title });
+    }
+    if (currentProject) projectSelect.value = currentProject.id;
+
+    const boardSelect = container.createEl('select');
+    boardSelect.addClass('mailer-select');
+
+    const columnSelect = container.createEl('select');
+    columnSelect.addClass('mailer-select');
+
+    let selectedBoardId = board?.id || '';
+    let selectedColumnId = task.columnId || '';
+
+    const populateBoards = () => {
+      boardSelect.empty();
+      boardSelect.createEl('option', { value: '', text: '— выберите доску —' });
+      const pid = projectSelect.value;
+      const boards = pid ? this.plugin.db.getBoards().filter(b => b.projectId === pid) : [];
+      for (const b of boards) {
+        boardSelect.createEl('option', { value: b.id, text: b.title });
+      }
+      boardSelect.value = selectedBoardId;
+    };
+
+    const populateColumns = () => {
+      columnSelect.empty();
+      columnSelect.createEl('option', { value: '', text: '— выберите колонку —' });
+      const bid = boardSelect.value;
+      const columns = bid ? this.plugin.db.getColumns().filter(c => c.boardId === bid) : [];
+      for (const c of columns) {
+        columnSelect.createEl('option', { value: c.id, text: c.title });
+      }
+      columnSelect.value = selectedColumnId;
+    };
+
+    populateBoards();
+    populateColumns();
+
+    projectSelect.addEventListener('change', () => {
+      selectedBoardId = '';
+      selectedColumnId = '';
+      populateBoards();
+      populateColumns();
+    });
+
+    boardSelect.addEventListener('change', () => {
+      selectedBoardId = boardSelect.value;
+      selectedColumnId = '';
+      populateColumns();
+    });
+
+    columnSelect.addEventListener('change', () => {
+      selectedColumnId = columnSelect.value;
+    });
+
+    const assigneeSelector = new AssigneeSelector(container, 'Исполнители', () => this.plugin.db.getUsers());
+    if (task.assigned && task.assigned.length > 0) {
+      assigneeSelector.setSelectedIds(task.assigned);
+    }
+
+    const deadlineInput = container.createEl('input', { attr: { type: 'date' } });
+    deadlineInput.addClass('mailer-input');
+    if (task.deadline?.deadline) {
+      deadlineInput.value = new Date(task.deadline.deadline).toISOString().split('T')[0];
+    }
+
+    const btnRow = container.createDiv({ cls: 'mailer-yougile-header' });
+
+    const submitBtn = btnRow.createEl('button', { text: '💾 Сохранить', cls: 'mailer-yougile-refresh-btn' });
+    submitBtn.addEventListener('click', async () => {
+      const title = nameInput.value.trim();
+      if (!title) {
+        new Notice('YouGile: Название задачи обязательно');
+        return;
+      }
+      submitBtn.setText('⏳');
+      submitBtn.setAttr('disabled', 'true');
+      try {
+        const assigned = assigneeSelector.getSelectedIds();
+        const payload: Record<string, unknown> = { title };
+        const desc = descInput.value.trim();
+        if (desc) payload.description = desc;
+        if (selectedColumnId) payload.columnId = selectedColumnId;
+        if (assigned.length > 0) payload.assigned = assigned;
+        const deadlineVal = deadlineInput.value;
+        if (deadlineVal) {
+          payload.deadline = { deadline: new Date(deadlineVal).getTime(), withTime: false };
+        } else {
+          payload.deadline = null;
+        }
+        await this.plugin.client.updateTask(task.id, payload);
+        new Notice('YouGile: Задача обновлена');
+        this.renderTaskDetail(task.id);
+      } catch (e: unknown) {
+        new Notice(`YouGile: Ошибка — ${e instanceof Error ? e.message : String(e)}`);
+        submitBtn.setText('💾 Сохранить');
+        submitBtn.removeAttribute('disabled');
+      }
+    });
+
+    const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'mailer-yougile-refresh-btn' });
+    cancelBtn.addEventListener('click', () => this.renderTaskDetail(task.id));
   }
 
   // --- Вкладка Чаты ---
