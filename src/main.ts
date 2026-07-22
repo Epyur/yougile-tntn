@@ -139,6 +139,13 @@ const CHANGELOG: Record<string, string[]> = {
   '0.4.11': [
     'LPI дашборд: разбиение результатов испытания по продуктам (per-product test result donuts)',
   ],
+  '0.5.3': [
+    'LPI: удалены ошибочные taskId из lpi_data.json (проставлялись syncFromTasks)',
+    'LPI: отсечка авто-синхронизации изменена — external_id < 642 (вместо даты 2026-07-20)',
+    'LPI: syncFromTasks больше не проставляет taskId локальным записям',
+    'LPI: кнопка "📤" отправляет любую заявку без ограничения по external_id',
+    'LPI: loadFromSqliteToLocal не использует кэш yougileTasksByExtId для taskId',
+  ],
   '0.5.2': [
     'LPI: статус в таблице всегда показывает application_status (не жёстко "Завершена")',
     'LPI: в детали заявки и таблицу добавлена кнопка "Отправить в YouGile" (неактивна без SQLite)',

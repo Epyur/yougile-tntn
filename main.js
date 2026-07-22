@@ -69246,10 +69246,6 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
           existing = this.items.find((i) => i.application_external_id === desc.application_external_id);
         }
         if (!existing) continue;
-        if (!existing.taskId) {
-          existing.taskId = task.id;
-          changed = true;
-        }
         if (task.completed && !existing.completedLocally) {
           existing.completedLocally = true;
           existing.completedAt = desc.completedAt || "";
@@ -69427,10 +69423,6 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
           new import_obsidian11.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
           return;
         }
-        if (this.isBeforeCutoff(item)) {
-          new import_obsidian11.Notice("\u0417\u0430\u044F\u0432\u043A\u0438 \u0434\u043E 20.07.2026 \u043D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0441 YouGile");
-          return;
-        }
         rowSendBtn.disabled = true;
         rowSendBtn.textContent = "\u23F3";
         try {
@@ -69557,32 +69549,13 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
           existing.completedAt = completedAt;
           existing.taskId = taskId;
           if (dataChanged) updated++;
-          if (!hadTaskId && this.plugin.client) {
-            const cachedTask = this.yougileTasksByExtId.get(existing.application_external_id);
-            if (cachedTask) {
-              existing.taskId = cachedTask.id;
-              const desc2 = JSON.parse(cachedTask.description || "{}");
-              if (cachedTask.completed && !existing.completedLocally) {
-                existing.completedLocally = true;
-                existing.completedAt = desc2.completedAt || "";
-              }
-            } else {
-              if (await this.syncItemToYougile(existing, wasActive)) syncedToYougile++;
-            }
+          if (!hadTaskId && this.plugin.client && !this.isBeforeCutoff(existing)) {
+            if (await this.syncItemToYougile(existing, wasActive)) syncedToYougile++;
           }
         } else {
-          const existingTask = this.yougileTasksByExtId.get(item.application_external_id);
-          if (existingTask) {
-            item.taskId = existingTask.id;
-            const desc2 = JSON.parse(existingTask.description || "{}");
-            if (existingTask.completed && !item.completedLocally) {
-              item.completedLocally = true;
-              item.completedAt = desc2.completedAt || "";
-            }
-          }
           this.items.push(item);
           added++;
-          if (this.plugin.client && !item.taskId) {
+          if (this.plugin.client && !this.isBeforeCutoff(item)) {
             try {
               if (await this.syncItemToYougile(item, true)) syncedToYougile++;
             } catch (e) {
@@ -69601,10 +69574,10 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     }
   }
   isBeforeCutoff(item) {
-    return !!item.application_created_at && item.application_created_at < _LpiView.YG_CUTOFF;
+    const id = parseInt(item.application_external_id, 10);
+    return !isNaN(id) && id < _LpiView.YG_MIN_EXT_ID;
   }
   async syncItemToYougile(item, wasActive) {
-    if (this.isBeforeCutoff(item)) return false;
     const isTerminal = !this.isEffectivelyActive(item);
     const fullJson = this.buildFullJson(item);
     const desc = JSON.stringify(fullJson);
@@ -70080,10 +70053,6 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
         new import_obsidian11.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
         return;
       }
-      if (this.isBeforeCutoff(item)) {
-        new import_obsidian11.Notice("\u0417\u0430\u044F\u0432\u043A\u0438 \u0434\u043E 20.07.2026 \u043D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0441 YouGile");
-        return;
-      }
       sendBtn.disabled = true;
       sendBtn.textContent = "\u23F3 \u041E\u0442\u043F\u0440\u0430\u0432\u043A\u0430...";
       try {
@@ -70169,7 +70138,7 @@ _LpiView.METHOD_NAMES = {
   "g56927": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F"
 };
 _LpiView.TERMINAL_STATUSES = /* @__PURE__ */ new Set(["completed", "received"]);
-_LpiView.YG_CUTOFF = "2026-07-20";
+_LpiView.YG_MIN_EXT_ID = 642;
 var LpiView = _LpiView;
 var ProductFilterModal = class extends import_obsidian11.Modal {
   constructor(app, allProducts, selected, onSave) {
@@ -71419,6 +71388,13 @@ var CHANGELOG = {
   ],
   "0.4.11": [
     "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0440\u0430\u0437\u0431\u0438\u0435\u043D\u0438\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C (per-product test result donuts)"
+  ],
+  "0.5.3": [
+    "LPI: \u0443\u0434\u0430\u043B\u0435\u043D\u044B \u043E\u0448\u0438\u0431\u043E\u0447\u043D\u044B\u0435 taskId \u0438\u0437 lpi_data.json (\u043F\u0440\u043E\u0441\u0442\u0430\u0432\u043B\u044F\u043B\u0438\u0441\u044C syncFromTasks)",
+    "LPI: \u043E\u0442\u0441\u0435\u0447\u043A\u0430 \u0430\u0432\u0442\u043E-\u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0430 \u2014 external_id < 642 (\u0432\u043C\u0435\u0441\u0442\u043E \u0434\u0430\u0442\u044B 2026-07-20)",
+    "LPI: syncFromTasks \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u043F\u0440\u043E\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442 taskId \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u043C \u0437\u0430\u043F\u0438\u0441\u044F\u043C",
+    'LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u{1F4E4}" \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u0435\u0442 \u043B\u044E\u0431\u0443\u044E \u0437\u0430\u044F\u0432\u043A\u0443 \u0431\u0435\u0437 \u043E\u0433\u0440\u0430\u043D\u0438\u0447\u0435\u043D\u0438\u044F \u043F\u043E external_id',
+    "LPI: loadFromSqliteToLocal \u043D\u0435 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u043A\u044D\u0448 yougileTasksByExtId \u0434\u043B\u044F taskId"
   ],
   "0.5.2": [
     'LPI: \u0441\u0442\u0430\u0442\u0443\u0441 \u0432 \u0442\u0430\u0431\u043B\u0438\u0446\u0435 \u0432\u0441\u0435\u0433\u0434\u0430 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442 application_status (\u043D\u0435 \u0436\u0451\u0441\u0442\u043A\u043E "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430")',

@@ -113,10 +113,6 @@ export class LpiView extends ItemView {
           existing = this.items.find(i => i.application_external_id === desc.application_external_id);
         }
         if (!existing) continue;
-        if (!existing.taskId) {
-          existing.taskId = task.id;
-          changed = true;
-        }
         if (task.completed && !existing.completedLocally) {
           existing.completedLocally = true;
           existing.completedAt = desc.completedAt || '';
@@ -298,10 +294,6 @@ export class LpiView extends ItemView {
           new Notice('Нет подключения к YouGile');
           return;
         }
-        if (this.isBeforeCutoff(item)) {
-          new Notice('Заявки до 20.07.2026 не синхронизируются с YouGile');
-          return;
-        }
         rowSendBtn.disabled = true;
         rowSendBtn.textContent = '⏳';
         try {
@@ -437,32 +429,13 @@ export class LpiView extends ItemView {
           existing.taskId = taskId;
 
           if (dataChanged) updated++;
-          if (!hadTaskId && this.plugin.client) {
-            const cachedTask = this.yougileTasksByExtId.get(existing.application_external_id);
-            if (cachedTask) {
-              existing.taskId = cachedTask.id;
-              const desc2 = JSON.parse(cachedTask.description || '{}');
-              if (cachedTask.completed && !existing.completedLocally) {
-                existing.completedLocally = true;
-                existing.completedAt = desc2.completedAt || '';
-              }
-            } else {
-              if (await this.syncItemToYougile(existing, wasActive)) syncedToYougile++;
-            }
+          if (!hadTaskId && this.plugin.client && !this.isBeforeCutoff(existing)) {
+            if (await this.syncItemToYougile(existing, wasActive)) syncedToYougile++;
           }
         } else {
-          const existingTask = this.yougileTasksByExtId.get(item.application_external_id);
-          if (existingTask) {
-            item.taskId = existingTask.id;
-            const desc2 = JSON.parse(existingTask.description || '{}');
-            if (existingTask.completed && !item.completedLocally) {
-              item.completedLocally = true;
-              item.completedAt = desc2.completedAt || '';
-            }
-          }
           this.items.push(item);
           added++;
-          if (this.plugin.client && !item.taskId) {
+          if (this.plugin.client && !this.isBeforeCutoff(item)) {
             try {
               if (await this.syncItemToYougile(item, true)) syncedToYougile++;
             } catch {}
@@ -482,14 +455,14 @@ export class LpiView extends ItemView {
     }
   }
 
-  private static YG_CUTOFF = '2026-07-20';
+  private static YG_MIN_EXT_ID = 642;
 
   private isBeforeCutoff(item: LpiItem): boolean {
-    return !!item.application_created_at && item.application_created_at < LpiView.YG_CUTOFF;
+    const id = parseInt(item.application_external_id, 10);
+    return !isNaN(id) && id < LpiView.YG_MIN_EXT_ID;
   }
 
   private async syncItemToYougile(item: LpiItem, wasActive: boolean): Promise<boolean> {
-    if (this.isBeforeCutoff(item)) return false;
     const isTerminal = !this.isEffectivelyActive(item);
     const fullJson = this.buildFullJson(item);
     const desc = JSON.stringify(fullJson);
@@ -989,10 +962,6 @@ export class LpiView extends ItemView {
     sendBtn.addEventListener('click', async () => {
       if (!this.plugin.client) {
         new Notice('Нет подключения к YouGile');
-        return;
-      }
-      if (this.isBeforeCutoff(item)) {
-        new Notice('Заявки до 20.07.2026 не синхронизируются с YouGile');
         return;
       }
       sendBtn.disabled = true;
