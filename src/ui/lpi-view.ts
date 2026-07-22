@@ -27,6 +27,7 @@ export class LpiView extends ItemView {
   private appDateTo = '';
   private protocolDateFrom = '';
   private protocolDateTo = '';
+  private yougileTasksByExtId: Map<string, any> = new Map();
   private serialOnly = false;
   private experimentalOnly = false;
 
@@ -94,17 +95,31 @@ export class LpiView extends ItemView {
       const lpiTasks = tasks.filter((t: any) => {
         try {
           const desc = JSON.parse(t.description || '{}');
-          return (desc.type === 'lpi_completed' || desc.type === 'lpi_data') && t.completed;
+          return desc.type === 'lpi_completed' || desc.type === 'lpi_data';
         } catch { return false; }
       });
+      this.yougileTasksByExtId.clear();
+      for (const task of lpiTasks) {
+        const desc = JSON.parse(task.description || '{}');
+        if (desc.application_external_id) {
+          this.yougileTasksByExtId.set(desc.application_external_id, task);
+        }
+      }
       let changed = false;
       for (const task of lpiTasks) {
         const desc = JSON.parse(task.description || '{}');
-        const existing = this.items.find(i => i.aggregate_id === desc.aggregate_id);
-        if (existing && !existing.completedLocally) {
+        let existing = this.items.find(i => i.aggregate_id === desc.aggregate_id);
+        if (!existing && desc.application_external_id) {
+          existing = this.items.find(i => i.application_external_id === desc.application_external_id);
+        }
+        if (!existing) continue;
+        if (!existing.taskId) {
+          existing.taskId = task.id;
+          changed = true;
+        }
+        if (task.completed && !existing.completedLocally) {
           existing.completedLocally = true;
           existing.completedAt = desc.completedAt || '';
-          existing.taskId = task.id;
           changed = true;
         }
       }
@@ -361,20 +376,35 @@ export class LpiView extends ItemView {
           existing.completedAt = completedAt;
           existing.taskId = taskId;
 
-          if (dataChanged || !hadTaskId) {
-            updated++;
-            if (this.plugin.client) {
-              await this.syncItemToYougile(existing, wasActive);
-              syncedToYougile++;
+          if (dataChanged) updated++;
+          if (!hadTaskId && this.plugin.client) {
+            const cachedTask = this.yougileTasksByExtId.get(existing.application_external_id);
+            if (cachedTask) {
+              existing.taskId = cachedTask.id;
+              const desc2 = JSON.parse(cachedTask.description || '{}');
+              if (cachedTask.completed && !existing.completedLocally) {
+                existing.completedLocally = true;
+                existing.completedAt = desc2.completedAt || '';
+              }
+            } else {
+              if (await this.syncItemToYougile(existing, wasActive)) syncedToYougile++;
             }
           }
         } else {
+          const existingTask = this.yougileTasksByExtId.get(item.application_external_id);
+          if (existingTask) {
+            item.taskId = existingTask.id;
+            const desc2 = JSON.parse(existingTask.description || '{}');
+            if (existingTask.completed && !item.completedLocally) {
+              item.completedLocally = true;
+              item.completedAt = desc2.completedAt || '';
+            }
+          }
           this.items.push(item);
           added++;
-          if (this.plugin.client) {
+          if (this.plugin.client && !item.taskId) {
             try {
-              await this.syncItemToYougile(item, true);
-              syncedToYougile++;
+              if (await this.syncItemToYougile(item, true)) syncedToYougile++;
             } catch {}
           }
         }
@@ -392,7 +422,14 @@ export class LpiView extends ItemView {
     }
   }
 
-  private async syncItemToYougile(item: LpiItem, wasActive: boolean): Promise<void> {
+  private static YG_CUTOFF = '2026-07-20';
+
+  private isBeforeCutoff(item: LpiItem): boolean {
+    return !!item.application_created_at && item.application_created_at < LpiView.YG_CUTOFF;
+  }
+
+  private async syncItemToYougile(item: LpiItem, wasActive: boolean): Promise<boolean> {
+    if (this.isBeforeCutoff(item)) return false;
     const isTerminal = !this.isEffectivelyActive(item);
     const fullJson = this.buildFullJson(item);
     const desc = JSON.stringify(fullJson);
@@ -407,6 +444,7 @@ export class LpiView extends ItemView {
         item.completedLocally = true;
         item.completedAt = item.protocol_date || new Date().toISOString().split('T')[0];
       }
+      return true;
     } else {
       const result: any = await this.plugin.client!.createTask({
         title: `LPI: ${item.application_external_id} — ${item.product_name}`,
@@ -422,7 +460,9 @@ export class LpiView extends ItemView {
             completed: true,
           });
         }
+        return true;
       }
+      return false;
     }
   }
 

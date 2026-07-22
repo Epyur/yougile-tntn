@@ -12,9 +12,8 @@ function isNetworkError(e: unknown): boolean {
 
 export const CONTACTS_VIEW_TYPE = 'yougile-contacts-view';
 
-let nextContactId = 1;
-function generateContactId(): number {
-  return nextContactId++;
+function generateContactId(): string {
+  return Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
 }
 
 export class ContactsView extends ItemView {

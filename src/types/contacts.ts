@@ -1,5 +1,5 @@
 export interface ContactItem {
-  id: number;
+  id: string;
   name: string;
   phone: string;
   email: string;

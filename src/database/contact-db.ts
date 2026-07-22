@@ -83,9 +83,9 @@ export class ContactDatabase {
           existing.email = parsed.email || '';
           existing.organization = parsed.organization || '';
           existing.position = parsed.position || '';
-          existing.note = parsed.note || '';
-          existing.completed = task.completed;
+          existing.notes = parsed.notes || parsed.note || '';
         } else {
+          const now = new Date().toISOString();
           this.data.contacts.push({
             id: task.id,
             taskId: task.id,
@@ -95,8 +95,10 @@ export class ContactDatabase {
             email: parsed.email || '',
             organization: parsed.organization || '',
             position: parsed.position || '',
-            note: parsed.note || '',
-            completed: task.completed,
+            notes: parsed.notes || parsed.note || '',
+            createdAt: parsed.createdAt || now,
+            updatedAt: parsed.updatedAt || now,
+            sync_status: 'synced',
           });
         }
       } catch {

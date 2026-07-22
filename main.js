@@ -68719,9 +68719,8 @@ function isNetworkError6(e) {
   return false;
 }
 var CONTACTS_VIEW_TYPE = "yougile-contacts-view";
-var nextContactId = 1;
 function generateContactId() {
-  return nextContactId++;
+  return Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
 }
 var ContactsView = class extends import_obsidian10.ItemView {
   constructor(leaf, plugin) {
@@ -69174,6 +69173,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     this.appDateTo = "";
     this.protocolDateFrom = "";
     this.protocolDateTo = "";
+    this.yougileTasksByExtId = /* @__PURE__ */ new Map();
     this.serialOnly = false;
     this.experimentalOnly = false;
     this.wasmBinary = null;
@@ -69223,19 +69223,33 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       const lpiTasks = tasks.filter((t) => {
         try {
           const desc = JSON.parse(t.description || "{}");
-          return (desc.type === "lpi_completed" || desc.type === "lpi_data") && t.completed;
+          return desc.type === "lpi_completed" || desc.type === "lpi_data";
         } catch (e) {
           return false;
         }
       });
+      this.yougileTasksByExtId.clear();
+      for (const task of lpiTasks) {
+        const desc = JSON.parse(task.description || "{}");
+        if (desc.application_external_id) {
+          this.yougileTasksByExtId.set(desc.application_external_id, task);
+        }
+      }
       let changed = false;
       for (const task of lpiTasks) {
         const desc = JSON.parse(task.description || "{}");
-        const existing = this.items.find((i) => i.aggregate_id === desc.aggregate_id);
-        if (existing && !existing.completedLocally) {
+        let existing = this.items.find((i) => i.aggregate_id === desc.aggregate_id);
+        if (!existing && desc.application_external_id) {
+          existing = this.items.find((i) => i.application_external_id === desc.application_external_id);
+        }
+        if (!existing) continue;
+        if (!existing.taskId) {
+          existing.taskId = task.id;
+          changed = true;
+        }
+        if (task.completed && !existing.completedLocally) {
           existing.completedLocally = true;
           existing.completedAt = desc.completedAt || "";
-          existing.taskId = task.id;
           changed = true;
         }
       }
@@ -69481,20 +69495,35 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
           existing.completedLocally = completedLocally;
           existing.completedAt = completedAt;
           existing.taskId = taskId;
-          if (dataChanged || !hadTaskId) {
-            updated++;
-            if (this.plugin.client) {
-              await this.syncItemToYougile(existing, wasActive);
-              syncedToYougile++;
+          if (dataChanged) updated++;
+          if (!hadTaskId && this.plugin.client) {
+            const cachedTask = this.yougileTasksByExtId.get(existing.application_external_id);
+            if (cachedTask) {
+              existing.taskId = cachedTask.id;
+              const desc2 = JSON.parse(cachedTask.description || "{}");
+              if (cachedTask.completed && !existing.completedLocally) {
+                existing.completedLocally = true;
+                existing.completedAt = desc2.completedAt || "";
+              }
+            } else {
+              if (await this.syncItemToYougile(existing, wasActive)) syncedToYougile++;
             }
           }
         } else {
+          const existingTask = this.yougileTasksByExtId.get(item.application_external_id);
+          if (existingTask) {
+            item.taskId = existingTask.id;
+            const desc2 = JSON.parse(existingTask.description || "{}");
+            if (existingTask.completed && !item.completedLocally) {
+              item.completedLocally = true;
+              item.completedAt = desc2.completedAt || "";
+            }
+          }
           this.items.push(item);
           added++;
-          if (this.plugin.client) {
+          if (this.plugin.client && !item.taskId) {
             try {
-              await this.syncItemToYougile(item, true);
-              syncedToYougile++;
+              if (await this.syncItemToYougile(item, true)) syncedToYougile++;
             } catch (e) {
             }
           }
@@ -69510,7 +69539,11 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u0438\u0437 SQLite: " + e.message);
     }
   }
+  isBeforeCutoff(item) {
+    return !!item.application_created_at && item.application_created_at < _LpiView.YG_CUTOFF;
+  }
   async syncItemToYougile(item, wasActive) {
+    if (this.isBeforeCutoff(item)) return false;
     const isTerminal = !this.isEffectivelyActive(item);
     const fullJson = this.buildFullJson(item);
     const desc = JSON.stringify(fullJson);
@@ -69524,6 +69557,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
         item.completedLocally = true;
         item.completedAt = item.protocol_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
       }
+      return true;
     } else {
       const result = await this.plugin.client.createTask({
         title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
@@ -69539,7 +69573,9 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
             completed: true
           });
         }
+        return true;
       }
+      return false;
     }
   }
   buildFullJson(item) {
@@ -70041,6 +70077,7 @@ _LpiView.METHOD_NAMES = {
   "g56927": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F"
 };
 _LpiView.TERMINAL_STATUSES = /* @__PURE__ */ new Set(["completed", "received"]);
+_LpiView.YG_CUTOFF = "2026-07-20";
 var LpiView = _LpiView;
 var ProductFilterModal = class extends import_obsidian11.Modal {
   constructor(app, allProducts, selected, onSave) {
@@ -70790,9 +70827,9 @@ var ContactDatabase = class {
           existing.email = parsed.email || "";
           existing.organization = parsed.organization || "";
           existing.position = parsed.position || "";
-          existing.note = parsed.note || "";
-          existing.completed = task.completed;
+          existing.notes = parsed.notes || parsed.note || "";
         } else {
+          const now = (/* @__PURE__ */ new Date()).toISOString();
           this.data.contacts.push({
             id: task.id,
             taskId: task.id,
@@ -70802,8 +70839,10 @@ var ContactDatabase = class {
             email: parsed.email || "",
             organization: parsed.organization || "",
             position: parsed.position || "",
-            note: parsed.note || "",
-            completed: task.completed
+            notes: parsed.notes || parsed.note || "",
+            createdAt: parsed.createdAt || now,
+            updatedAt: parsed.updatedAt || now,
+            sync_status: "synced"
           });
         }
       } catch (e) {
@@ -71063,6 +71102,13 @@ var CHANGELOG = {
   ],
   "0.4.11": [
     "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0440\u0430\u0437\u0431\u0438\u0435\u043D\u0438\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C (per-product test result donuts)"
+  ],
+  "0.5.0": [
+    'LPI: \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0435 \u0437\u0430\u044F\u0432\u043A\u0438 \u0441 taskId \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u0432 YouGile \u043F\u0440\u0438 \u043A\u0430\u0436\u0434\u043E\u043C "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C"',
+    "LPI: \u043F\u0440\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 YouGile\u2192\u043F\u043B\u0430\u0433\u0438\u043D \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442\u0441\u044F \u0434\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0435 \u0441\u043E\u043F\u043E\u0441\u0442\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u043F\u043E application_external_id (\u043D\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E taskId)",
+    "LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u0432\u0440\u0435\u043C\u0435\u043D\u043D\u0430\u044F \u043E\u0442\u0441\u0435\u0447\u043A\u0430 \u2014 \u0437\u0430\u044F\u0432\u043A\u0438 \u0441\u043E\u0437\u0434\u0430\u043D\u043D\u044B\u0435 \u0434\u043E 20.07.2026 \u043D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0441 YouGile",
+    "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D ContactItem.id: number \u2192 string (\u0443\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0430 \u043E\u0448\u0438\u0431\u043A\u0430 \u0441\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u044F \u0447\u0438\u0441\u043B\u043E\u0432\u044B\u0445 \u0438 \u0441\u0442\u0440\u043E\u043A\u043E\u0432\u044B\u0445 ID)",
+    "\u0418\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043E\u0432: note\u2192notes, \u0443\u0431\u0440\u0430\u043D\u043E \u043F\u043E\u043B\u0435 completed, \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B missing \u043F\u043E\u043B\u044F"
   ],
   "0.4.12": [
     'LPI: \u0443\u0434\u0430\u043B\u0435\u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0430 "\u0417\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0432 \u0411\u0414"',
