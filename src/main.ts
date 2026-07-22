@@ -139,6 +139,10 @@ const CHANGELOG: Record<string, string[]> = {
   '0.4.11': [
     'LPI дашборд: разбиение результатов испытания по продуктам (per-product test result donuts)',
   ],
+  '0.5.3s': [
+    'LPI: syncFromTasks обновляет completedLocally только при наличии taskId',
+    'LPI: syncItemToYougile при создании задачи использует статус из SQLite (не completedLocally)',
+  ],
   '0.5.3': [
     'LPI: удалены ошибочные taskId из lpi_data.json (проставлялись syncFromTasks)',
     'LPI: отсечка авто-синхронизации изменена — external_id < 642 (вместо даты 2026-07-20)',

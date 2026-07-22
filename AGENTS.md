@@ -109,9 +109,9 @@ src/
 - **LPI статус**: терминальные статусы — `completed` и `received` (оба → "Завершена"); `isEffectivelyActive()` проверяет `completedLocally` в первую очередь, статус из SQLite не может откатить `completedLocally: true` обратно
 - **LPI детали заявки**: 3 блока (Детали заявки, Результаты измерений, Выводы), все поля read-only (пустые — "—"), "Результат испытания" и "Общая оценка соответствия" — жирным, цветная Оценка (зелёный/красный/серый)"
 - **LPI завершение**: только через LIMS (статус `received`) или YouGile-задачи (тип `lpi_data` или `lpi_completed`, `completed: true`); кнопка "Завершить заявку" из деталей удалена
-- **LPI синхронизация (изменена в v0.5.3)**:
-  - **YouGile → плагин**: `syncFromTasks()` матчит задачи по `aggregate_id` И по `application_external_id` (второй — fallback для разных станций); `taskId` локальным записям НЕ проставляется (только синхронизация `completedLocally`/`completedAt`)
-  - **Плагин → YouGile**: `syncItemToYougile()` создаёт новую задачу при отсутствии `taskId`, или обновляет существующую по `taskId`
+- **LPI синхронизация (изменена в v0.5.3s)**:
+  - **YouGile → плагин**: `syncFromTasks()` матчит задачи по `aggregate_id` И по `application_external_id` (второй — fallback для разных станций); `taskId` локальным записям НЕ проставляется; `completedLocally` обновляется только если у записи уже есть `taskId`, совпадающий с YouGile-задачей
+  - **Плагин → YouGile**: `syncItemToYougile()` при создании задачи использует статус из SQLite (`application_status`), а не `completedLocally` — "новая" не создаётся завершённой; при обновлении существующей завершает задачу только если был переход active→terminal
   - **Отсечка авто-синхронизации при загрузке из SQL**: `parseInt(application_external_id) < 642` — заявки с номером меньше 642 не создаются в YouGile автоматически
   - **Ручная отправка** (кнопки "📤" в таблице и в деталях): без ограничений, отправляет любую заявку
   - **Кэш YouGile-задач**: `yougileTasksByExtId` (Map `application_external_id → task`) строится при `syncFromTasks()`, используется только для статуса `completedLocally`, не для `taskId`

@@ -69246,7 +69246,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
           existing = this.items.find((i) => i.application_external_id === desc.application_external_id);
         }
         if (!existing) continue;
-        if (task.completed && !existing.completedLocally) {
+        if (existing.taskId && task.completed && !existing.completedLocally) {
           existing.completedLocally = true;
           existing.completedAt = desc.completedAt || "";
           changed = true;
@@ -69593,6 +69593,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       }
       return true;
     } else {
+      const statusTerminal = !_LpiView.isStatusActive(item.application_status);
       const result = await this.plugin.client.createTask({
         title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
         description: desc,
@@ -69600,7 +69601,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       });
       if (result == null ? void 0 : result.id) {
         item.taskId = result.id;
-        if (isTerminal) {
+        if (statusTerminal) {
           item.completedLocally = true;
           item.completedAt = item.protocol_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
           await this.plugin.client.updateTask(result.id, {
@@ -71388,6 +71389,10 @@ var CHANGELOG = {
   ],
   "0.4.11": [
     "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0440\u0430\u0437\u0431\u0438\u0435\u043D\u0438\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C (per-product test result donuts)"
+  ],
+  "0.5.3s": [
+    "LPI: syncFromTasks \u043E\u0431\u043D\u043E\u0432\u043B\u044F\u0435\u0442 completedLocally \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u0438 \u043D\u0430\u043B\u0438\u0447\u0438\u0438 taskId",
+    "LPI: syncItemToYougile \u043F\u0440\u0438 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0438 \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u0441\u0442\u0430\u0442\u0443\u0441 \u0438\u0437 SQLite (\u043D\u0435 completedLocally)"
   ],
   "0.5.3": [
     "LPI: \u0443\u0434\u0430\u043B\u0435\u043D\u044B \u043E\u0448\u0438\u0431\u043E\u0447\u043D\u044B\u0435 taskId \u0438\u0437 lpi_data.json (\u043F\u0440\u043E\u0441\u0442\u0430\u0432\u043B\u044F\u043B\u0438\u0441\u044C syncFromTasks)",

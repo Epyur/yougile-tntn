@@ -113,7 +113,7 @@ export class LpiView extends ItemView {
           existing = this.items.find(i => i.application_external_id === desc.application_external_id);
         }
         if (!existing) continue;
-        if (task.completed && !existing.completedLocally) {
+        if (existing.taskId && task.completed && !existing.completedLocally) {
           existing.completedLocally = true;
           existing.completedAt = desc.completedAt || '';
           changed = true;
@@ -479,6 +479,7 @@ export class LpiView extends ItemView {
       }
       return true;
     } else {
+      const statusTerminal = !LpiView.isStatusActive(item.application_status);
       const result: any = await this.plugin.client!.createTask({
         title: `LPI: ${item.application_external_id} — ${item.product_name}`,
         description: desc,
@@ -486,7 +487,7 @@ export class LpiView extends ItemView {
       } as any);
       if (result?.id) {
         item.taskId = result.id;
-        if (isTerminal) {
+        if (statusTerminal) {
           item.completedLocally = true;
           item.completedAt = item.protocol_date || new Date().toISOString().split('T')[0];
           await this.plugin.client!.updateTask(result.id, {
