@@ -69316,8 +69316,18 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile",
       cls: "mailer-yougile-refresh-btn"
     });
-    syncBtn.addEventListener("click", () => {
-      new YougileSyncModal(this.app, this.plugin, this).open();
+    syncBtn.addEventListener("click", async () => {
+      const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs.default.existsSync(this.plugin.settings.lpiDbPath);
+      if (!sqlConnected) {
+        syncBtn.disabled = true;
+        syncBtn.textContent = "\u23F3 \u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0438\u0437 YouGile...";
+        await this.syncFromTasks();
+        await this.saveData();
+        this.renderView();
+        new import_obsidian11.Notice("\u0414\u0430\u043D\u043D\u044B\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u044B \u0438\u0437 YouGile");
+      } else {
+        new YougileSyncModal(this.app, this.plugin, this).open();
+      }
     });
     const dashBtn = btnRow.createEl("button", {
       text: "\u{1F4CA} \u0414\u0430\u0448\u0431\u043E\u0440\u0434",
@@ -69365,7 +69375,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     const table = container.createEl("table", { cls: "mailer-table" });
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
-    const headers = ["\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F"];
+    const headers = ["\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u044F"];
     for (const h of headers) {
       const th = headerRow.createEl("th", { cls: "mailer-th" });
       th.setText(h);
@@ -69374,13 +69384,15 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     if (filtered.length === 0) {
       const emptyRow = tbody.createEl("tr");
       const td = emptyRow.createEl("td", { cls: "mailer-text-center mailer-p-24" });
-      td.setAttr("colspan", "7");
+      td.setAttr("colspan", "8");
       td.setText("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445");
       return;
     }
+    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs.default.existsSync(this.plugin.settings.lpiDbPath);
     for (const item of filtered) {
       const row = tbody.createEl("tr", { cls: "mailer-clickable mailer-row-hover" });
-      row.addEventListener("click", () => this.renderDetail(item));
+      const rowClick = () => this.renderDetail(item);
+      row.addEventListener("click", rowClick);
       row.createEl("td", { cls: "mailer-td" }).setText(item.application_external_id);
       row.createEl("td", { cls: "mailer-td" }).setText(item.product_name);
       row.createEl("td", { cls: "mailer-td" }).setText(item.application_created_at);
@@ -69390,6 +69402,37 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       row.createEl("td", { cls: "mailer-td" }).setText(this.getProtocolDate(item));
       row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group || "");
       row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group_complience || "");
+      const actionsCell = row.createEl("td", { cls: "mailer-td" });
+      const rowSendBtn = actionsCell.createEl("button", {
+        text: "\u{1F4E4}",
+        cls: "mailer-yougile-refresh-btn"
+      });
+      rowSendBtn.style.fontSize = "var(--font-smaller)";
+      rowSendBtn.style.padding = "2px 6px";
+      rowSendBtn.disabled = !sqlConnected;
+      if (!sqlConnected) rowSendBtn.title = "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI";
+      rowSendBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!this.plugin.client) {
+          new import_obsidian11.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
+          return;
+        }
+        if (this.isBeforeCutoff(item)) {
+          new import_obsidian11.Notice("\u0417\u0430\u044F\u0432\u043A\u0438 \u0434\u043E 20.07.2026 \u043D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0441 YouGile");
+          return;
+        }
+        rowSendBtn.disabled = true;
+        rowSendBtn.textContent = "\u23F3";
+        try {
+          await this.syncItemToYougile(item, this.isEffectivelyActive(item));
+          await this.saveData();
+          new import_obsidian11.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
+        } catch (e2) {
+          new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e2.message);
+        }
+        rowSendBtn.disabled = false;
+        rowSendBtn.textContent = "\u{1F4E4}";
+      });
     }
   }
   async getWasmBinary() {
@@ -70012,6 +70055,37 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     container.empty();
     const backBtn = container.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434 \u043A \u0441\u043F\u0438\u0441\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
     backBtn.addEventListener("click", () => this.renderView());
+    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs.default.existsSync(this.plugin.settings.lpiDbPath);
+    const sendBtn = container.createEl("button", {
+      text: "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    sendBtn.style.marginLeft = "8px";
+    sendBtn.disabled = !sqlConnected;
+    if (!sqlConnected) {
+      sendBtn.title = "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI";
+    }
+    sendBtn.addEventListener("click", async () => {
+      if (!this.plugin.client) {
+        new import_obsidian11.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
+        return;
+      }
+      if (this.isBeforeCutoff(item)) {
+        new import_obsidian11.Notice("\u0417\u0430\u044F\u0432\u043A\u0438 \u0434\u043E 20.07.2026 \u043D\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0441 YouGile");
+        return;
+      }
+      sendBtn.disabled = true;
+      sendBtn.textContent = "\u23F3 \u041E\u0442\u043F\u0440\u0430\u0432\u043A\u0430...";
+      try {
+        await this.syncItemToYougile(item, this.isEffectivelyActive(item));
+        await this.saveData();
+        new import_obsidian11.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
+      } catch (e) {
+        new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
+      }
+      sendBtn.disabled = false;
+      sendBtn.textContent = "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile";
+    });
     container.createEl("h3", { text: `\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}` });
     const meta = container.createDiv({ cls: "mailer-yougile-task-meta mailer-mb-12" });
     const addSection = (title, pairs) => {
@@ -71296,6 +71370,12 @@ var CHANGELOG = {
   ],
   "0.4.11": [
     "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0440\u0430\u0437\u0431\u0438\u0435\u043D\u0438\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C (per-product test result donuts)"
+  ],
+  "0.5.2": [
+    'LPI: \u0441\u0442\u0430\u0442\u0443\u0441 \u0432 \u0442\u0430\u0431\u043B\u0438\u0446\u0435 \u0432\u0441\u0435\u0433\u0434\u0430 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442 application_status (\u043D\u0435 \u0436\u0451\u0441\u0442\u043A\u043E "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430")',
+    'LPI: \u0432 \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u0438 \u0442\u0430\u0431\u043B\u0438\u0446\u0443 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u043A\u043D\u043E\u043F\u043A\u0430 "\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile" (\u043D\u0435\u0430\u043A\u0442\u0438\u0432\u043D\u0430 \u0431\u0435\u0437 SQLite)',
+    'LPI: "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile" \u0431\u0435\u0437 SQL \u2192 \u043F\u0440\u044F\u043C\u0430\u044F \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430, \u0441 SQL \u2192 \u043C\u043E\u0434\u0430\u043B\u043A\u0430 \u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439',
+    "ScheduleView: \u043F\u0440\u044F\u043C\u043E\u0439 \u0434\u043E\u0441\u0442\u0443\u043F \u043A private-\u0447\u043B\u0435\u043D\u0430\u043C TasksView \u0437\u0430\u043C\u0435\u043D\u0451\u043D \u043D\u0430 \u043F\u0443\u0431\u043B\u0438\u0447\u043D\u044B\u0439 API openTaskDetail()"
   ],
   "0.5.1": [
     'LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C" \u0440\u0430\u0437\u0434\u0435\u043B\u0435\u043D\u0430 \u043D\u0430 "SQL \u2192 \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E" \u0438 "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile"',

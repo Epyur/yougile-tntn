@@ -182,8 +182,18 @@ export class LpiView extends ItemView {
       text: '🔄 Синхронизация YouGile',
       cls: 'mailer-yougile-refresh-btn',
     });
-    syncBtn.addEventListener('click', () => {
-      new YougileSyncModal(this.app, this.plugin, this).open();
+    syncBtn.addEventListener('click', async () => {
+      const sqlConnected = !!this.plugin.settings.lpiDbPath && fs.existsSync(this.plugin.settings.lpiDbPath);
+      if (!sqlConnected) {
+        syncBtn.disabled = true;
+        syncBtn.textContent = '⏳ Загрузка из YouGile...';
+        await this.syncFromTasks();
+        await this.saveData();
+        this.renderView();
+        new Notice('Данные загружены из YouGile');
+      } else {
+        new YougileSyncModal(this.app, this.plugin, this).open();
+      }
     });
 
     const dashBtn = btnRow.createEl('button', {
@@ -233,7 +243,7 @@ export class LpiView extends ItemView {
     const table = container.createEl('table', { cls: 'mailer-table' });
     const thead = table.createEl('thead');
     const headerRow = thead.createEl('tr');
-    const headers = ['№ заявки', 'Название материала', 'Дата создания', 'Статус', 'Дата протокола', 'Результат испытания', 'Оценка соответствия'];
+    const headers = ['№ заявки', 'Название материала', 'Дата создания', 'Статус', 'Дата протокола', 'Результат испытания', 'Оценка соответствия', 'Действия'];
     for (const h of headers) {
       const th = headerRow.createEl('th', { cls: 'mailer-th' });
       th.setText(h);
@@ -243,14 +253,17 @@ export class LpiView extends ItemView {
     if (filtered.length === 0) {
       const emptyRow = tbody.createEl('tr');
       const td = emptyRow.createEl('td', { cls: 'mailer-text-center mailer-p-24' });
-      td.setAttr('colspan', '7');
+      td.setAttr('colspan', '8');
       td.setText('Нет данных');
       return;
     }
 
+    const sqlConnected = !!this.plugin.settings.lpiDbPath && fs.existsSync(this.plugin.settings.lpiDbPath);
+
     for (const item of filtered) {
       const row = tbody.createEl('tr', { cls: 'mailer-clickable mailer-row-hover' });
-      row.addEventListener('click', () => this.renderDetail(item));
+      const rowClick = () => this.renderDetail(item);
+      row.addEventListener('click', rowClick);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
@@ -260,6 +273,37 @@ export class LpiView extends ItemView {
       row.createEl('td', { cls: 'mailer-td' }).setText(this.getProtocolDate(item));
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group || '');
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');
+      const actionsCell = row.createEl('td', { cls: 'mailer-td' });
+      const rowSendBtn = actionsCell.createEl('button', {
+        text: '📤',
+        cls: 'mailer-yougile-refresh-btn',
+      });
+      rowSendBtn.style.fontSize = 'var(--font-smaller)';
+      rowSendBtn.style.padding = '2px 6px';
+      rowSendBtn.disabled = !sqlConnected;
+      if (!sqlConnected) rowSendBtn.title = 'Укажите путь к SQLite БД в настройках LPI';
+      rowSendBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!this.plugin.client) {
+          new Notice('Нет подключения к YouGile');
+          return;
+        }
+        if (this.isBeforeCutoff(item)) {
+          new Notice('Заявки до 20.07.2026 не синхронизируются с YouGile');
+          return;
+        }
+        rowSendBtn.disabled = true;
+        rowSendBtn.textContent = '⏳';
+        try {
+          await this.syncItemToYougile(item, this.isEffectivelyActive(item));
+          await this.saveData();
+          new Notice(`Заявка №${item.application_external_id} отправлена в YouGile`);
+        } catch (e: any) {
+          new Notice('Ошибка: ' + e.message);
+        }
+        rowSendBtn.disabled = false;
+        rowSendBtn.textContent = '📤';
+      });
     }
   }
 
@@ -921,6 +965,38 @@ export class LpiView extends ItemView {
 
     const backBtn = container.createEl('button', { text: '← Назад к списку', cls: 'mailer-yougile-refresh-btn' });
     backBtn.addEventListener('click', () => this.renderView());
+
+    const sqlConnected = !!this.plugin.settings.lpiDbPath && fs.existsSync(this.plugin.settings.lpiDbPath);
+    const sendBtn = container.createEl('button', {
+      text: '📤 Отправить в YouGile',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    sendBtn.style.marginLeft = '8px';
+    sendBtn.disabled = !sqlConnected;
+    if (!sqlConnected) {
+      sendBtn.title = 'Укажите путь к SQLite БД в настройках LPI';
+    }
+    sendBtn.addEventListener('click', async () => {
+      if (!this.plugin.client) {
+        new Notice('Нет подключения к YouGile');
+        return;
+      }
+      if (this.isBeforeCutoff(item)) {
+        new Notice('Заявки до 20.07.2026 не синхронизируются с YouGile');
+        return;
+      }
+      sendBtn.disabled = true;
+      sendBtn.textContent = '⏳ Отправка...';
+      try {
+        await this.syncItemToYougile(item, this.isEffectivelyActive(item));
+        await this.saveData();
+        new Notice(`Заявка №${item.application_external_id} отправлена в YouGile`);
+      } catch (e: any) {
+        new Notice('Ошибка: ' + e.message);
+      }
+      sendBtn.disabled = false;
+      sendBtn.textContent = '📤 Отправить в YouGile';
+    });
 
     container.createEl('h3', { text: `Заявка №${item.application_external_id}` });
 
