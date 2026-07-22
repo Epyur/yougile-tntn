@@ -243,7 +243,7 @@ export class LpiView extends ItemView {
     const table = container.createEl('table', { cls: 'mailer-table' });
     const thead = table.createEl('thead');
     const headerRow = thead.createEl('tr');
-    const headers = ['№ заявки', 'Название материала', 'Дата создания', 'Статус', 'Дата протокола', 'Результат испытания', 'Оценка соответствия', 'Действия'];
+    const headers = ['', '№ заявки', 'Название материала', 'Дата создания', 'Статус', 'Дата протокола', 'Результат испытания', 'Оценка соответствия', 'Действия'];
     for (const h of headers) {
       const th = headerRow.createEl('th', { cls: 'mailer-th' });
       th.setText(h);
@@ -253,7 +253,7 @@ export class LpiView extends ItemView {
     if (filtered.length === 0) {
       const emptyRow = tbody.createEl('tr');
       const td = emptyRow.createEl('td', { cls: 'mailer-text-center mailer-p-24' });
-      td.setAttr('colspan', '8');
+      td.setAttr('colspan', '9');
       td.setText('Нет данных');
       return;
     }
@@ -264,6 +264,16 @@ export class LpiView extends ItemView {
       const row = tbody.createEl('tr', { cls: 'mailer-clickable mailer-row-hover' });
       const rowClick = () => this.renderDetail(item);
       row.addEventListener('click', rowClick);
+      const dotCell = row.createEl('td', { cls: 'mailer-td' });
+      dotCell.style.width = '24px';
+      dotCell.style.textAlign = 'center';
+      const dot = dotCell.createEl('span');
+      dot.style.display = 'inline-block';
+      dot.style.width = '10px';
+      dot.style.height = '10px';
+      dot.style.borderRadius = '50%';
+      dot.style.backgroundColor = item.taskId ? 'var(--text-success)' : 'var(--text-muted)';
+      dot.style.flexShrink = '0';
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_external_id);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
@@ -1248,6 +1258,8 @@ class MethodFilterModal extends Modal {
 }
 
 class YougileSyncModal extends Modal {
+  private choices: Map<number, 'local' | 'yougile'> = new Map();
+
   constructor(app: App, private plugin: YouGilePlugin, private view: LpiView) {
     super(app);
   }
@@ -1278,7 +1290,6 @@ class YougileSyncModal extends Modal {
     const byExtId = new Map<string, any>();
     const byAggId = new Map<string, any>();
     const existingTaskIds = new Set(items.filter(i => i.taskId).map(i => i.taskId));
-    const existingExtIds = new Set(items.filter(i => i.application_external_id).map(i => i.application_external_id));
 
     for (const task of lpiTasks) {
       const desc = JSON.parse(task.description || '{}');
@@ -1353,13 +1364,14 @@ class YougileSyncModal extends Modal {
     if (autoImported > 0) {
       contentEl.createEl('p', { text: `✅ Автоматически импортировано из YouGile: ${autoImported} заявок.` });
     }
-    contentEl.createEl('p', { text: `Найдено расхождений по ${matchingDiffs.length} заявкам. Выберите действие для каждой:` });
+    contentEl.createEl('p', { text: `Найдено расхождений по ${matchingDiffs.length} заявкам. Выберите приоритет для каждой:` });
 
     const cardsContainer = contentEl.createDiv();
     cardsContainer.style.maxHeight = '500px';
     cardsContainer.style.overflowY = 'auto';
 
-    for (const md of matchingDiffs) {
+    for (let idx = 0; idx < matchingDiffs.length; idx++) {
+      const md = matchingDiffs[idx];
       const card = cardsContainer.createEl('div');
       card.style.border = '1px solid var(--background-modifier-border)';
       card.style.borderRadius = '6px';
@@ -1378,73 +1390,114 @@ class YougileSyncModal extends Modal {
       diffTable.style.borderCollapse = 'collapse';
       diffTable.style.marginBottom = '6px';
 
+      const headerRow = diffTable.insertRow();
+      for (const text of ['Поле', '📍 Локально', 'YouGile']) {
+        const th = headerRow.createEl('th');
+        th.style.padding = '2px 6px';
+        th.style.borderBottom = '2px solid var(--background-modifier-border)';
+        th.style.textAlign = 'left';
+        th.style.fontWeight = 'bold';
+        th.setText(text);
+      }
+
       for (const d of md.diffs) {
         const tr = diffTable.insertRow();
-        for (const text of [d.label, d.local, '→', d.yougile]) {
+        const cells = [d.label, d.local, d.yougile];
+        for (let ci = 0; ci < cells.length; ci++) {
           const td = tr.insertCell();
           td.style.padding = '2px 6px';
           td.style.borderBottom = '1px solid var(--background-modifier-border)';
-          td.setText(text);
+          td.setText(cells[ci]);
+          if (ci === 1) td.style.backgroundColor = 'rgba(var(--color-green-rgb), 0.08)';
+          if (ci === 2) td.style.backgroundColor = 'rgba(var(--interactive-accent-rgb), 0.08)';
         }
       }
 
-      const btnLine = card.createDiv();
-      btnLine.style.display = 'flex';
-      btnLine.style.gap = '6px';
-      btnLine.style.justifyContent = 'flex-end';
+      const toggleLine = card.createDiv();
+      toggleLine.style.display = 'flex';
+      toggleLine.style.alignItems = 'center';
+      toggleLine.style.gap = '8px';
+      toggleLine.style.marginTop = '4px';
 
-      const applyBtn = btnLine.createEl('button', {
-        text: '✓ Применить YouGile',
-        cls: 'mailer-yougile-refresh-btn',
-      });
-      applyBtn.addEventListener('click', async () => {
-        applyBtn.disabled = true;
-        applyBtn.setText('⏳');
-        try {
-          const fullJson = (this.view as any).buildFullJson(md.item);
-          await this.plugin.client!.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
-          const isTerminal = !(this.view as any).isEffectivelyActive(md.item);
-          if (isTerminal && !md.task.completed) {
-            await this.plugin.client!.updateTask(md.task.id, { completed: true });
-          }
-          if (!md.item.taskId) md.item.taskId = md.task.id;
-          if (md.task.completed && !md.item.completedLocally) {
-            md.item.completedLocally = true;
-            md.item.completedAt = md.yougileDesc.completedAt || '';
-          }
-          for (const key of ['application_status', 'protocol_date', 'agg_gen_group_complience', 'agg_gen_group']) {
-            const yv = md.yougileDesc[key];
-            if (yv && String((md.item as any)[key] ?? '') !== String(yv)) {
-              (md.item as any)[key] = yv;
-            }
-          }
-          await (this.view as any).saveData();
-          card.style.opacity = '0.4';
-          card.style.pointerEvents = 'none';
-          applyBtn.setText('✓ Синхронизировано');
-        } catch (e: any) {
-          new Notice('Ошибка: ' + e.message);
-          applyBtn.disabled = false;
-          applyBtn.setText('✓ Применить YouGile');
-        }
-      });
+      const localRadio = toggleLine.createEl('input', { attr: { type: 'radio', name: `choice_${idx}`, id: `local_${idx}` } });
+      localRadio.style.width = '14px';
+      localRadio.style.height = '14px';
+      localRadio.checked = true;
+      this.choices.set(idx, 'local');
+      localRadio.addEventListener('change', () => { if (localRadio.checked) this.choices.set(idx, 'local'); });
 
-      const skipBtn = btnLine.createEl('button', {
-        text: '✗ Пропустить',
-        cls: 'mailer-yougile-refresh-btn',
-      });
-      skipBtn.addEventListener('click', () => {
-        card.style.opacity = '0.4';
-        card.style.pointerEvents = 'none';
-        skipBtn.setText('✗ Пропущено');
-      });
+      const localLabel = toggleLine.createEl('label', { attr: { for: `local_${idx}` } });
+      localLabel.style.color = 'var(--text-success)';
+      localLabel.style.fontWeight = 'bold';
+      localLabel.style.fontSize = 'var(--font-smaller)';
+      localLabel.setText('📍 Локальные');
+
+      const yougileRadio = toggleLine.createEl('input', { attr: { type: 'radio', name: `choice_${idx}`, id: `yougile_${idx}` } });
+      yougileRadio.style.width = '14px';
+      yougileRadio.style.height = '14px';
+      yougileRadio.addEventListener('change', () => { if (yougileRadio.checked) this.choices.set(idx, 'yougile'); });
+
+      const yougileLabel = toggleLine.createEl('label', { attr: { for: `yougile_${idx}` } });
+      yougileLabel.style.color = 'var(--interactive-accent)';
+      yougileLabel.style.fontWeight = 'bold';
+      yougileLabel.style.fontSize = 'var(--font-smaller)';
+      yougileLabel.setText('YouGile');
     }
 
-    const closeBtn = contentEl.createEl('button', {
+    const bottomRow = contentEl.createDiv();
+    bottomRow.style.marginTop = '12px';
+    bottomRow.style.display = 'flex';
+    bottomRow.style.gap = '8px';
+    bottomRow.style.flexWrap = 'wrap';
+    bottomRow.style.alignItems = 'center';
+
+    const applyAllBtn = bottomRow.createEl('button', {
+      text: '✅ Применить все',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    applyAllBtn.addEventListener('click', async () => {
+      applyAllBtn.disabled = true;
+      applyAllBtn.setText('⏳ Применение...');
+      let count = 0;
+      for (let idx = 0; idx < matchingDiffs.length; idx++) {
+        const md = matchingDiffs[idx];
+        const choice = this.choices.get(idx) || 'local';
+        try {
+          const fullJson = (this.view as any).buildFullJson(md.item);
+          const isTerminal = !(this.view as any).isEffectivelyActive(md.item);
+
+          if (choice === 'local') {
+            await this.plugin.client!.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
+            if (isTerminal && !md.task.completed) {
+              await this.plugin.client!.updateTask(md.task.id, { completed: true });
+            }
+            if (!md.item.taskId) md.item.taskId = md.task.id;
+          } else {
+            for (const key of ['application_status', 'protocol_date', 'agg_gen_group_complience', 'agg_gen_group']) {
+              const yv = md.yougileDesc[key];
+              if (yv !== undefined && yv !== null) (md.item as any)[key] = yv;
+            }
+            if (md.task.completed && !md.item.completedLocally) {
+              md.item.completedLocally = true;
+              md.item.completedAt = md.yougileDesc.completedAt || '';
+            }
+            if (!md.item.taskId) md.item.taskId = md.task.id;
+          }
+          count++;
+        } catch (e: any) {
+          new Notice(`Ошибка по №${md.item.application_external_id}: ${e.message}`);
+        }
+      }
+      await (this.view as any).saveData();
+      new Notice(`Применено: ${count} заявок`);
+      this.close();
+      (this.view as any).renderView();
+    });
+
+    const closeBtn = bottomRow.createEl('button', {
       text: 'Закрыть',
       cls: 'mailer-yougile-refresh-btn',
     });
-    closeBtn.style.marginTop = '8px';
     closeBtn.addEventListener('click', () => {
       (this.view as any).renderView();
       this.close();

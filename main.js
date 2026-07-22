@@ -69375,7 +69375,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     const table = container.createEl("table", { cls: "mailer-table" });
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
-    const headers = ["\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u044F"];
+    const headers = ["", "\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u044F"];
     for (const h of headers) {
       const th = headerRow.createEl("th", { cls: "mailer-th" });
       th.setText(h);
@@ -69384,7 +69384,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     if (filtered.length === 0) {
       const emptyRow = tbody.createEl("tr");
       const td = emptyRow.createEl("td", { cls: "mailer-text-center mailer-p-24" });
-      td.setAttr("colspan", "8");
+      td.setAttr("colspan", "9");
       td.setText("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445");
       return;
     }
@@ -69393,6 +69393,16 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       const row = tbody.createEl("tr", { cls: "mailer-clickable mailer-row-hover" });
       const rowClick = () => this.renderDetail(item);
       row.addEventListener("click", rowClick);
+      const dotCell = row.createEl("td", { cls: "mailer-td" });
+      dotCell.style.width = "24px";
+      dotCell.style.textAlign = "center";
+      const dot = dotCell.createEl("span");
+      dot.style.display = "inline-block";
+      dot.style.width = "10px";
+      dot.style.height = "10px";
+      dot.style.borderRadius = "50%";
+      dot.style.backgroundColor = item.taskId ? "var(--text-success)" : "var(--text-muted)";
+      dot.style.flexShrink = "0";
       row.createEl("td", { cls: "mailer-td" }).setText(item.application_external_id);
       row.createEl("td", { cls: "mailer-td" }).setText(item.product_name);
       row.createEl("td", { cls: "mailer-td" }).setText(item.application_created_at);
@@ -70313,6 +70323,7 @@ var YougileSyncModal = class extends import_obsidian11.Modal {
     super(app);
     this.plugin = plugin;
     this.view = view;
+    this.choices = /* @__PURE__ */ new Map();
   }
   async onOpen() {
     var _a, _b;
@@ -70339,7 +70350,6 @@ var YougileSyncModal = class extends import_obsidian11.Modal {
     const byExtId = /* @__PURE__ */ new Map();
     const byAggId = /* @__PURE__ */ new Map();
     const existingTaskIds = new Set(items.filter((i) => i.taskId).map((i) => i.taskId));
-    const existingExtIds = new Set(items.filter((i) => i.application_external_id).map((i) => i.application_external_id));
     for (const task of lpiTasks) {
       const desc = JSON.parse(task.description || "{}");
       if (desc.application_external_id) byExtId.set(desc.application_external_id, { task, desc });
@@ -70404,11 +70414,12 @@ var YougileSyncModal = class extends import_obsidian11.Modal {
     if (autoImported > 0) {
       contentEl.createEl("p", { text: `\u2705 \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile: ${autoImported} \u0437\u0430\u044F\u0432\u043E\u043A.` });
     }
-    contentEl.createEl("p", { text: `\u041D\u0430\u0439\u0434\u0435\u043D\u043E \u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043F\u043E ${matchingDiffs.length} \u0437\u0430\u044F\u0432\u043A\u0430\u043C. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043B\u044F \u043A\u0430\u0436\u0434\u043E\u0439:` });
+    contentEl.createEl("p", { text: `\u041D\u0430\u0439\u0434\u0435\u043D\u043E \u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043F\u043E ${matchingDiffs.length} \u0437\u0430\u044F\u0432\u043A\u0430\u043C. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442 \u0434\u043B\u044F \u043A\u0430\u0436\u0434\u043E\u0439:` });
     const cardsContainer = contentEl.createDiv();
     cardsContainer.style.maxHeight = "500px";
     cardsContainer.style.overflowY = "auto";
-    for (const md of matchingDiffs) {
+    for (let idx = 0; idx < matchingDiffs.length; idx++) {
+      const md = matchingDiffs[idx];
       const card = cardsContainer.createEl("div");
       card.style.border = "1px solid var(--background-modifier-border)";
       card.style.borderRadius = "6px";
@@ -70424,70 +70435,108 @@ var YougileSyncModal = class extends import_obsidian11.Modal {
       diffTable.style.fontSize = "var(--font-smaller)";
       diffTable.style.borderCollapse = "collapse";
       diffTable.style.marginBottom = "6px";
+      const headerRow = diffTable.insertRow();
+      for (const text of ["\u041F\u043E\u043B\u0435", "\u{1F4CD} \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E", "YouGile"]) {
+        const th = headerRow.createEl("th");
+        th.style.padding = "2px 6px";
+        th.style.borderBottom = "2px solid var(--background-modifier-border)";
+        th.style.textAlign = "left";
+        th.style.fontWeight = "bold";
+        th.setText(text);
+      }
       for (const d of md.diffs) {
         const tr = diffTable.insertRow();
-        for (const text of [d.label, d.local, "\u2192", d.yougile]) {
+        const cells = [d.label, d.local, d.yougile];
+        for (let ci = 0; ci < cells.length; ci++) {
           const td = tr.insertCell();
           td.style.padding = "2px 6px";
           td.style.borderBottom = "1px solid var(--background-modifier-border)";
-          td.setText(text);
+          td.setText(cells[ci]);
+          if (ci === 1) td.style.backgroundColor = "rgba(var(--color-green-rgb), 0.08)";
+          if (ci === 2) td.style.backgroundColor = "rgba(var(--interactive-accent-rgb), 0.08)";
         }
       }
-      const btnLine = card.createDiv();
-      btnLine.style.display = "flex";
-      btnLine.style.gap = "6px";
-      btnLine.style.justifyContent = "flex-end";
-      const applyBtn = btnLine.createEl("button", {
-        text: "\u2713 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C YouGile",
-        cls: "mailer-yougile-refresh-btn"
+      const toggleLine = card.createDiv();
+      toggleLine.style.display = "flex";
+      toggleLine.style.alignItems = "center";
+      toggleLine.style.gap = "8px";
+      toggleLine.style.marginTop = "4px";
+      const localRadio = toggleLine.createEl("input", { attr: { type: "radio", name: `choice_${idx}`, id: `local_${idx}` } });
+      localRadio.style.width = "14px";
+      localRadio.style.height = "14px";
+      localRadio.checked = true;
+      this.choices.set(idx, "local");
+      localRadio.addEventListener("change", () => {
+        if (localRadio.checked) this.choices.set(idx, "local");
       });
-      applyBtn.addEventListener("click", async () => {
-        var _a2;
-        applyBtn.disabled = true;
-        applyBtn.setText("\u23F3");
+      const localLabel = toggleLine.createEl("label", { attr: { for: `local_${idx}` } });
+      localLabel.style.color = "var(--text-success)";
+      localLabel.style.fontWeight = "bold";
+      localLabel.style.fontSize = "var(--font-smaller)";
+      localLabel.setText("\u{1F4CD} \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435");
+      const yougileRadio = toggleLine.createEl("input", { attr: { type: "radio", name: `choice_${idx}`, id: `yougile_${idx}` } });
+      yougileRadio.style.width = "14px";
+      yougileRadio.style.height = "14px";
+      yougileRadio.addEventListener("change", () => {
+        if (yougileRadio.checked) this.choices.set(idx, "yougile");
+      });
+      const yougileLabel = toggleLine.createEl("label", { attr: { for: `yougile_${idx}` } });
+      yougileLabel.style.color = "var(--interactive-accent)";
+      yougileLabel.style.fontWeight = "bold";
+      yougileLabel.style.fontSize = "var(--font-smaller)";
+      yougileLabel.setText("YouGile");
+    }
+    const bottomRow = contentEl.createDiv();
+    bottomRow.style.marginTop = "12px";
+    bottomRow.style.display = "flex";
+    bottomRow.style.gap = "8px";
+    bottomRow.style.flexWrap = "wrap";
+    bottomRow.style.alignItems = "center";
+    const applyAllBtn = bottomRow.createEl("button", {
+      text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C \u0432\u0441\u0435",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    applyAllBtn.addEventListener("click", async () => {
+      applyAllBtn.disabled = true;
+      applyAllBtn.setText("\u23F3 \u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u0435...");
+      let count = 0;
+      for (let idx = 0; idx < matchingDiffs.length; idx++) {
+        const md = matchingDiffs[idx];
+        const choice = this.choices.get(idx) || "local";
         try {
           const fullJson = this.view.buildFullJson(md.item);
-          await this.plugin.client.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
           const isTerminal = !this.view.isEffectivelyActive(md.item);
-          if (isTerminal && !md.task.completed) {
-            await this.plugin.client.updateTask(md.task.id, { completed: true });
-          }
-          if (!md.item.taskId) md.item.taskId = md.task.id;
-          if (md.task.completed && !md.item.completedLocally) {
-            md.item.completedLocally = true;
-            md.item.completedAt = md.yougileDesc.completedAt || "";
-          }
-          for (const key of ["application_status", "protocol_date", "agg_gen_group_complience", "agg_gen_group"]) {
-            const yv = md.yougileDesc[key];
-            if (yv && String((_a2 = md.item[key]) != null ? _a2 : "") !== String(yv)) {
-              md.item[key] = yv;
+          if (choice === "local") {
+            await this.plugin.client.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
+            if (isTerminal && !md.task.completed) {
+              await this.plugin.client.updateTask(md.task.id, { completed: true });
             }
+            if (!md.item.taskId) md.item.taskId = md.task.id;
+          } else {
+            for (const key of ["application_status", "protocol_date", "agg_gen_group_complience", "agg_gen_group"]) {
+              const yv = md.yougileDesc[key];
+              if (yv !== void 0 && yv !== null) md.item[key] = yv;
+            }
+            if (md.task.completed && !md.item.completedLocally) {
+              md.item.completedLocally = true;
+              md.item.completedAt = md.yougileDesc.completedAt || "";
+            }
+            if (!md.item.taskId) md.item.taskId = md.task.id;
           }
-          await this.view.saveData();
-          card.style.opacity = "0.4";
-          card.style.pointerEvents = "none";
-          applyBtn.setText("\u2713 \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E");
+          count++;
         } catch (e) {
-          new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
-          applyBtn.disabled = false;
-          applyBtn.setText("\u2713 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C YouGile");
+          new import_obsidian11.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E \u2116${md.item.application_external_id}: ${e.message}`);
         }
-      });
-      const skipBtn = btnLine.createEl("button", {
-        text: "\u2717 \u041F\u0440\u043E\u043F\u0443\u0441\u0442\u0438\u0442\u044C",
-        cls: "mailer-yougile-refresh-btn"
-      });
-      skipBtn.addEventListener("click", () => {
-        card.style.opacity = "0.4";
-        card.style.pointerEvents = "none";
-        skipBtn.setText("\u2717 \u041F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u043E");
-      });
-    }
-    const closeBtn = contentEl.createEl("button", {
+      }
+      await this.view.saveData();
+      new import_obsidian11.Notice(`\u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u043E: ${count} \u0437\u0430\u044F\u0432\u043E\u043A`);
+      this.close();
+      this.view.renderView();
+    });
+    const closeBtn = bottomRow.createEl("button", {
       text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
       cls: "mailer-yougile-refresh-btn"
     });
-    closeBtn.style.marginTop = "8px";
     closeBtn.addEventListener("click", () => {
       this.view.renderView();
       this.close();
