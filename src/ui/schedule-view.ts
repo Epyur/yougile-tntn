@@ -1021,9 +1021,7 @@ export class ScheduleView extends ItemView {
       const leaf = this.plugin.app.workspace.getLeavesOfType(TASKS_VIEW_TYPE).first();
       const view = leaf?.view;
       if (view instanceof TasksView) {
-        view.detailTaskId = taskId;
-        view.detailViewActive = true;
-        view.renderTaskDetail(taskId);
+        view.openTaskDetail(taskId);
       }
     }, 300);
   }

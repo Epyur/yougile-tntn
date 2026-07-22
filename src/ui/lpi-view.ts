@@ -255,13 +255,8 @@ export class LpiView extends ItemView {
       row.createEl('td', { cls: 'mailer-td' }).setText(item.product_name);
       row.createEl('td', { cls: 'mailer-td' }).setText(item.application_created_at);
       const statusCell = row.createEl('td', { cls: 'mailer-td' });
-      if (this.isEffectivelyActive(item)) {
-        statusCell.style.color = 'var(--text-warning)';
-        statusCell.setText(LpiView.statusDisplay(item.application_status));
-      } else {
-        statusCell.style.color = 'var(--text-success)';
-        statusCell.setText('Завершена');
-      }
+      statusCell.style.color = this.isEffectivelyActive(item) ? 'var(--text-warning)' : 'var(--text-success)';
+      statusCell.setText(LpiView.statusDisplay(item.application_status));
       row.createEl('td', { cls: 'mailer-td' }).setText(this.getProtocolDate(item));
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group || '');
       row.createEl('td', { cls: 'mailer-td' }).setText(item.agg_gen_group_complience || '');

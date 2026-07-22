@@ -18,6 +18,7 @@
 | 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (7 колонок: №, материал, дата создания, статус, дата протокола, результат испытания, оценка), дашборд (5 графиков ApexCharts: статус, поступление/завершение по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, дата-фильтры (заявки + протоколы), чекбоксы "Серийная/Опытная продукция", фильтр "Подтверждаемый показатель" с человеческими названиями, per-product compliance donuts, кнопки "SQL → Локально" (загрузка данных из SQLite) и "Синхронизация YouGile" (модальное окно с поштучным подтверждением расхождений + автоимпорт новых заявок из YouGile), статус active/new/completed из поля БД LIMS, детали (read-only, 3 блока: Детали заявки, Результаты измерений, Выводы), локальная JSON БД yourbase/lpi_data.json, sql.js (WASM) для чтения внешней SQLite, настройка пути к SQLite БД, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы | ✅ | `ui/lpi-view.ts`, `types/lpi.ts` |
 | 13 | **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы + email + setSelectedIds) | ✅ | `ui/assignee-selector.ts` |
 | 14 | **Редактирование задачи**: в деталях задачи (задачи-вьюха) добавлена кнопка "Редактировать" — форма с title, description, project/board/column, assignees, deadline | ✅ | `ui/tasks-view.ts` |
+| 15 | **ScheduleView → TasksView**: вызов `openTaskDetail()` через публичный API вместо прямого доступа к private-членам | ✅ | `ui/tasks-view.ts`, `ui/schedule-view.ts` |
 
 ## Структура файлов
 
@@ -113,6 +114,7 @@ src/
   - **Плагин → YouGile**: только новые заявки (без `taskId`) создаются в YouGile; существующие с `taskId` никогда не перезаписываются
   - **Отсечка**: заявки с `application_created_at < "2026-07-20"` игнорируются для YouGile (не создаются и не обновляются)
   - **Кэш YouGile-задач**: `yougileTasksByExtId` (Map `application_external_id → task`) строится при `syncFromTasks()` и используется в `loadFromSqliteToLocal()` для предотвращения дублирования между станциями
+- **ScheduleView → TasksView**: `openTaskDetail()` — публичный API-метод, заменяющий прямой доступ к `private detailViewActive`, `detailTaskId` и `renderTaskDetail()` из `ScheduleView`
 
 ## Настройки плагина
 

@@ -7674,6 +7674,11 @@ var TasksView = class extends import_obsidian3.ItemView {
     };
     renderTree(tasks.map((t) => t.id), 0);
   }
+  openTaskDetail(taskId) {
+    this.detailTaskId = taskId;
+    this.detailViewActive = true;
+    this.renderTaskDetail(taskId);
+  }
   async renderTaskDetail(taskId) {
     const container = this.containerElContent;
     container.empty();
@@ -9168,9 +9173,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
       const leaf = this.plugin.app.workspace.getLeavesOfType(TASKS_VIEW_TYPE).first();
       const view = leaf == null ? void 0 : leaf.view;
       if (view instanceof TasksView) {
-        view.detailTaskId = taskId;
-        view.detailViewActive = true;
-        view.renderTaskDetail(taskId);
+        view.openTaskDetail(taskId);
       }
     }, 300);
   }
@@ -69382,13 +69385,8 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       row.createEl("td", { cls: "mailer-td" }).setText(item.product_name);
       row.createEl("td", { cls: "mailer-td" }).setText(item.application_created_at);
       const statusCell = row.createEl("td", { cls: "mailer-td" });
-      if (this.isEffectivelyActive(item)) {
-        statusCell.style.color = "var(--text-warning)";
-        statusCell.setText(_LpiView.statusDisplay(item.application_status));
-      } else {
-        statusCell.style.color = "var(--text-success)";
-        statusCell.setText("\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430");
-      }
+      statusCell.style.color = this.isEffectivelyActive(item) ? "var(--text-warning)" : "var(--text-success)";
+      statusCell.setText(_LpiView.statusDisplay(item.application_status));
       row.createEl("td", { cls: "mailer-td" }).setText(this.getProtocolDate(item));
       row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group || "");
       row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group_complience || "");

@@ -396,6 +396,12 @@ export class TasksView extends ItemView {
     renderTree(tasks.map(t => t.id), 0);
   }
 
+  public openTaskDetail(taskId: string): void {
+    this.detailTaskId = taskId;
+    this.detailViewActive = true;
+    this.renderTaskDetail(taskId);
+  }
+
   private async renderTaskDetail(taskId: string): Promise<void> {
     const container = this.containerElContent;
     container.empty();
