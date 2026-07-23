@@ -140,6 +140,12 @@ const CHANGELOG: Record<string, string[]> = {
   '0.4.11': [
     'LPI дашборд: разбиение результатов испытания по продуктам (per-product test result donuts)',
   ],
+  '0.6.1': [
+    'LPI: в загрузку SQL добавлено поле application_id (UUID) для обеспечения связей между таблицами по FK',
+    'LPI: Schema Browser — авто-генерация запросов учитывает FK на applications.application_id (двухшаговое разрешение через external_id → application_id)',
+    'LPI: Query Runner — авто-заполнение SQL использует {{application_id}} вместо некорректного {{aggregate_id}} для таблиц, связанных через application_id',
+    'LPI: loadViewConfig всегда использует актуальный loadQuery из DEFAULT_CONFIG (совместимость со старыми конфигами)',
+  ],
   '0.6.0': [
     'LPI: детали заявки переведены на config-driven рендеринг — поля, секции и подзапросы управляются через yourbase/lpi_view_config.json',
     'LPI: добавлен Schema Browser (кнопка "📐 Схема БД") — просмотр таблиц, колонок, FK, генерация шаблонов запросов',

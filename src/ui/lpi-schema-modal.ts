@@ -159,17 +159,33 @@ export class LpiSchemaModal extends Modal {
 
     // Sample query builder
     container.createEl('h5', { text: 'Быстрый запрос', attr: { style: 'margin:12px 0 4px 0' } });
+
+    const queryHint = container.createDiv();
+    queryHint.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px';
+    queryHint.textContent = '{{placeholder}} подставляется из текущей заявки в деталях. Сначала получите application_id через external_id.';
+
     const queryBox = container.createEl('textarea');
-    queryBox.style.cssText = 'width:100%;box-sizing:border-box;padding:6px;font-family:monospace;font-size:11px;min-height:60px;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border);border-radius:4px';
+    queryBox.style.cssText = 'width:100%;box-sizing:border-box;padding:6px;font-family:monospace;font-size:11px;min-height:80px;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border);border-radius:4px';
     queryBox.readOnly = true;
 
     const selectAllColumns = table.columns.map(c => c.name).join(',\n  ');
-    const fkWhere = table.foreignKeys.length > 0
-      ? table.foreignKeys.map(fk => `  ${fk.from} = '{{value}}'`).join('\n  OR ')
-      : '';
-    queryBox.value = fkWhere
-      ? `SELECT\n  ${selectAllColumns}\nFROM ${table.name}\nWHERE (\n${fkWhere}\n)`
-      : `SELECT\n  ${selectAllColumns}\nFROM ${table.name}\nLIMIT 100`;
+
+    const hasAppIdFk = table.foreignKeys.some(fk => fk.table === 'applications' && fk.to === 'application_id');
+    const otherFks = table.foreignKeys.filter(fk => !(fk.table === 'applications' && fk.to === 'application_id'));
+
+    let query = '';
+    if (hasAppIdFk) {
+      const appIdFk = table.foreignKeys.find(fk => fk.table === 'applications' && fk.to === 'application_id')!;
+      query = `-- 1. Получить application_id по номеру заявки:\n-- SELECT application_id FROM applications WHERE external_id = '{{application_external_id}}';\n\n-- 2. Запрос данных:\nSELECT\n  ${selectAllColumns}\nFROM ${table.name}\nWHERE ${appIdFk.from} = '{{application_id}}'`;
+    } else if (table.name === 'applications') {
+      query = `SELECT\n  ${selectAllColumns}\nFROM ${table.name}\nWHERE external_id = '{{application_external_id}}'`;
+    } else if (otherFks.length > 0) {
+      const whereClauses = otherFks.map(fk => `  ${fk.from} = '{{value}}'`).join('\n  OR ');
+      query = `SELECT\n  ${selectAllColumns}\nFROM ${table.name}\nWHERE (\n${whereClauses}\n)`;
+    } else {
+      query = `SELECT\n  ${selectAllColumns}\nFROM ${table.name}\nLIMIT 100`;
+    }
+    queryBox.value = query;
 
     const copyQueryBtn = container.createEl('button', { text: '📋 Копировать запрос', cls: 'mailer-yougile-refresh-btn' });
     copyQueryBtn.style.fontSize = '11px';

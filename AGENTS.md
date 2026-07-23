@@ -120,6 +120,7 @@ src/
   - **Отсечка авто-синхронизации при загрузке из SQL**: `parseInt(application_external_id) < 642` — заявки с номером меньше 642 не создаются в YouGile автоматически
   - **Ручная отправка** (кнопки "📤" в таблице и в деталях): без ограничений, отправляет любую заявку
   - **Кэш YouGile-задач**: `yougileTasksByExtId` (Map `application_external_id → task`) строится при `syncFromTasks()`, используется только для статуса `completedLocally`, не для `taskId`
+- **LPI связи по application_id**: В SQLite заявки идентифицируются по `external_id` (человеческий номер, например "12345"), но все межтабличные связи используют UUID `application_id`. При загрузке из SQL добавляется `a.application_id` в запрос; в деталях и Schema Browser `{{application_id}}` подставляется автоматически. Для обращений к связанным таблицам через FK на `applications.application_id` генерируются двухшаговые запросы (сначала SELECT application_id FROM applications WHERE external_id = '...', затем работа с application_id). В авто-генерации Schema Browser и Query Runner FK на `applications.application_id` обрабатываются через `{{application_id}}`, остальные FK — через `{{column_name}}`.
 - **ScheduleView → TasksView**: `openTaskDetail()` — публичный API-метод, заменяющий прямой доступ к `private detailViewActive`, `detailTaskId` и `renderTaskDetail()` из `ScheduleView`
 
 ## Настройки плагина

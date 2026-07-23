@@ -1,5 +1,6 @@
 export interface LpiItem {
   aggregate_id: string;
+  application_id: string;
   application_external_id: string;
   application_created_at: string;
   application_status: string;

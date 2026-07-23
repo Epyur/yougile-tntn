@@ -494,7 +494,7 @@ export class LpiView extends ItemView {
       if (exists) {
         const content = await adapter.read(CONFIG_PATH);
         const parsed = JSON.parse(content) as LpiViewConfig;
-        this.viewConfig = { ...DEFAULT_CONFIG, ...parsed, detailSections: parsed.detailSections || DEFAULT_CONFIG.detailSections, colorRules: parsed.colorRules || DEFAULT_CONFIG.colorRules };
+        this.viewConfig = { ...DEFAULT_CONFIG, ...parsed, loadQuery: DEFAULT_CONFIG.loadQuery, detailSections: parsed.detailSections || DEFAULT_CONFIG.detailSections, colorRules: parsed.colorRules || DEFAULT_CONFIG.colorRules };
       } else {
         this.viewConfig = DEFAULT_CONFIG;
         await adapter.write(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
@@ -1192,13 +1192,22 @@ export class LpiView extends ItemView {
         const table = schema.byName.get(tableName);
         if (!table) return;
         const cols = table.columns.map(c => c.name).join(',\n  ');
-        const fkClauses = table.foreignKeys.map(fk => `${fk.from} = '{{aggregate_id}}'`).join('\n  OR ');
-        let where = '';
-        if (fkClauses) where = `WHERE (\n  ${fkClauses}\n)`;
-        else if (table.columns.some(c => c.name.includes('application_id') || c.name.includes('aggregate_id'))) {
-          where = "WHERE application_id = '{{aggregate_id}}'";
+
+        const hasAppIdFk = table.foreignKeys.some(fk => fk.table === 'applications' && fk.to === 'application_id');
+        const otherFks = table.foreignKeys.filter(fk => !(fk.table === 'applications' && fk.to === 'application_id'));
+
+        let query = '';
+        if (hasAppIdFk) {
+          query = `-- Связь через application_id:\n-- SELECT application_id FROM applications WHERE external_id = '{{application_external_id}}';\nSELECT\n  ${cols}\nFROM ${tableName}\nWHERE application_id = '{{application_id}}'\nLIMIT 50`;
+        } else if (tableName === 'applications') {
+          query = `SELECT\n  ${cols}\nFROM ${tableName}\nWHERE external_id = '{{application_external_id}}'\nLIMIT 50`;
+        } else if (otherFks.length > 0) {
+          const fkWhere = otherFks.map(fk => `${fk.from} = '{{${fk.from}}}'`).join('\n  OR ');
+          query = `SELECT\n  ${cols}\nFROM ${tableName}\nWHERE (\n  ${fkWhere}\n)\nLIMIT 50`;
+        } else {
+          query = `SELECT\n  ${cols}\nFROM ${tableName}\nLIMIT 100`;
         }
-        sqlInput.value = `SELECT\n  ${cols}\nFROM ${tableName}\n${where}\nLIMIT 50`;
+        sqlInput.value = query;
       }).catch(() => {});
     });
 
@@ -1216,7 +1225,8 @@ export class LpiView extends ItemView {
 
     runBtn.addEventListener('click', async () => {
       let query = sqlInput.value;
-      for (const key of ['aggregate_id', 'application_external_id', 'product_name']) {
+      const placeholderKeys = ['aggregate_id', 'application_id', 'application_external_id', 'product_name'];
+      for (const key of placeholderKeys) {
         const val = (item as any)[key];
         if (val !== null && val !== undefined) {
           query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(val));
@@ -1253,7 +1263,7 @@ export class LpiView extends ItemView {
             type: 'subquery',
             query: sqlInput.value,
             columns: result.columns.map(c => ({ label: c, field: c })),
-            dependsOn: ['aggregate_id', 'application_external_id'],
+            dependsOn: ['aggregate_id', 'application_id', 'application_external_id'],
           };
           this.viewConfig.detailSections.push(newSection);
         };

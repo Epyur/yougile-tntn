@@ -48,6 +48,7 @@ export interface LpiViewConfig {
 
 export const DEFAULT_LOAD_QUERY = `SELECT
   ar.aggregate_id,
+  a.application_id,
   a.external_id AS application_external_id,
   a.created_at AS application_created_at,
   a.status AS application_status,

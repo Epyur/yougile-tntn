@@ -69412,6 +69412,7 @@ var import_obsidian13 = require("obsidian");
 // src/types/lpi-config.ts
 var DEFAULT_LOAD_QUERY = `SELECT
   ar.aggregate_id,
+  a.application_id,
   a.external_id AS application_external_id,
   a.created_at AS application_created_at,
   a.status AS application_status,
@@ -69752,20 +69753,46 @@ var LpiSchemaModal = class extends import_obsidian12.Modal {
       }
     }
     container.createEl("h5", { text: "\u0411\u044B\u0441\u0442\u0440\u044B\u0439 \u0437\u0430\u043F\u0440\u043E\u0441", attr: { style: "margin:12px 0 4px 0" } });
+    const queryHint = container.createDiv();
+    queryHint.style.cssText = "font-size:11px;color:var(--text-muted);margin-bottom:4px";
+    queryHint.textContent = "{{placeholder}} \u043F\u043E\u0434\u0441\u0442\u0430\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0438\u0437 \u0442\u0435\u043A\u0443\u0449\u0435\u0439 \u0437\u0430\u044F\u0432\u043A\u0438 \u0432 \u0434\u0435\u0442\u0430\u043B\u044F\u0445. \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u0435 application_id \u0447\u0435\u0440\u0435\u0437 external_id.";
     const queryBox = container.createEl("textarea");
-    queryBox.style.cssText = "width:100%;box-sizing:border-box;padding:6px;font-family:monospace;font-size:11px;min-height:60px;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border);border-radius:4px";
+    queryBox.style.cssText = "width:100%;box-sizing:border-box;padding:6px;font-family:monospace;font-size:11px;min-height:80px;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border);border-radius:4px";
     queryBox.readOnly = true;
     const selectAllColumns = table.columns.map((c) => c.name).join(",\n  ");
-    const fkWhere = table.foreignKeys.length > 0 ? table.foreignKeys.map((fk) => `  ${fk.from} = '{{value}}'`).join("\n  OR ") : "";
-    queryBox.value = fkWhere ? `SELECT
+    const hasAppIdFk = table.foreignKeys.some((fk) => fk.table === "applications" && fk.to === "application_id");
+    const otherFks = table.foreignKeys.filter((fk) => !(fk.table === "applications" && fk.to === "application_id"));
+    let query = "";
+    if (hasAppIdFk) {
+      const appIdFk = table.foreignKeys.find((fk) => fk.table === "applications" && fk.to === "application_id");
+      query = `-- 1. \u041F\u043E\u043B\u0443\u0447\u0438\u0442\u044C application_id \u043F\u043E \u043D\u043E\u043C\u0435\u0440\u0443 \u0437\u0430\u044F\u0432\u043A\u0438:
+-- SELECT application_id FROM applications WHERE external_id = '{{application_external_id}}';
+
+-- 2. \u0417\u0430\u043F\u0440\u043E\u0441 \u0434\u0430\u043D\u043D\u044B\u0445:
+SELECT
+  ${selectAllColumns}
+FROM ${table.name}
+WHERE ${appIdFk.from} = '{{application_id}}'`;
+    } else if (table.name === "applications") {
+      query = `SELECT
+  ${selectAllColumns}
+FROM ${table.name}
+WHERE external_id = '{{application_external_id}}'`;
+    } else if (otherFks.length > 0) {
+      const whereClauses = otherFks.map((fk) => `  ${fk.from} = '{{value}}'`).join("\n  OR ");
+      query = `SELECT
   ${selectAllColumns}
 FROM ${table.name}
 WHERE (
-${fkWhere}
-)` : `SELECT
+${whereClauses}
+)`;
+    } else {
+      query = `SELECT
   ${selectAllColumns}
 FROM ${table.name}
 LIMIT 100`;
+    }
+    queryBox.value = query;
     const copyQueryBtn = container.createEl("button", { text: "\u{1F4CB} \u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0437\u0430\u043F\u0440\u043E\u0441", cls: "mailer-yougile-refresh-btn" });
     copyQueryBtn.style.fontSize = "11px";
     copyQueryBtn.style.marginTop = "4px";
@@ -70231,7 +70258,7 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
       if (exists) {
         const content = await adapter.read(CONFIG_PATH);
         const parsed = JSON.parse(content);
-        this.viewConfig = { ...DEFAULT_CONFIG, ...parsed, detailSections: parsed.detailSections || DEFAULT_CONFIG.detailSections, colorRules: parsed.colorRules || DEFAULT_CONFIG.colorRules };
+        this.viewConfig = { ...DEFAULT_CONFIG, ...parsed, loadQuery: DEFAULT_CONFIG.loadQuery, detailSections: parsed.detailSections || DEFAULT_CONFIG.detailSections, colorRules: parsed.colorRules || DEFAULT_CONFIG.colorRules };
       } else {
         this.viewConfig = DEFAULT_CONFIG;
         await adapter.write(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
@@ -70889,19 +70916,39 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
         const table = schema.byName.get(tableName);
         if (!table) return;
         const cols = table.columns.map((c) => c.name).join(",\n  ");
-        const fkClauses = table.foreignKeys.map((fk) => `${fk.from} = '{{aggregate_id}}'`).join("\n  OR ");
-        let where = "";
-        if (fkClauses) where = `WHERE (
-  ${fkClauses}
-)`;
-        else if (table.columns.some((c) => c.name.includes("application_id") || c.name.includes("aggregate_id"))) {
-          where = "WHERE application_id = '{{aggregate_id}}'";
-        }
-        sqlInput.value = `SELECT
+        const hasAppIdFk = table.foreignKeys.some((fk) => fk.table === "applications" && fk.to === "application_id");
+        const otherFks = table.foreignKeys.filter((fk) => !(fk.table === "applications" && fk.to === "application_id"));
+        let query = "";
+        if (hasAppIdFk) {
+          query = `-- \u0421\u0432\u044F\u0437\u044C \u0447\u0435\u0440\u0435\u0437 application_id:
+-- SELECT application_id FROM applications WHERE external_id = '{{application_external_id}}';
+SELECT
   ${cols}
 FROM ${tableName}
-${where}
+WHERE application_id = '{{application_id}}'
 LIMIT 50`;
+        } else if (tableName === "applications") {
+          query = `SELECT
+  ${cols}
+FROM ${tableName}
+WHERE external_id = '{{application_external_id}}'
+LIMIT 50`;
+        } else if (otherFks.length > 0) {
+          const fkWhere = otherFks.map((fk) => `${fk.from} = '{{${fk.from}}}'`).join("\n  OR ");
+          query = `SELECT
+  ${cols}
+FROM ${tableName}
+WHERE (
+  ${fkWhere}
+)
+LIMIT 50`;
+        } else {
+          query = `SELECT
+  ${cols}
+FROM ${tableName}
+LIMIT 100`;
+        }
+        sqlInput.value = query;
       }).catch(() => {
       });
     });
@@ -70916,7 +70963,8 @@ LIMIT 50`;
     });
     runBtn.addEventListener("click", async () => {
       let query = sqlInput.value;
-      for (const key of ["aggregate_id", "application_external_id", "product_name"]) {
+      const placeholderKeys = ["aggregate_id", "application_id", "application_external_id", "product_name"];
+      for (const key of placeholderKeys) {
         const val = item[key];
         if (val !== null && val !== void 0) {
           query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(val));
@@ -70953,7 +71001,7 @@ LIMIT 50`;
             type: "subquery",
             query: sqlInput.value,
             columns: result.columns.map((c) => ({ label: c, field: c })),
-            dependsOn: ["aggregate_id", "application_external_id"]
+            dependsOn: ["aggregate_id", "application_id", "application_external_id"]
           };
           this.viewConfig.detailSections.push(newSection);
         };
@@ -72380,6 +72428,12 @@ var CHANGELOG = {
   ],
   "0.4.11": [
     "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0440\u0430\u0437\u0431\u0438\u0435\u043D\u0438\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C (per-product test result donuts)"
+  ],
+  "0.6.1": [
+    "LPI: \u0432 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0443 SQL \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E \u043F\u043E\u043B\u0435 application_id (UUID) \u0434\u043B\u044F \u043E\u0431\u0435\u0441\u043F\u0435\u0447\u0435\u043D\u0438\u044F \u0441\u0432\u044F\u0437\u0435\u0439 \u043C\u0435\u0436\u0434\u0443 \u0442\u0430\u0431\u043B\u0438\u0446\u0430\u043C\u0438 \u043F\u043E FK",
+    "LPI: Schema Browser \u2014 \u0430\u0432\u0442\u043E-\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F \u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432 \u0443\u0447\u0438\u0442\u044B\u0432\u0430\u0435\u0442 FK \u043D\u0430 applications.application_id (\u0434\u0432\u0443\u0445\u0448\u0430\u0433\u043E\u0432\u043E\u0435 \u0440\u0430\u0437\u0440\u0435\u0448\u0435\u043D\u0438\u0435 \u0447\u0435\u0440\u0435\u0437 external_id \u2192 application_id)",
+    "LPI: Query Runner \u2014 \u0430\u0432\u0442\u043E-\u0437\u0430\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435 SQL \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 {{application_id}} \u0432\u043C\u0435\u0441\u0442\u043E \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E\u0433\u043E {{aggregate_id}} \u0434\u043B\u044F \u0442\u0430\u0431\u043B\u0438\u0446, \u0441\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0445 \u0447\u0435\u0440\u0435\u0437 application_id",
+    "LPI: loadViewConfig \u0432\u0441\u0435\u0433\u0434\u0430 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u0430\u043A\u0442\u0443\u0430\u043B\u044C\u043D\u044B\u0439 loadQuery \u0438\u0437 DEFAULT_CONFIG (\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u043E\u0441\u0442\u044C \u0441\u043E \u0441\u0442\u0430\u0440\u044B\u043C\u0438 \u043A\u043E\u043D\u0444\u0438\u0433\u0430\u043C\u0438)"
   ],
   "0.6.0": [
     "LPI: \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u044B \u043D\u0430 config-driven \u0440\u0435\u043D\u0434\u0435\u0440\u0438\u043D\u0433 \u2014 \u043F\u043E\u043B\u044F, \u0441\u0435\u043A\u0446\u0438\u0438 \u0438 \u043F\u043E\u0434\u0437\u0430\u043F\u0440\u043E\u0441\u044B \u0443\u043F\u0440\u0430\u0432\u043B\u044F\u044E\u0442\u0441\u044F \u0447\u0435\u0440\u0435\u0437 yourbase/lpi_view_config.json",
