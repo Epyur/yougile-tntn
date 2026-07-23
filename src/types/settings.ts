@@ -36,6 +36,7 @@ export interface YouGileSettings {
   lpiProjectId: string;
   lpiBoardId: string;
   lpiColumnTitle: string;
+  lpiViewConfigSource: 'default' | 'file';
   contactProjectId: string;
   contactBoardId: string;
   contactSelectedColumnIds: string;
@@ -78,4 +79,5 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   lpiProjectId: 'Лаборатория пожарных испытаний',
   lpiBoardId: 'Заявки',
   lpiColumnTitle: 'Заявки',
+  lpiViewConfigSource: 'file',
 };

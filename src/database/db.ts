@@ -318,9 +318,35 @@ export class LocalDatabase {
       this.data.lastSyncAt = now;
 
       await this.save();
+      await this.logSync(remoteTasks.length, allBoards.length, allColumns.length);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn('YouGile: sync failed —', msg);
+      await this.logSyncError(msg);
     }
+  }
+
+  private async logSync(taskCount: number, boardCount: number, columnCount: number): Promise<void> {
+    if (!this.plugin?.syncLogger) return;
+    await this.plugin.syncLogger.log({
+      module: 'tasks',
+      direction: 'from-yougile',
+      action: 'sync-complete',
+      itemId: '',
+      status: 'success',
+      details: `Задачи: ${taskCount}, доски: ${boardCount}, колонки: ${columnCount}`,
+    });
+  }
+
+  private async logSyncError(error: string): Promise<void> {
+    if (!this.plugin?.syncLogger) return;
+    await this.plugin.syncLogger.log({
+      module: 'tasks',
+      direction: 'from-yougile',
+      action: 'sync-complete',
+      itemId: '',
+      status: 'error',
+      error,
+    });
   }
 }

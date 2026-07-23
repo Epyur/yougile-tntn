@@ -93,6 +93,7 @@ export class EmailDatabase {
 
   syncFromTasks(tasks: CachedTask[]): void {
     let changed = false;
+    let syncedCount = 0;
     for (const task of tasks) {
       if (!task.description) continue;
       const desc = task.description.trim();
@@ -117,6 +118,9 @@ export class EmailDatabase {
       const directionName = String(parsed.direction_name || parsed.directionName || '');
 
       if (existing) {
+        const dataChanged = existing.number !== number || existing.subject !== subject
+          || existing.text !== text || existing.author !== author || existing.date !== date
+          || existing.direction_id !== directionId || existing.direction_name !== directionName;
         existing.number = number;
         existing.subject = subject;
         existing.text = text;
@@ -128,6 +132,7 @@ export class EmailDatabase {
         existing.lastSyncTime = new Date().toISOString();
         existing.sync_status = 'synced';
         changed = true;
+        if (dataChanged) syncedCount++;
       } else {
         this.data.emails.push({
           id: emailId,
@@ -147,9 +152,31 @@ export class EmailDatabase {
           taskId: task.id,
         });
         changed = true;
+        syncedCount++;
       }
     }
-    if (changed) this.save();
+    if (changed) {
+      this.save();
+      this.logSync(syncedCount);
+    }
+  }
+
+  private logSync(count: number): void {
+    if (!this.app) return;
+    try {
+      const { SyncLogger } = require('../services/sync-logger');
+      const logger = new SyncLogger(this.app);
+      logger.init().then(() => {
+        logger.log({
+          module: 'emails',
+          direction: 'from-yougile',
+          action: 'sync-complete',
+          itemId: '',
+          status: 'success',
+          details: `Синхронизировано писем из YouGile: ${count}`,
+        });
+      });
+    } catch {}
   }
 
   private hashTaskId(id: string): number {

@@ -392,6 +392,18 @@ export class YouGileSettingTab extends PluginSettingTab {
             fallback.click();
           }
         }));
+
+      new Setting(body)
+        .setName('Конфиг отображения')
+        .setDesc('Источник конфига для детального просмотра заявок (поля, секции, подзапросы). "Файл" — yourbase/lpi_view_config.json, "По умолчанию" — встроенный.')
+        .addDropdown(drop => drop
+          .addOption('file', 'Файл (yourbase/lpi_view_config.json)')
+          .addOption('default', 'По умолчанию (встроенный)')
+          .setValue(this.plugin.settings.lpiViewConfigSource)
+          .onChange(async (value) => {
+            this.plugin.settings.lpiViewConfigSource = value as 'default' | 'file';
+            await this.plugin.saveSettings();
+          }));
     }, true);
   }
 

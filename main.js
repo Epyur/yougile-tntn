@@ -10,6 +10,14 @@ var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __esm = (fn, res, err) => function __init() {
+  if (err) throw err[0];
+  try {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  } catch (e) {
+    throw err = [e], e;
+  }
+};
 var __commonJS = (cb, mod) => function __require2() {
   try {
     return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
@@ -3947,10 +3955,10 @@ var require_segments = __commonJS({
       const segs = getSegmentsFromString(data, Utils3.isKanjiModeEnabled());
       const nodes = buildNodes(segs);
       const graph = buildGraph(nodes, version);
-      const path2 = dijkstra.find_path(graph.map, "start", "end");
+      const path3 = dijkstra.find_path(graph.map, "start", "end");
       const optimizedSegs = [];
-      for (let i = 1; i < path2.length - 1; i++) {
-        optimizedSegs.push(graph.table[path2[i]].node);
+      for (let i = 1; i < path3.length - 1; i++) {
+        optimizedSegs.push(graph.table[path3[i]].node);
       }
       return exports.fromArray(mergeSegments(optimizedSegs));
     };
@@ -4371,7 +4379,7 @@ var require_svg_tag = __commonJS({
       return str;
     }
     function qrToPath(data, size, margin) {
-      let path2 = "";
+      let path3 = "";
       let moveBy = 0;
       let newRow = false;
       let lineLength = 0;
@@ -4382,19 +4390,19 @@ var require_svg_tag = __commonJS({
         if (data[i]) {
           lineLength++;
           if (!(i > 0 && col > 0 && data[i - 1])) {
-            path2 += newRow ? svgCmd("M", col + margin, 0.5 + row + margin) : svgCmd("m", moveBy, 0);
+            path3 += newRow ? svgCmd("M", col + margin, 0.5 + row + margin) : svgCmd("m", moveBy, 0);
             moveBy = 0;
             newRow = false;
           }
           if (!(col + 1 < size && data[i + 1])) {
-            path2 += svgCmd("h", lineLength);
+            path3 += svgCmd("h", lineLength);
             lineLength = 0;
           }
         } else {
           moveBy++;
         }
       }
-      return path2;
+      return path3;
     }
     exports.render = function render(qrData, options2, cb) {
       const opts = Utils3.getOptions(options2);
@@ -4402,10 +4410,10 @@ var require_svg_tag = __commonJS({
       const data = qrData.modules.data;
       const qrcodesize = size + opts.margin * 2;
       const bg = !opts.color.light.a ? "" : "<path " + getColorAttrib(opts.color.light, "fill") + ' d="M0 0h' + qrcodesize + "v" + qrcodesize + 'H0z"/>';
-      const path2 = "<path " + getColorAttrib(opts.color.dark, "stroke") + ' d="' + qrToPath(data, size, opts.margin) + '"/>';
+      const path3 = "<path " + getColorAttrib(opts.color.dark, "stroke") + ' d="' + qrToPath(data, size, opts.margin) + '"/>';
       const viewBox = 'viewBox="0 0 ' + qrcodesize + " " + qrcodesize + '"';
       const width = !opts.width ? "" : 'width="' + opts.width + '" height="' + opts.width + '" ';
-      const svgTag = '<svg xmlns="http://www.w3.org/2000/svg" ' + width + viewBox + ' shape-rendering="crispEdges">' + bg + path2 + "</svg>\n";
+      const svgTag = '<svg xmlns="http://www.w3.org/2000/svg" ' + width + viewBox + ' shape-rendering="crispEdges">' + bg + path3 + "</svg>\n";
       if (typeof cb === "function") {
         cb(null, svgTag);
       }
@@ -4488,7 +4496,7 @@ var require_browser2 = __commonJS({
 var require_sql_wasm_browser = __commonJS({
   "node_modules/sql.js/dist/sql-wasm-browser.js"(exports, module2) {
     var initSqlJsPromise = void 0;
-    var initSqlJs2 = function(moduleConfig) {
+    var initSqlJs3 = function(moduleConfig) {
       if (initSqlJsPromise) {
         return initSqlJsPromise;
       }
@@ -6616,15 +6624,192 @@ var require_sql_wasm_browser = __commonJS({
       return initSqlJsPromise;
     };
     if (typeof exports === "object" && typeof module2 === "object") {
-      module2.exports = initSqlJs2;
-      module2.exports.default = initSqlJs2;
+      module2.exports = initSqlJs3;
+      module2.exports.default = initSqlJs3;
     } else if (typeof define === "function" && define["amd"]) {
       define([], function() {
-        return initSqlJs2;
+        return initSqlJs3;
       });
     } else if (typeof exports === "object") {
-      exports["Module"] = initSqlJs2;
+      exports["Module"] = initSqlJs3;
     }
+  }
+});
+
+// src/services/sync-logger.ts
+var sync_logger_exports = {};
+__export(sync_logger_exports, {
+  SyncLogModal: () => SyncLogModal,
+  SyncLogger: () => SyncLogger
+});
+var import_obsidian14, LOG_PATH, MAX_ENTRIES, SyncLogger, SyncLogModal;
+var init_sync_logger = __esm({
+  "src/services/sync-logger.ts"() {
+    "use strict";
+    import_obsidian14 = require("obsidian");
+    LOG_PATH = "yourbase/sync_log.json";
+    MAX_ENTRIES = 2e3;
+    SyncLogger = class {
+      constructor(app) {
+        this.data = { entries: [] };
+        this.initialized = false;
+        this.app = app;
+      }
+      async init() {
+        try {
+          const adapter = this.app.vault.adapter;
+          const exists = await adapter.exists(LOG_PATH);
+          if (exists) {
+            const content = await adapter.read(LOG_PATH);
+            const parsed = JSON.parse(content);
+            this.data = {
+              entries: Array.isArray(parsed.entries) ? parsed.entries : []
+            };
+          }
+          this.initialized = true;
+        } catch (e) {
+          this.initialized = true;
+        }
+      }
+      async log(entry) {
+        const fullEntry = {
+          ...entry,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        this.data.entries.unshift(fullEntry);
+        if (this.data.entries.length > MAX_ENTRIES) {
+          this.data.entries = this.data.entries.slice(0, MAX_ENTRIES);
+        }
+        await this.save();
+      }
+      getAll() {
+        return this.data.entries;
+      }
+      async clear() {
+        this.data.entries = [];
+        await this.save();
+      }
+      async save() {
+        if (!this.initialized) return;
+        try {
+          await this.app.vault.adapter.write(LOG_PATH, JSON.stringify(this.data, null, 2));
+        } catch (e) {
+          console.error("YouGile: failed to save sync log");
+        }
+      }
+    };
+    SyncLogModal = class extends import_obsidian14.Modal {
+      constructor(app, logger) {
+        super(app);
+        this.filterModule = "";
+        this.filterDirection = "";
+        this.filterStatus = "";
+        this.logger = logger;
+      }
+      onOpen() {
+        this.render();
+      }
+      render() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.createEl("h2", { text: "\u{1F4CB} \u0416\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+        const all = this.logger.getAll();
+        const filtered = all.filter((e) => {
+          if (this.filterModule && e.module !== this.filterModule) return false;
+          if (this.filterDirection && e.direction !== this.filterDirection) return false;
+          if (this.filterStatus && e.status !== this.filterStatus) return false;
+          return true;
+        });
+        const filterRow = contentEl.createDiv({ cls: "mailer-filter-row" });
+        filterRow.style.display = "flex";
+        filterRow.style.gap = "8px";
+        filterRow.style.marginBottom = "12px";
+        filterRow.style.flexWrap = "wrap";
+        filterRow.style.alignItems = "center";
+        const modules = [...new Set(all.map((e) => e.module))].sort();
+        const moduleSel = filterRow.createEl("select");
+        moduleSel.createEl("option", { text: "\u0412\u0441\u0435 \u043C\u043E\u0434\u0443\u043B\u0438", value: "" });
+        for (const m of modules) {
+          moduleSel.createEl("option", { text: m, value: m });
+        }
+        moduleSel.value = this.filterModule;
+        moduleSel.addEventListener("change", () => {
+          this.filterModule = moduleSel.value;
+          this.render();
+        });
+        const dirSel = filterRow.createEl("select");
+        dirSel.createEl("option", { text: "\u0412\u0441\u0435 \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F", value: "" });
+        dirSel.createEl("option", { text: "\u2192 YouGile", value: "to-yougile" });
+        dirSel.createEl("option", { text: "\u2190 YouGile", value: "from-yougile" });
+        dirSel.createEl("option", { text: "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E", value: "local" });
+        dirSel.value = this.filterDirection;
+        dirSel.addEventListener("change", () => {
+          this.filterDirection = dirSel.value;
+          this.render();
+        });
+        const statusSel = filterRow.createEl("select");
+        statusSel.createEl("option", { text: "\u0412\u0441\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u044B", value: "" });
+        statusSel.createEl("option", { text: "\u2705 \u0423\u0441\u043F\u0435\u0445", value: "success" });
+        statusSel.createEl("option", { text: "\u274C \u041E\u0448\u0438\u0431\u043A\u0430", value: "error" });
+        statusSel.createEl("option", { text: "\u23ED \u041F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u043E", value: "skipped" });
+        statusSel.value = this.filterStatus;
+        statusSel.addEventListener("change", () => {
+          this.filterStatus = statusSel.value;
+          this.render();
+        });
+        const clearBtn = filterRow.createEl("button", { text: "\u{1F5D1} \u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C \u0436\u0443\u0440\u043D\u0430\u043B" });
+        clearBtn.style.marginLeft = "auto";
+        clearBtn.addEventListener("click", async () => {
+          await this.logger.clear();
+          this.render();
+        });
+        const info = contentEl.createDiv();
+        info.style.marginBottom = "8px";
+        info.style.color = "var(--text-muted)";
+        info.style.fontSize = "12px";
+        info.textContent = `\u0412\u0441\u0435\u0433\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439: ${all.length} | \u041E\u0442\u0444\u0438\u043B\u044C\u0442\u0440\u043E\u0432\u0430\u043D\u043E: ${filtered.length}`;
+        if (filtered.length === 0) {
+          contentEl.createEl("p", { text: "\u041D\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u0435\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438." });
+          return;
+        }
+        const table = contentEl.createEl("table");
+        table.style.width = "100%";
+        table.style.borderCollapse = "collapse";
+        table.style.fontSize = "11px";
+        const thead = table.createEl("thead");
+        const hr = thead.createEl("tr");
+        for (const h of ["\u0412\u0440\u0435\u043C\u044F", "\u041C\u043E\u0434\u0443\u043B\u044C", "\u041D\u0430\u043F\u0440.", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435", "ID", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0435\u0442\u0430\u043B\u0438"]) {
+          hr.createEl("th", { text: h }).style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:4px 6px;text-align:left;white-space:nowrap;";
+        }
+        const tbody = table.createEl("tbody");
+        for (const entry of filtered) {
+          const row = tbody.createEl("tr");
+          const timeStr = new Date(entry.timestamp).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+          const dirLabel = entry.direction === "to-yougile" ? "\u2191" : entry.direction === "from-yougile" ? "\u2193" : "\u21BB";
+          const statusLabel = entry.status === "success" ? "\u2705" : entry.status === "error" ? "\u274C" : "\u23ED";
+          row.createEl("td", { text: timeStr }).style.cssText = "padding:2px 6px;white-space:nowrap;";
+          row.createEl("td", { text: entry.module }).style.cssText = "padding:2px 6px;white-space:nowrap;";
+          const dirTd = row.createEl("td");
+          dirTd.textContent = dirLabel;
+          dirTd.style.cssText = "padding:2px 6px;text-align:center;";
+          dirTd.title = entry.direction === "to-yougile" ? "\u0412 YouGile" : entry.direction === "from-yougile" ? "\u0418\u0437 YouGile" : "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E";
+          row.createEl("td", { text: entry.action }).style.cssText = "padding:2px 6px;white-space:nowrap;";
+          row.createEl("td", { text: entry.itemId }).style.cssText = "padding:2px 6px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;";
+          row.createEl("td", { text: entry.itemTitle || "" }).style.cssText = "padding:2px 6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;";
+          row.createEl("td", { text: statusLabel }).style.cssText = "padding:2px 6px;text-align:center;";
+          const detailTd = row.createEl("td");
+          detailTd.textContent = entry.details || entry.error || "";
+          detailTd.style.cssText = "padding:2px 6px;max-width:300px;overflow:hidden;text-overflow:ellipsis;";
+          if (entry.status === "error") {
+            detailTd.style.color = "var(--text-error)";
+          }
+        }
+      }
+      onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+      }
+    };
   }
 });
 
@@ -6634,7 +6819,7 @@ __export(main_exports, {
   default: () => YouGilePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian14 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 
 // src/types/settings.ts
 var DEFAULT_SETTINGS = {
@@ -6672,7 +6857,8 @@ var DEFAULT_SETTINGS = {
   lpiDbPath: "C:/Users/adm/Downloads/\u041D\u043E\u0432\u0430\u044F \u043F\u0430\u043F\u043A\u0430/lims/lims.db",
   lpiProjectId: "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439",
   lpiBoardId: "\u0417\u0430\u044F\u0432\u043A\u0438",
-  lpiColumnTitle: "\u0417\u0430\u044F\u0432\u043A\u0438"
+  lpiColumnTitle: "\u0417\u0430\u044F\u0432\u043A\u0438",
+  lpiViewConfigSource: "file"
 };
 
 // src/api/client.ts
@@ -7029,8 +7215,8 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.plugin.settings.docxTemplatePath = value;
         await this.plugin.saveSettings();
       })).addButton((btn) => btn.setButtonText("\u041E\u0431\u0437\u043E\u0440...").onClick(() => {
-        const modal = new DocxTemplateSuggestModal(this.app, this.plugin, (path2) => {
-          this.plugin.settings.docxTemplatePath = path2;
+        const modal = new DocxTemplateSuggestModal(this.app, this.plugin, (path3) => {
+          this.plugin.settings.docxTemplatePath = path3;
           this.plugin.saveSettings();
           this.display();
         });
@@ -7136,6 +7322,10 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
           document.body.appendChild(fallback);
           fallback.click();
         }
+      }));
+      new import_obsidian2.Setting(body).setName("\u041A\u043E\u043D\u0444\u0438\u0433 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F").setDesc('\u0418\u0441\u0442\u043E\u0447\u043D\u0438\u043A \u043A\u043E\u043D\u0444\u0438\u0433\u0430 \u0434\u043B\u044F \u0434\u0435\u0442\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u0430 \u0437\u0430\u044F\u0432\u043E\u043A (\u043F\u043E\u043B\u044F, \u0441\u0435\u043A\u0446\u0438\u0438, \u043F\u043E\u0434\u0437\u0430\u043F\u0440\u043E\u0441\u044B). "\u0424\u0430\u0439\u043B" \u2014 yourbase/lpi_view_config.json, "\u041F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" \u2014 \u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u0439.').addDropdown((drop) => drop.addOption("file", "\u0424\u0430\u0439\u043B (yourbase/lpi_view_config.json)").addOption("default", "\u041F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E (\u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u0439)").setValue(this.plugin.settings.lpiViewConfigSource).onChange(async (value) => {
+        this.plugin.settings.lpiViewConfigSource = value;
+        await this.plugin.saveSettings();
       }));
     }, true);
   }
@@ -7537,6 +7727,26 @@ var TasksView = class extends import_obsidian3.ItemView {
       }
     }
   }
+  getOfflineModule(action) {
+    const title = action.payload.title || "";
+    if (title.startsWith("[\u041F\u0438\u0441\u044C\u043C\u043E]")) return "emails";
+    if (title.startsWith("LPI:")) return "lpi";
+    if (title.startsWith("\u041C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435:")) return "schedule";
+    if (title.startsWith("[\u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435]")) return "suggestions";
+    if (action.payload.description) {
+      try {
+        const desc = JSON.parse(action.payload.description);
+        if (desc.type === "email") return "emails";
+        if (desc.type === "contact") return "contacts";
+        if (desc.type === "lpi_data" || desc.type === "lpi_completed") return "lpi";
+        if (desc.type === "document") return "documents";
+        if (desc.type === "suggestion") return "suggestions";
+        if (desc.type === "event") return "schedule";
+      } catch (e) {
+      }
+    }
+    return "tasks";
+  }
   async flushOfflineQueue() {
     const queue2 = this.plugin.db.getOfflineQueue();
     for (const action of queue2) {
@@ -7545,6 +7755,8 @@ var TasksView = class extends import_obsidian3.ItemView {
         this.plugin.db.markOfflineSynced(action.id);
         continue;
       }
+      const module2 = this.getOfflineModule(action);
+      const itemTitle = action.payload.title || action.payload.taskId || "";
       try {
         switch (action.type) {
           case "create-task": {
@@ -7552,23 +7764,63 @@ var TasksView = class extends import_obsidian3.ItemView {
             if (action.payload.completed) {
               await this.plugin.client.updateTask(created.id, { completed: true });
             }
+            await this.plugin.syncLogger.log({
+              module: module2,
+              direction: "to-yougile",
+              action: "create",
+              itemId: created.id,
+              itemTitle,
+              status: "success"
+            });
             break;
           }
           case "add-info":
           case "toggle-completed":
             await this.plugin.client.updateTask(action.payload.taskId, action.payload);
+            await this.plugin.syncLogger.log({
+              module: module2,
+              direction: "to-yougile",
+              action: action.type,
+              itemId: action.payload.taskId,
+              itemTitle,
+              status: "success"
+            });
             break;
           case "send-message":
             await this.plugin.client.sendMessage(action.payload.chatId, action.payload.text);
+            await this.plugin.syncLogger.log({
+              module: module2,
+              direction: "to-yougile",
+              action: "send-message",
+              itemId: action.payload.chatId,
+              itemTitle: (action.payload.text || "").slice(0, 80),
+              status: "success"
+            });
             break;
         }
         this.plugin.db.removeOfflineAction(action.id);
         new import_obsidian3.Notice(`YouGile: \u041E\u0444\u043B\u0430\u0439\u043D-\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 "${action.type}" \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E`);
       } catch (e) {
         if (isNetworkError(e)) {
+          await this.plugin.syncLogger.log({
+            module: module2,
+            direction: "to-yougile",
+            action: action.type,
+            itemId: itemTitle,
+            status: "error",
+            error: "\u041D\u0435\u0442 \u0441\u0435\u0442\u0438 \u2014 \u043E\u0444\u043B\u0430\u0439\u043D-\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u043E\u0442\u043B\u043E\u0436\u0435\u043D\u043E"
+          });
           break;
         }
         this.plugin.db.removeOfflineAction(action.id);
+        await this.plugin.syncLogger.log({
+          module: module2,
+          direction: "to-yougile",
+          action: action.type,
+          itemId: itemTitle,
+          status: "error",
+          error: e instanceof Error ? e.message : String(e)
+        });
         new import_obsidian3.Notice(`YouGile: \u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0444\u043B\u0430\u0439\u043D-\u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F "${action.type}" \u2014 ${e instanceof Error ? e.message : String(e)}`);
       }
     }
@@ -28326,16 +28578,16 @@ var replacer = ({ json, patch, patchText, context, keepOriginalStyles = true }) 
     didFindOccurrence: true
   };
 };
-var goToElementFromPath = (json, path2) => {
+var goToElementFromPath = (json, path3) => {
   let element = json;
-  for (let i = 1; i < path2.length; i++) {
-    const index = path2[i];
+  for (let i = 1; i < path3.length; i++) {
+    const index = path3[i];
     element = element.elements[index];
   }
   return element;
 };
-var goToParentElementFromPath = (json, path2) => goToElementFromPath(json, path2.slice(0, path2.length - 1));
-var getLastElementIndexFromPath = (path2) => path2[path2.length - 1];
+var goToParentElementFromPath = (json, path3) => goToElementFromPath(json, path3.slice(0, path3.length - 1));
+var getLastElementIndexFromPath = (path3) => path3[path3.length - 1];
 var PatchType = {
   /** Replace entire file-level elements (e.g., whole paragraphs) */
   DOCUMENT: "file",
@@ -28564,13 +28816,13 @@ var DocumentService = class {
     }
     return result.join("");
   }
-  async getImageSize(path2) {
+  async getImageSize(path3) {
     var _a;
     try {
       const adapter = this.app.vault.adapter;
-      const data = await adapter.readBinary(path2);
+      const data = await adapter.readBinary(path3);
       const buffer = new Uint8Array(data);
-      const ext = ((_a = path2.split(".").pop()) == null ? void 0 : _a.toLowerCase()) || "png";
+      const ext = ((_a = path3.split(".").pop()) == null ? void 0 : _a.toLowerCase()) || "png";
       if (ext === "png") {
         return { width: this.readInt(buffer, 16), height: this.readInt(buffer, 20) };
       }
@@ -28596,7 +28848,7 @@ var DocumentService = class {
         return { width, height };
       }
     } catch (e) {
-      console.warn("\u26A0\uFE0F \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0438\u0442\u044C \u0440\u0430\u0437\u043C\u0435\u0440 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F:", path2, e);
+      console.warn("\u26A0\uFE0F \u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0438\u0442\u044C \u0440\u0430\u0437\u043C\u0435\u0440 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F:", path3, e);
     }
     return { width: 400, height: 300 };
   }
@@ -37461,7 +37713,7 @@ var Graphics = class _Graphics {
    * @returns {any} The created marker.
    */
   drawMarkerShape(x, y, type, size, opts) {
-    const path2 = this.drawPath({
+    const path3 = this.drawPath({
       d: this.getMarkerPath(x, y, type, size),
       stroke: opts.pointStrokeColor,
       strokeDashArray: opts.pointStrokeDashArray,
@@ -37470,13 +37722,13 @@ var Graphics = class _Graphics {
       fillOpacity: opts.pointFillOpacity,
       strokeOpacity: opts.pointStrokeOpacity
     });
-    path2.attr({
+    path3.attr({
       cx: x,
       cy: y,
       shape: opts.shape,
       class: opts.class ? opts.class : ""
     });
-    return path2;
+    return path3;
   }
   /**
    * @param {number} x
@@ -37499,12 +37751,12 @@ var Graphics = class _Graphics {
    * @param {any} path
    * @param {Event | null} [e]
    */
-  pathMouseEnter(path2, e) {
+  pathMouseEnter(path3, e) {
     var _a, _b;
     const w = this.w;
     const filters = new Filters(this.w);
-    const i = parseInt((_a = path2.node.getAttribute("index")) != null ? _a : "", 10);
-    const j = parseInt((_b = path2.node.getAttribute("j")) != null ? _b : "", 10);
+    const i = parseInt((_a = path3.node.getAttribute("index")) != null ? _a : "", 10);
+    const j = parseInt((_b = path3.node.getAttribute("j")) != null ? _b : "", 10);
     if (isNaN(i) || isNaN(j)) return;
     if (typeof w.config.chart.events.dataPointMouseEnter === "function") {
       w.config.chart.events.dataPointMouseEnter(e, this.ctx, {
@@ -37519,14 +37771,14 @@ var Graphics = class _Graphics {
       { seriesIndex: i, dataPointIndex: j, w }
     ]);
     if (w.config.states.active.filter.type !== "none") {
-      if (path2.node.getAttribute("selected") === "true") {
+      if (path3.node.getAttribute("selected") === "true") {
         return;
       }
     }
     if (w.config.states.hover.filter.type !== "none") {
       if (!w.interact.isTouchDevice) {
         const hoverFilter = w.config.states.hover.filter;
-        filters.applyFilter(path2, i, hoverFilter.type);
+        filters.applyFilter(path3, i, hoverFilter.type);
       }
     }
   }
@@ -37534,12 +37786,12 @@ var Graphics = class _Graphics {
    * @param {any} path
    * @param {Event | null} [e]
    */
-  pathMouseLeave(path2, e) {
+  pathMouseLeave(path3, e) {
     var _a, _b;
     const w = this.w;
     const filters = new Filters(this.w);
-    const i = parseInt((_a = path2.node.getAttribute("index")) != null ? _a : "", 10);
-    const j = parseInt((_b = path2.node.getAttribute("j")) != null ? _b : "", 10);
+    const i = parseInt((_a = path3.node.getAttribute("index")) != null ? _a : "", 10);
+    const j = parseInt((_b = path3.node.getAttribute("j")) != null ? _b : "", 10);
     if (isNaN(i) || isNaN(j)) return;
     if (typeof w.config.chart.events.dataPointMouseLeave === "function") {
       w.config.chart.events.dataPointMouseLeave(e, this.ctx, {
@@ -37554,28 +37806,28 @@ var Graphics = class _Graphics {
       { seriesIndex: i, dataPointIndex: j, w }
     ]);
     if (w.config.states.active.filter.type !== "none") {
-      if (path2.node.getAttribute("selected") === "true") {
+      if (path3.node.getAttribute("selected") === "true") {
         return;
       }
     }
     if (w.config.states.hover.filter.type !== "none") {
-      filters.getDefaultFilter(path2, i);
+      filters.getDefaultFilter(path3, i);
     }
   }
   /**
    * @param {any} path
    * @param {Event | null} e
    */
-  pathMouseDown(path2, e) {
+  pathMouseDown(path3, e) {
     var _a, _b;
     const w = this.w;
     const filters = new Filters(this.w);
-    const i = parseInt((_a = path2.node.getAttribute("index")) != null ? _a : "", 10);
-    const j = parseInt((_b = path2.node.getAttribute("j")) != null ? _b : "", 10);
+    const i = parseInt((_a = path3.node.getAttribute("index")) != null ? _a : "", 10);
+    const j = parseInt((_b = path3.node.getAttribute("j")) != null ? _b : "", 10);
     if (isNaN(i) || isNaN(j)) return;
     let selected = "false";
-    if (path2.node.getAttribute("selected") === "true") {
-      path2.node.setAttribute("selected", "false");
+    if (path3.node.getAttribute("selected") === "true") {
+      path3.node.setAttribute("selected", "false");
       const index = w.interact.selectedDataPoints[i].indexOf(j);
       if (index > -1) {
         w.interact.selectedDataPoints[i].splice(index, 1);
@@ -37598,7 +37850,7 @@ var Graphics = class _Graphics {
         deSelect(elPaths);
         deSelect(elCircles);
       }
-      path2.node.setAttribute("selected", "true");
+      path3.node.setAttribute("selected", "true");
       selected = "true";
       if (typeof w.interact.selectedDataPoints[i] === "undefined") {
         w.interact.selectedDataPoints[i] = [];
@@ -37608,12 +37860,12 @@ var Graphics = class _Graphics {
     if (selected === "true") {
       const activeFilter = w.config.states.active.filter;
       if (activeFilter !== "none") {
-        filters.applyFilter(path2, i, activeFilter.type);
+        filters.applyFilter(path3, i, activeFilter.type);
       } else {
         if (w.config.states.hover.filter !== "none") {
           if (!w.interact.isTouchDevice) {
             const hoverFilter = w.config.states.hover.filter;
-            filters.applyFilter(path2, i, hoverFilter.type);
+            filters.applyFilter(path3, i, hoverFilter.type);
           }
         }
       }
@@ -37621,9 +37873,9 @@ var Graphics = class _Graphics {
       if (w.config.states.active.filter.type !== "none") {
         if (w.config.states.hover.filter.type !== "none" && !w.interact.isTouchDevice) {
           const hoverFilter = w.config.states.hover.filter;
-          filters.applyFilter(path2, i, hoverFilter.type);
+          filters.applyFilter(path3, i, hoverFilter.type);
         } else {
-          filters.getDefaultFilter(path2, i);
+          filters.getDefaultFilter(path3, i);
         }
       }
     }
@@ -46065,17 +46317,17 @@ var Data = class _Data {
    * @param {string} path - Dot notation path (e.g., 'user.profile.name')
    * @returns {*} The value at the path, or undefined if not found
    */
-  getNestedValue(obj, path2) {
-    if (!obj || typeof obj !== "object" || !path2) {
+  getNestedValue(obj, path3) {
+    if (!obj || typeof obj !== "object" || !path3) {
       return void 0;
     }
-    if (path2.indexOf(".") === -1) {
+    if (path3.indexOf(".") === -1) {
       return (
         /** @type {any} */
-        obj[path2]
+        obj[path3]
       );
     }
-    const keys = path2.split(".");
+    const keys = path3.split(".");
     let current = obj;
     for (let i = 0; i < keys.length; i++) {
       if (current === null || current === void 0 || typeof current !== "object") {
@@ -48157,8 +48409,8 @@ var Position = class {
     );
     if (point && cy < w.layout.gridHeight && cy > 0) {
       const shape = (_e = point.getAttribute("shape")) != null ? _e : "circle";
-      const path2 = graphics.getMarkerPath(cx, cy, shape, hoverSize * 1.5);
-      point.setAttribute("d", path2);
+      const path3 = graphics.getMarkerPath(cx, cy, shape, hoverSize * 1.5);
+      point.setAttribute("d", path3);
     }
     this.moveXCrosshairs(cx);
     if (!ttCtx.fixedTooltip) {
@@ -48215,8 +48467,8 @@ var Position = class {
             pcy = pcy - pcyDiff;
           }
           if (pcy !== null && !isNaN(pcy) && pcy < w.layout.gridHeight + hoverSize && pcy + hoverSize > 0) {
-            const path2 = graphics.getMarkerPath(cx, pcy, shape, hoverSize);
-            points[p].setAttribute("d", path2);
+            const path3 = graphics.getMarkerPath(cx, pcy, shape, hoverSize);
+            points[p].setAttribute("d", path3);
           } else {
             points[p].setAttribute("d", "");
           }
@@ -48586,8 +48838,8 @@ var Marker = class {
       if (newSize < 0) {
         newSize = 0;
       }
-      const path2 = this.ttCtx.tooltipUtil.getPathFromPoint(point, newSize);
-      point.setAttribute("d", path2);
+      const path3 = this.ttCtx.tooltipUtil.getPathFromPoint(point, newSize);
+      point.setAttribute("d", path3);
     }
   }
   /**
@@ -48595,8 +48847,8 @@ var Marker = class {
    */
   oldPointSize(point) {
     const size = parseFloat(point.getAttribute("default-marker-size"));
-    const path2 = this.ttCtx.tooltipUtil.getPathFromPoint(point, size);
-    point.setAttribute("d", path2);
+    const path3 = this.ttCtx.tooltipUtil.getPathFromPoint(point, size);
+    point.setAttribute("d", path3);
   }
   resetPointsSize() {
     var _a;
@@ -48609,8 +48861,8 @@ var Marker = class {
         (_a = points[p].getAttribute("default-marker-size")) != null ? _a : "0"
       );
       if (Utils$1.isNumber(size) && size > 0) {
-        const path2 = this.ttCtx.tooltipUtil.getPathFromPoint(points[p], size);
-        points[p].setAttribute("d", path2);
+        const path3 = this.ttCtx.tooltipUtil.getPathFromPoint(points[p], size);
+        points[p].setAttribute("d", path3);
       } else {
         points[p].setAttribute("d", "M0,0");
       }
@@ -57220,14 +57472,14 @@ var Annotations = class {
   addImage(params) {
     const w = this.w;
     const {
-      path: path2,
+      path: path3,
       x = 0,
       y = 0,
       width = 20,
       height = 20,
       appendTo = ".apexcharts-svg"
     } = params;
-    const img = w.dom.Paper.image(path2);
+    const img = w.dom.Paper.image(path3);
     img.size(width, height).move(x, y);
     const parent = w.dom.baseEl.querySelector(appendTo);
     if (parent) {
@@ -58756,7 +59008,7 @@ var Breadcrumb = class {
   /**
    * @param {Array<string|number>} path - ['root', id, id, ...]
    */
-  render(path2) {
+  render(path3) {
     if (!Environment.isBrowser()) return;
     const w = this.w;
     const elWrap = w.dom.elWrap;
@@ -58773,7 +59025,7 @@ var Breadcrumb = class {
     nav.setAttribute("aria-label", "Drilldown breadcrumb");
     this._position(nav, cfg);
     const separator = cfg.separator != null ? cfg.separator : " / ";
-    path2.forEach((id, i) => {
+    path3.forEach((id, i) => {
       if (i > 0) {
         const sep = BrowserAPIs.createElementNS(XHTML, "span");
         sep.setAttribute("class", "apexcharts-breadcrumb-separator");
@@ -58782,7 +59034,7 @@ var Breadcrumb = class {
         nav.appendChild(sep);
       }
       const label = this._label(id, i);
-      const isCurrent = i === path2.length - 1;
+      const isCurrent = i === path3.length - 1;
       if (isCurrent) {
         const cur = BrowserAPIs.createElementNS(XHTML, "span");
         cur.setAttribute(
@@ -64373,19 +64625,19 @@ var Line = class {
       }
       default: {
         const pathToPoint = (curve2, x2, y3) => {
-          let path2 = "";
+          let path3 = "";
           switch (curve2) {
             case "stepline":
-              path2 = graphics.line(x2, null, "H") + graphics.line(null, y3, "V");
+              path3 = graphics.line(x2, null, "H") + graphics.line(null, y3, "V");
               break;
             case "linestep":
-              path2 = graphics.line(null, y3, "V") + graphics.line(x2, null, "H");
+              path3 = graphics.line(null, y3, "V") + graphics.line(x2, null, "H");
               break;
             case "straight":
-              path2 = graphics.line(x2, y3);
+              path3 = graphics.line(x2, y3);
               break;
           }
-          return path2;
+          return path3;
         };
         if (series[i][j] === null) {
           pathState = 0;
@@ -64871,9 +65123,9 @@ var Pie = class {
         value: series[i]
       });
       const morphFrom = morphActive ? this.ctx.morphTypeChange.getInitialPathFor(i, 0) : null;
-      const path2 = morphFrom || this.getChangedPath(prevStartAngle, prevEndAngle);
+      const path3 = morphFrom || this.getChangedPath(prevStartAngle, prevEndAngle);
       const elPath = graphics.drawPath({
-        d: path2,
+        d: path3,
         // Pie/donut/polarArea data is a single series, so a user-supplied
         // `stroke.colors` shorter than the slice count is NOT padded by the
         // theme engine (unlike fill colors, which cycle). Without this, only
@@ -65200,7 +65452,7 @@ var Pie = class {
     const w = this.w;
     const animations = new Animations(this.w);
     const size = opts.size;
-    let path2;
+    let path3;
     if (isNaN(fromStartAngle) || isNaN(prevAngle)) {
       fromStartAngle = toStartAngle;
       prevAngle = angle;
@@ -65211,13 +65463,13 @@ var Pie = class {
     const fromAngle = fromStartAngle < toStartAngle ? this.fullAngle + fromStartAngle - toStartAngle : fromStartAngle - toStartAngle;
     if (w.globals.dataChanged && opts.shouldSetPrevPaths) {
       if (opts.prevEndAngle) {
-        path2 = me.getPiePath({
+        path3 = me.getPiePath({
           me,
           startAngle: opts.prevStartAngle,
           angle: opts.prevEndAngle < opts.prevStartAngle ? this.fullAngle + opts.prevEndAngle - opts.prevStartAngle : opts.prevEndAngle - opts.prevStartAngle,
           size
         });
-        el.attr({ d: path2 });
+        el.attr({ d: path3 });
       }
     }
     if (opts.dur !== 0) {
@@ -65241,19 +65493,19 @@ var Pie = class {
           currAngle = prevAngle + (angle - prevAngle) * pos;
           startAngle = fromStartAngle - prevAngle + (toStartAngle - (fromStartAngle - prevAngle)) * pos;
         }
-        path2 = me.getPiePath({
+        path3 = me.getPiePath({
           me,
           startAngle,
           angle: currAngle,
           size
         });
-        el.node.setAttribute("data:pathOrig", path2);
+        el.node.setAttribute("data:pathOrig", path3);
         el.attr({
-          d: path2
+          d: path3
         });
       });
     } else {
-      path2 = me.getPiePath({
+      path3 = me.getPiePath({
         me,
         startAngle,
         angle,
@@ -65262,9 +65514,9 @@ var Pie = class {
       if (!opts.isTrack) {
         w.globals.animationEnded = true;
       }
-      el.node.setAttribute("data:pathOrig", path2);
+      el.node.setAttribute("data:pathOrig", path3);
       el.attr({
-        d: path2,
+        d: path3,
         "stroke-width": me.strokeWidth
       });
     }
@@ -65303,23 +65555,23 @@ var Pie = class {
     }
     const startAngle = parseInt(elPath.attr("data:startAngle"), 10);
     const angle = parseInt(elPath.attr("data:angle"), 10);
-    const path2 = me.getPiePath({
+    const path3 = me.getPiePath({
       me,
       startAngle,
       angle,
       size
     });
     if (angle === 360) return;
-    elPath.plot(path2);
+    elPath.plot(path3);
   }
   /**
    * @param {number} prevStartAngle
    * @param {number} prevEndAngle
    */
   getChangedPath(prevStartAngle, prevEndAngle) {
-    let path2 = "";
+    let path3 = "";
     if (this.dynamicAnim && this.w.globals.dataChanged) {
-      path2 = this.getPiePath({
+      path3 = this.getPiePath({
         me: this,
         startAngle: prevStartAngle,
         angle: prevEndAngle - prevStartAngle,
@@ -65327,11 +65579,11 @@ var Pie = class {
         size: this.size
       });
     }
-    return path2;
+    return path3;
   }
   /** @param {{me: any, startAngle: any, angle: any, size: any}} opts */
   getPiePath({ me, startAngle, angle, size }) {
-    let path2;
+    let path3;
     const graphics = new Graphics(this.w);
     const startDeg = startAngle;
     const startRadians = Math.PI * (startDeg - 90) / 180;
@@ -65360,7 +65612,7 @@ var Pie = class {
     const largeArc = angle > 180 ? 1 : 0;
     const pathBeginning = ["M", x1, y1, "A", size, size, 0, largeArc, 1, x2, y2];
     if (me.chartType === "donut") {
-      path2 = [
+      path3 = [
         ...pathBeginning,
         "L",
         startInner.x,
@@ -65379,13 +65631,13 @@ var Pie = class {
         "z"
       ].join(" ");
     } else if (me.chartType === "pie" || me.chartType === "polarArea") {
-      path2 = [...pathBeginning, "L", me.centerX, me.centerY, "L", x1, y1].join(
+      path3 = [...pathBeginning, "L", me.centerX, me.centerY, "L", x1, y1].join(
         " "
       );
     } else {
-      path2 = [...pathBeginning].join(" ");
+      path3 = [...pathBeginning].join(" ");
     }
-    return graphics.roundPathCorners(path2, this.strokeWidth * 2);
+    return graphics.roundPathCorners(path3, this.strokeWidth * 2);
   }
   /**
    * @param {any} parent
@@ -66686,9 +66938,9 @@ var Radial = class extends Pie {
     const cx = opts.centerX;
     const needleOffsetY = Number((_c = cfg.offsetY) != null ? _c : 0);
     const cy = opts.centerY + needleOffsetY;
-    const path2 = `M ${cx + baseW / 2} ${cy} A ${baseW / 2} ${baseW / 2} 0 0 1 ${cx - baseW / 2} ${cy} L ${cx - tipW / 2} ${cy - length} L ${cx + tipW / 2} ${cy - length} Z`;
+    const path3 = `M ${cx + baseW / 2} ${cy} A ${baseW / 2} ${baseW / 2} 0 0 1 ${cx - baseW / 2} ${cy} L ${cx - tipW / 2} ${cy - length} L ${cx + tipW / 2} ${cy - length} Z`;
     const elNeedle = graphics.drawPath({
-      d: path2,
+      d: path3,
       stroke: color,
       strokeWidth: 0,
       fill: color,
@@ -69155,18 +69407,392 @@ var ContactsView = class extends import_obsidian10.ItemView {
 };
 
 // src/ui/lpi-view.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian13 = require("obsidian");
+
+// src/types/lpi-config.ts
+var DEFAULT_LOAD_QUERY = `SELECT
+  ar.aggregate_id,
+  a.external_id AS application_external_id,
+  a.created_at AS application_created_at,
+  a.status AS application_status,
+  COALESCE(p.product_name, '') AS product_name,
+  ar.protocol_date,
+  ar.agg_gen_group_complience,
+  COALESCE(c.customer_name, '') AS customer_name,
+  COALESCE(c.customer_email, '') AS customer_mail,
+  COALESCE(c.organization, '') AS organization,
+  COALESCE(c.customer_tel, '') AS customer_phone,
+  COALESCE(c.address, '') AS customer_address,
+  COALESCE(p.ekn, '') AS ekn,
+  p.thickness,
+  COALESCE(p.color, '') AS color,
+  COALESCE(o.batch_number, '') AS batch_number,
+  COALESCE(o.sample_number, '') AS sample_number,
+  COALESCE(o.object_name, '') AS object_name,
+  COALESCE(p.standard, '') AS standard,
+  COALESCE(p.target_comb_group, '') AS target_comb_group,
+  COALESCE(p.target_flam_group, '') AS target_flam_group,
+  COALESCE(p.target_prop_group, '') AS target_prop_group,
+  COALESCE(m.method_abbreviation, '') AS method_abbreviation,
+  COALESCE(m.method_name, '') AS method_name,
+  COALESCE(m.method_standard, '') AS method_standard,
+  ar.agg_avg_smog_temp,
+  ar.agg_smog_group,
+  ar.agg_smog_complience,
+  ar.agg_mass_loss,
+  ar.agg_comb_time,
+  ar.agg_dam_length,
+  ar.agg_comb_bulb,
+  ar.agg_group_by_mass,
+  ar.agg_group_by_length,
+  ar.agg_croup_by_comb_time,
+  ar.agg_group_by_bulbe,
+  ar.agg_gen_group,
+  ar.agg_mass_complience,
+  ar.agg_complience_by_length,
+  ar.agg_complience_by_comb_time,
+  ar.agg_complience_by_bulbe,
+  ar.agg_additional_info_1
+FROM aggregated_results ar
+LEFT JOIN applications a ON ar.application_id = a.application_id
+LEFT JOIN products p ON p.product_id = a.product_id
+LEFT JOIN customers c ON c.customer_id = a.customer_id
+LEFT JOIN objects o ON o.object_id = a.object_id
+LEFT JOIN methods m ON m.method_id = a.method_id`;
+var DEFAULT_CONFIG = {
+  version: 1,
+  loadQuery: DEFAULT_LOAD_QUERY,
+  detailSections: [
+    {
+      title: "\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438",
+      type: "fields",
+      fields: [
+        { label: "\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", field: "application_external_id" },
+        { label: "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F", field: "application_created_at" },
+        { label: "\u0421\u0442\u0430\u0442\u0443\u0441", field: "application_status" },
+        { label: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", field: "product_name" },
+        { label: "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A", field: "customer_name" },
+        { label: "Email \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", field: "customer_mail" },
+        { label: "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", field: "organization" },
+        { label: "\u0422\u0435\u043B\u0435\u0444\u043E\u043D", field: "customer_phone" },
+        { label: "\u0410\u0434\u0440\u0435\u0441", field: "customer_address" },
+        { label: "\u0415\u041A\u041D", field: "ekn" },
+        { label: "\u0422\u043E\u043B\u0449\u0438\u043D\u0430", field: "thickness", format: "{value} \u043C\u043C" },
+        { label: "\u0426\u0432\u0435\u0442", field: "color" },
+        { label: "\u041D\u043E\u043C\u0435\u0440 \u043F\u0430\u0440\u0442\u0438\u0438", field: "batch_number" },
+        { label: "\u041D\u043E\u043C\u0435\u0440 \u043E\u0431\u0440\u0430\u0437\u0446\u0430", field: "sample_number" },
+        { label: "\u041E\u0431\u044A\u0435\u043A\u0442", field: "object_name" },
+        { label: "\u0421\u0442\u0430\u043D\u0434\u0430\u0440\u0442", field: "standard" },
+        { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438", field: "target_comb_group" },
+        { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438", field: "target_flam_group" },
+        { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F", field: "target_prop_group" },
+        { label: "\u041C\u0435\u0442\u043E\u0434 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", field: "method_name" },
+        { label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", field: "protocol_date", visibleIf: { field: "application_status", notNull: true } }
+      ]
+    },
+    {
+      title: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0439",
+      type: "fields",
+      fields: [
+        { label: "\u0421\u0440\u0435\u0434\u043D\u044F\u044F \u0442\u0435\u043C\u043F\u0435\u0440\u0430\u0442\u0443\u0440\u0430 \u0434\u044B\u043C\u0430", field: "agg_avg_smog_temp", format: "{value} \xB0C" },
+        { label: "\u041F\u043E\u0442\u0435\u0440\u044F \u043C\u0430\u0441\u0441\u044B", field: "agg_mass_loss", format: "{value} %" },
+        { label: "\u0412\u0440\u0435\u043C\u044F \u0433\u043E\u0440\u0435\u043D\u0438\u044F", field: "agg_comb_time", format: "{value} \u0441" },
+        { label: "\u0414\u043B\u0438\u043D\u0430 \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u044F", field: "agg_dam_length", format: "{value} \u043C\u043C" },
+        { label: "\u041F\u0430\u0434\u0435\u043D\u0438\u0435 \u0433\u043E\u0440\u044F\u0449\u0438\u0445 \u043A\u0430\u043F\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043B\u0430\u0432\u0430", field: "agg_comb_bulb" }
+      ]
+    },
+    {
+      title: "\u0412\u044B\u0432\u043E\u0434\u044B",
+      type: "fields",
+      fields: [
+        { label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", field: "agg_gen_group", bold: true },
+        { label: "\u041E\u0431\u0449\u0430\u044F \u043E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", field: "agg_gen_group_complience", bold: true, colorRuleId: "compliance" },
+        { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u044B\u043C\u0443", field: "agg_smog_group" },
+        { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u044B\u043C\u0443", field: "agg_smog_complience" },
+        { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", field: "agg_group_by_mass" },
+        { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", field: "agg_mass_complience" },
+        { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", field: "agg_group_by_length" },
+        { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", field: "agg_complience_by_length" },
+        { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", field: "agg_croup_by_comb_time" },
+        { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", field: "agg_complience_by_comb_time" },
+        { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0433\u043E\u0440\u044F\u0449\u0438\u043C \u043A\u0430\u043F\u043B\u044F\u043C", field: "agg_group_by_bulbe" },
+        { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0433\u043E\u0440\u044F\u0449\u0438\u043C \u043A\u0430\u043F\u043B\u044F\u043C", field: "agg_complience_by_bulbe" },
+        { label: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F", field: "agg_additional_info_1" }
+      ]
+    }
+  ],
+  colorRules: {
+    compliance: {
+      rules: [
+        { match: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442", color: "var(--text-success)" },
+        { match: "\u041D\u0435 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442", color: "var(--text-error)" }
+      ],
+      defaultColor: "var(--text-muted)"
+    }
+  }
+};
+
+// src/services/lpi-schema-service.ts
 var import_sql = __toESM(require_sql_wasm_browser());
 var import_fs = __toESM(require("fs"));
 var import_path = __toESM(require("path"));
+var import_obsidian11 = require("obsidian");
+var LpiSchemaService = class {
+  constructor() {
+    this.wasmBinary = null;
+  }
+  async getWasmBinary() {
+    if (this.wasmBinary) return this.wasmBinary;
+    const wasmPath = import_path.default.join(__dirname, "sql-wasm.wasm");
+    try {
+      const buf = import_fs.default.readFileSync(wasmPath);
+      this.wasmBinary = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+      return this.wasmBinary;
+    } catch (e) {
+      const url = "https://raw.githubusercontent.com/Epyur/yougile-tntn/main/sql-wasm.wasm";
+      const resp = await (0, import_obsidian11.requestUrl)({ url });
+      this.wasmBinary = resp.arrayBuffer;
+      try {
+        import_fs.default.writeFileSync(wasmPath, Buffer.from(resp.arrayBuffer));
+      } catch (e2) {
+      }
+      return this.wasmBinary;
+    }
+  }
+  async openDb(dbPath) {
+    const wasmBinary = await this.getWasmBinary();
+    const SQL = await (0, import_sql.default)({ wasmBinary: wasmBinary.slice(0) });
+    const dbBuf = import_fs.default.readFileSync(dbPath);
+    const db = new SQL.Database(new Uint8Array(dbBuf));
+    return { db, SQL };
+  }
+  async loadSchema(dbPath) {
+    var _a, _b, _c;
+    const { db } = await this.openDb(dbPath);
+    try {
+      const tablesResult = db.exec(`SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`);
+      const tables = [];
+      const byName = /* @__PURE__ */ new Map();
+      for (const row of ((_a = tablesResult[0]) == null ? void 0 : _a.values) || []) {
+        const name2 = row[0];
+        const sqlCreate = row[1] || "";
+        const colsResult = db.exec(`PRAGMA table_info('${name2.replace(/'/g, "''")}')`);
+        const columns = (((_b = colsResult[0]) == null ? void 0 : _b.values) || []).map((col) => ({
+          cid: col[0],
+          name: col[1],
+          type: col[2],
+          notnull: col[3] === 1,
+          dflt_value: col[4],
+          pk: col[5] === 1
+        }));
+        const fkResult = db.exec(`PRAGMA foreign_key_list('${name2.replace(/'/g, "''")}')`);
+        const foreignKeys = (((_c = fkResult[0]) == null ? void 0 : _c.values) || []).map((fk) => ({
+          id: fk[0],
+          seq: fk[1],
+          table: fk[2],
+          from: fk[3],
+          to: fk[4],
+          on_update: fk[5],
+          on_delete: fk[6],
+          match: fk[7]
+        }));
+        const td = { name: name2, sql: sqlCreate, columns, foreignKeys };
+        tables.push(td);
+        byName.set(name2, td);
+      }
+      return { tables, byName };
+    } finally {
+      db.close();
+    }
+  }
+  async runQuery(dbPath, sql) {
+    const { db } = await this.openDb(dbPath);
+    try {
+      const result = db.exec(sql);
+      if (!result || result.length === 0) {
+        return { columns: [], rows: [] };
+      }
+      return {
+        columns: result[0].columns,
+        rows: result[0].values
+      };
+    } finally {
+      db.close();
+    }
+  }
+};
+
+// src/ui/lpi-schema-modal.ts
+var import_obsidian12 = require("obsidian");
+var LpiSchemaModal = class extends import_obsidian12.Modal {
+  constructor(app, schemaService, dbPath) {
+    super(app);
+    this.schema = null;
+    this.selectedTable = null;
+    this.searchQuery = "";
+    this.schemaService = schemaService;
+    this.dbPath = dbPath;
+  }
+  async onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h3", { text: "\u{1F4D0} \u0421\u0445\u0435\u043C\u0430 \u0431\u0430\u0437\u044B \u0434\u0430\u043D\u043D\u044B\u0445 LIMS" });
+    const loading = contentEl.createDiv({ text: "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0441\u0445\u0435\u043C\u044B..." });
+    loading.style.margin = "12px 0";
+    loading.style.color = "var(--text-muted)";
+    try {
+      this.schema = await this.schemaService.loadSchema(this.dbPath);
+      loading.remove();
+      this.render();
+    } catch (e) {
+      loading.textContent = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0441\u0445\u0435\u043C\u044B: " + e.message;
+      loading.style.color = "var(--text-error)";
+    }
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h3", { text: "\u{1F4D0} \u0421\u0445\u0435\u043C\u0430 \u0431\u0430\u0437\u044B \u0434\u0430\u043D\u043D\u044B\u0445 LIMS" });
+    const main = contentEl.createDiv();
+    main.style.display = "flex";
+    main.style.gap = "12px";
+    main.style.height = "70vh";
+    const left = main.createDiv();
+    left.style.width = "300px";
+    left.style.minWidth = "200px";
+    left.style.overflowY = "auto";
+    left.style.borderRight = "1px solid var(--background-modifier-border)";
+    left.style.paddingRight = "8px";
+    const searchInput = left.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u0442\u0430\u0431\u043B\u0438\u0446\u044B..." } });
+    searchInput.style.width = "100%";
+    searchInput.style.marginBottom = "8px";
+    searchInput.style.boxSizing = "border-box";
+    searchInput.addEventListener("input", () => {
+      this.searchQuery = searchInput.value.toLowerCase();
+      this.renderTableList(left);
+    });
+    const tableList = left.createDiv();
+    this.renderTableList(tableList);
+    const right = main.createDiv();
+    right.style.flex = "1";
+    right.style.overflowY = "auto";
+    right.style.paddingLeft = "8px";
+    if (this.selectedTable) {
+      this.renderTableDetail(right, this.selectedTable);
+    } else {
+      right.createEl("p", { text: "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u0430\u0431\u043B\u0438\u0446\u0443 \u0441\u043B\u0435\u0432\u0430", attr: { style: "color:var(--text-muted);margin-top:40px;text-align:center" } });
+    }
+  }
+  renderTableList(container) {
+    var _a;
+    container.empty();
+    if (!this.schema) return;
+    const filtered = this.searchQuery ? this.schema.tables.filter((t) => t.name.toLowerCase().includes(this.searchQuery)) : this.schema.tables;
+    for (const table of filtered) {
+      const btn = container.createEl("button", { text: table.name, cls: "mailer-yougile-refresh-btn" });
+      btn.style.display = "block";
+      btn.style.width = "100%";
+      btn.style.textAlign = "left";
+      btn.style.marginBottom = "4px";
+      btn.style.padding = "4px 8px";
+      btn.style.fontSize = "12px";
+      btn.style.overflow = "hidden";
+      btn.style.textOverflow = "ellipsis";
+      if (((_a = this.selectedTable) == null ? void 0 : _a.name) === table.name) {
+        btn.style.background = "var(--interactive-accent)";
+        btn.style.color = "var(--text-on-accent)";
+      }
+      btn.addEventListener("click", () => {
+        this.selectedTable = table;
+        this.render();
+      });
+    }
+    if (filtered.length === 0) {
+      container.createEl("p", { text: "\u0422\u0430\u0431\u043B\u0438\u0446\u044B \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u044B", attr: { style: "color:var(--text-muted);font-size:12px" } });
+    }
+  }
+  renderTableDetail(container, table) {
+    container.empty();
+    const header = container.createDiv();
+    header.style.marginBottom = "12px";
+    header.createEl("h4", { text: table.name, attr: { style: "margin:0 0 4px 0" } });
+    const copyBtn = header.createEl("button", { text: "\u{1F4CB} \u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C CREATE TABLE", cls: "mailer-yougile-refresh-btn" });
+    copyBtn.style.fontSize = "11px";
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(table.sql);
+    });
+    container.createEl("h5", { text: "\u041A\u043E\u043B\u043E\u043D\u043A\u0438", attr: { style: "margin:8px 0 4px 0" } });
+    const colTable = container.createEl("table");
+    colTable.style.width = "100%";
+    colTable.style.borderCollapse = "collapse";
+    colTable.style.fontSize = "12px";
+    const colHead = colTable.createEl("thead");
+    const colHr = colHead.createEl("tr");
+    for (const h of ["#", "\u041A\u043E\u043B\u043E\u043D\u043A\u0430", "\u0422\u0438\u043F", "PK", "NOT NULL", "\u041F\u043E \u0443\u043C\u043E\u043B\u0447."]) {
+      colHr.createEl("th", { text: h }).style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:3px 6px;text-align:left;white-space:nowrap;font-size:11px";
+    }
+    const colBody = colTable.createEl("tbody");
+    for (const col of table.columns) {
+      const row = colBody.createEl("tr");
+      row.createEl("td", { text: String(col.cid) }).style.cssText = "padding:2px 6px;color:var(--text-muted)";
+      const nameTd = row.createEl("td", { text: col.name });
+      nameTd.style.cssText = "padding:2px 6px;font-weight:600";
+      if (col.pk) nameTd.style.color = "var(--text-accent)";
+      row.createEl("td", { text: col.type || "\u2014" }).style.cssText = "padding:2px 6px;color:var(--text-muted)";
+      row.createEl("td", { text: col.pk ? "\u{1F511}" : "" }).style.cssText = "padding:2px 6px;text-align:center";
+      row.createEl("td", { text: col.notnull ? "\u2713" : "" }).style.cssText = "padding:2px 6px;text-align:center";
+      row.createEl("td", { text: col.dflt_value || "\u2014" }).style.cssText = "padding:2px 6px;color:var(--text-muted)";
+    }
+    if (table.foreignKeys.length > 0) {
+      container.createEl("h5", { text: "\u0412\u043D\u0435\u0448\u043D\u0438\u0435 \u043A\u043B\u044E\u0447\u0438 (FK)", attr: { style: "margin:12px 0 4px 0" } });
+      for (const fk of table.foreignKeys) {
+        const fkDiv = container.createDiv();
+        fkDiv.style.cssText = "padding:4px 8px;margin:2px 0;background:var(--background-modifier-hover);border-radius:4px;font-size:12px";
+        fkDiv.innerHTML = `<span style="font-weight:600">${table.name}.${fk.from}</span> \u2192 <span style="color:var(--text-accent);font-weight:600">${fk.table}.${fk.to}</span>`;
+      }
+    }
+    container.createEl("h5", { text: "\u0411\u044B\u0441\u0442\u0440\u044B\u0439 \u0437\u0430\u043F\u0440\u043E\u0441", attr: { style: "margin:12px 0 4px 0" } });
+    const queryBox = container.createEl("textarea");
+    queryBox.style.cssText = "width:100%;box-sizing:border-box;padding:6px;font-family:monospace;font-size:11px;min-height:60px;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border);border-radius:4px";
+    queryBox.readOnly = true;
+    const selectAllColumns = table.columns.map((c) => c.name).join(",\n  ");
+    const fkWhere = table.foreignKeys.length > 0 ? table.foreignKeys.map((fk) => `  ${fk.from} = '{{value}}'`).join("\n  OR ") : "";
+    queryBox.value = fkWhere ? `SELECT
+  ${selectAllColumns}
+FROM ${table.name}
+WHERE (
+${fkWhere}
+)` : `SELECT
+  ${selectAllColumns}
+FROM ${table.name}
+LIMIT 100`;
+    const copyQueryBtn = container.createEl("button", { text: "\u{1F4CB} \u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0437\u0430\u043F\u0440\u043E\u0441", cls: "mailer-yougile-refresh-btn" });
+    copyQueryBtn.style.fontSize = "11px";
+    copyQueryBtn.style.marginTop = "4px";
+    copyQueryBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(queryBox.value);
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/ui/lpi-view.ts
+var import_sql2 = __toESM(require_sql_wasm_browser());
+var import_fs2 = __toESM(require("fs"));
+var import_path2 = __toESM(require("path"));
 var DB_PATH = "yourbase/lpi_data.json";
+var CONFIG_PATH = "yourbase/lpi_view_config.json";
 var LPI_VIEW_TYPE = "yougile-lpi-view";
-var _LpiView = class _LpiView extends import_obsidian11.ItemView {
+var _LpiView = class _LpiView extends import_obsidian13.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.items = [];
     this.searchQuery = "";
     this.searchTimeout = null;
+    this.viewConfig = DEFAULT_CONFIG;
+    this.schemaService = new LpiSchemaService();
     this.mode = "table";
     this.charts = [];
     this.dashboardTimer = null;
@@ -69199,6 +69825,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     container.addClass("mailer-yougile-container");
     this.containerElContent = container.createDiv();
     await this.loadData();
+    await this.loadViewConfig();
     await this.syncFromTasks();
     this.renderView();
   }
@@ -69239,20 +69866,52 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
         }
       }
       let changed = false;
+      let updated = 0;
       for (const task of lpiTasks) {
         const desc = JSON.parse(task.description || "{}");
         let existing = this.items.find((i) => i.aggregate_id === desc.aggregate_id);
         if (!existing && desc.application_external_id) {
           existing = this.items.find((i) => i.application_external_id === desc.application_external_id);
         }
-        if (!existing) continue;
+        if (!existing) {
+          await this.plugin.syncLogger.log({
+            module: "lpi",
+            direction: "from-yougile",
+            action: "skip",
+            itemId: desc.application_external_id || desc.aggregate_id || "",
+            itemTitle: task.title,
+            status: "skipped",
+            details: "\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430 \u0432 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0445 \u0434\u0430\u043D\u043D\u044B\u0445"
+          });
+          continue;
+        }
         if (existing.taskId && task.completed && !existing.completedLocally) {
           existing.completedLocally = true;
           existing.completedAt = desc.completedAt || "";
           changed = true;
+          updated++;
+          await this.plugin.syncLogger.log({
+            module: "lpi",
+            direction: "from-yougile",
+            action: "complete",
+            itemId: desc.application_external_id || existing.aggregate_id,
+            itemTitle: existing.product_name,
+            status: "success",
+            details: '\u0421\u0442\u0430\u0442\u0443\u0441 "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438\u0437 YouGile'
+          });
         }
       }
       if (changed) await this.saveData();
+      if (lpiTasks.length > 0) {
+        await this.plugin.syncLogger.log({
+          module: "lpi",
+          direction: "from-yougile",
+          action: "sync-complete",
+          itemId: "",
+          status: "success",
+          details: `\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u043E \u0437\u0430\u0434\u0430\u0447 YouGile: ${lpiTasks.length}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}`
+        });
+      }
     } catch (e) {
     }
   }
@@ -69313,14 +69972,14 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       cls: "mailer-yougile-refresh-btn"
     });
     syncBtn.addEventListener("click", async () => {
-      const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs.default.existsSync(this.plugin.settings.lpiDbPath);
+      const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs2.default.existsSync(this.plugin.settings.lpiDbPath);
       if (!sqlConnected) {
         syncBtn.disabled = true;
         syncBtn.textContent = "\u23F3 \u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0438\u0437 YouGile...";
         await this.syncFromTasks();
         await this.saveData();
         this.renderView();
-        new import_obsidian11.Notice("\u0414\u0430\u043D\u043D\u044B\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u044B \u0438\u0437 YouGile");
+        new import_obsidian13.Notice("\u0414\u0430\u043D\u043D\u044B\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u044B \u0438\u0437 YouGile");
       } else {
         new YougileSyncModal(this.app, this.plugin, this).open();
       }
@@ -69332,6 +69991,19 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     dashBtn.addEventListener("click", () => {
       this.mode = "dashboard";
       this.renderView();
+    });
+    const schemaBtn = btnRow.createEl("button", {
+      text: "\u{1F4D0} \u0421\u0445\u0435\u043C\u0430 \u0411\u0414",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    schemaBtn.addEventListener("click", () => {
+      var _a;
+      const dbPath = (_a = this.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
+      if (!dbPath || !import_fs2.default.existsSync(dbPath)) {
+        new import_obsidian13.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
+        return;
+      }
+      new LpiSchemaModal(this.app, this.schemaService, dbPath).open();
     });
     if (this.mode === "dashboard") {
       this.renderDashboard(container);
@@ -69384,10 +70056,12 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       td.setText("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445");
       return;
     }
-    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs.default.existsSync(this.plugin.settings.lpiDbPath);
+    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs2.default.existsSync(this.plugin.settings.lpiDbPath);
     for (const item of filtered) {
       const row = tbody.createEl("tr", { cls: "mailer-clickable mailer-row-hover" });
-      const rowClick = () => this.renderDetail(item);
+      const rowClick = () => {
+        this.renderDetail(item);
+      };
       row.addEventListener("click", rowClick);
       const dotCell = row.createEl("td", { cls: "mailer-td" });
       dotCell.style.width = "24px";
@@ -69420,7 +70094,7 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       rowSendBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
         if (!this.plugin.client) {
-          new import_obsidian11.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
+          new import_obsidian13.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
           return;
         }
         rowSendBtn.disabled = true;
@@ -69428,9 +70102,9 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
         try {
           await this.syncItemToYougile(item, this.isEffectivelyActive(item));
           await this.saveData();
-          new import_obsidian11.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
+          new import_obsidian13.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
         } catch (e2) {
-          new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e2.message);
+          new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e2.message);
         }
         rowSendBtn.disabled = false;
         rowSendBtn.textContent = "\u{1F4E4}";
@@ -69439,17 +70113,17 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
   }
   async getWasmBinary() {
     if (this.wasmBinary) return this.wasmBinary;
-    const wasmPath = import_path.default.join(__dirname, "sql-wasm.wasm");
+    const wasmPath = import_path2.default.join(__dirname, "sql-wasm.wasm");
     try {
-      const buf = import_fs.default.readFileSync(wasmPath);
+      const buf = import_fs2.default.readFileSync(wasmPath);
       this.wasmBinary = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
       return this.wasmBinary;
     } catch (e) {
       const url = "https://raw.githubusercontent.com/Epyur/yougile-tntn/main/sql-wasm.wasm";
-      const resp = await (0, import_obsidian11.requestUrl)({ url });
+      const resp = await (0, import_obsidian13.requestUrl)({ url });
       this.wasmBinary = resp.arrayBuffer;
       try {
-        import_fs.default.writeFileSync(wasmPath, Buffer.from(resp.arrayBuffer));
+        import_fs2.default.writeFileSync(wasmPath, Buffer.from(resp.arrayBuffer));
       } catch (e2) {
       }
       return this.wasmBinary;
@@ -69459,67 +70133,20 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
     try {
       let dbPath = this.plugin.settings.lpiDbPath;
       if (!dbPath) {
-        new import_obsidian11.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
+        new import_obsidian13.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
         return;
       }
       dbPath = dbPath.replace(/\\/g, "/");
-      if (!import_fs.default.existsSync(dbPath)) {
-        new import_obsidian11.Notice("\u0424\u0430\u0439\u043B \u0411\u0414 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: " + dbPath);
+      if (!import_fs2.default.existsSync(dbPath)) {
+        new import_obsidian13.Notice("\u0424\u0430\u0439\u043B \u0411\u0414 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: " + dbPath);
         return;
       }
       const wasmBinary = await this.getWasmBinary();
-      const SQL = await (0, import_sql.default)({ wasmBinary: wasmBinary.slice(0) });
-      const dbBuf = import_fs.default.readFileSync(dbPath);
+      const SQL = await (0, import_sql2.default)({ wasmBinary: wasmBinary.slice(0) });
+      const dbBuf = import_fs2.default.readFileSync(dbPath);
       const db = new SQL.Database(new Uint8Array(dbBuf));
-      const sql = `SELECT
-        ar.aggregate_id,
-        a.external_id AS application_external_id,
-        a.created_at AS application_created_at,
-        a.status AS application_status,
-        COALESCE(p.product_name, '') AS product_name,
-        ar.protocol_date,
-        ar.agg_gen_group_complience,
-        COALESCE(c.customer_name, '') AS customer_name,
-        COALESCE(c.customer_email, '') AS customer_mail,
-        COALESCE(c.organization, '') AS organization,
-        COALESCE(c.customer_tel, '') AS customer_phone,
-        COALESCE(c.address, '') AS customer_address,
-        COALESCE(p.ekn, '') AS ekn,
-        p.thickness,
-        COALESCE(p.color, '') AS color,
-        COALESCE(o.batch_number, '') AS batch_number,
-        COALESCE(o.sample_number, '') AS sample_number,
-        COALESCE(o.object_name, '') AS object_name,
-        COALESCE(p.standard, '') AS standard,
-        COALESCE(p.target_comb_group, '') AS target_comb_group,
-        COALESCE(p.target_flam_group, '') AS target_flam_group,
-        COALESCE(p.target_prop_group, '') AS target_prop_group,
-        COALESCE(m.method_abbreviation, '') AS method_abbreviation,
-        COALESCE(m.method_name, '') AS method_name,
-        COALESCE(m.method_standard, '') AS method_standard,
-        ar.agg_avg_smog_temp,
-        ar.agg_smog_group,
-        ar.agg_smog_complience,
-        ar.agg_mass_loss,
-        ar.agg_comb_time,
-        ar.agg_dam_length,
-        ar.agg_comb_bulb,
-        ar.agg_group_by_mass,
-        ar.agg_group_by_length,
-        ar.agg_croup_by_comb_time,
-        ar.agg_group_by_bulbe,
-        ar.agg_gen_group,
-        ar.agg_mass_complience,
-        ar.agg_complience_by_length,
-        ar.agg_complience_by_comb_time,
-        ar.agg_complience_by_bulbe,
-        ar.agg_additional_info_1
-      FROM aggregated_results ar
-      LEFT JOIN applications a ON ar.application_id = a.application_id
-      LEFT JOIN products p ON p.product_id = a.product_id
-      LEFT JOIN customers c ON c.customer_id = a.customer_id
-      LEFT JOIN objects o ON o.object_id = a.object_id
-      LEFT JOIN methods m ON m.method_id = a.method_id`;
+      await this.loadViewConfig();
+      const sql = this.viewConfig.loadQuery;
       const stmt = db.prepare(sql);
       const sqliteItems = [];
       while (stmt.step()) {
@@ -69567,50 +70194,132 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       this.items = this.items.filter((i) => sqliteIds.has(i.aggregate_id));
       const removed = before - this.items.length;
       await this.saveData();
-      new import_obsidian11.Notice(`LPI: \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E. \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: ${added}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}, \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0441 YouGile: ${syncedToYougile}, \u0443\u0434\u0430\u043B\u0435\u043D\u043E: ${removed}`);
+      await this.plugin.syncLogger.log({
+        module: "lpi",
+        direction: "local",
+        action: "load-sql",
+        itemId: "",
+        status: "success",
+        details: `SQLite \u2192 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E. \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: ${added}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}, \u0443\u0434\u0430\u043B\u0435\u043D\u043E: ${removed}, \u0441\u0438\u043D\u0445\u0440. \u0441 YouGile: ${syncedToYougile}`
+      });
+      new import_obsidian13.Notice(`LPI: \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E. \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: ${added}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}, \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0441 YouGile: ${syncedToYougile}, \u0443\u0434\u0430\u043B\u0435\u043D\u043E: ${removed}`);
       this.renderView();
     } catch (e) {
-      new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u0438\u0437 SQLite: " + e.message);
+      await this.plugin.syncLogger.log({
+        module: "lpi",
+        direction: "local",
+        action: "load-sql",
+        itemId: "",
+        status: "error",
+        error: e instanceof Error ? e.message : String(e)
+      });
+      new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u0438\u0437 SQLite: " + e.message);
     }
   }
   isBeforeCutoff(item) {
     const id = parseInt(item.application_external_id, 10);
     return !isNaN(id) && id < _LpiView.YG_MIN_EXT_ID;
   }
+  async loadViewConfig() {
+    try {
+      if (this.plugin.settings.lpiViewConfigSource === "default") {
+        this.viewConfig = DEFAULT_CONFIG;
+        return;
+      }
+      const adapter = this.app.vault.adapter;
+      const exists = await adapter.exists(CONFIG_PATH);
+      if (exists) {
+        const content = await adapter.read(CONFIG_PATH);
+        const parsed = JSON.parse(content);
+        this.viewConfig = { ...DEFAULT_CONFIG, ...parsed, detailSections: parsed.detailSections || DEFAULT_CONFIG.detailSections, colorRules: parsed.colorRules || DEFAULT_CONFIG.colorRules };
+      } else {
+        this.viewConfig = DEFAULT_CONFIG;
+        await adapter.write(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
+      }
+    } catch (e) {
+      this.viewConfig = DEFAULT_CONFIG;
+    }
+  }
   async syncItemToYougile(item, wasActive) {
     const isTerminal = !this.isEffectivelyActive(item);
     const fullJson = this.buildFullJson(item);
     const desc = JSON.stringify(fullJson);
+    const itemId = item.application_external_id || item.aggregate_id;
+    const itemTitle = item.product_name;
     if (item.taskId) {
       const payload = { description: desc };
       if (isTerminal && wasActive) {
         payload.completed = true;
       }
-      await this.plugin.client.updateTask(item.taskId, payload);
-      if (isTerminal && !item.completedLocally) {
-        item.completedLocally = true;
-        item.completedAt = item.protocol_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      }
-      return true;
-    } else {
-      const statusTerminal = !_LpiView.isStatusActive(item.application_status);
-      const result = await this.plugin.client.createTask({
-        title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
-        description: desc,
-        columnId: this.getLpiColumnId()
-      });
-      if (result == null ? void 0 : result.id) {
-        item.taskId = result.id;
-        if (statusTerminal) {
+      try {
+        await this.plugin.client.updateTask(item.taskId, payload);
+        if (isTerminal && !item.completedLocally) {
           item.completedLocally = true;
           item.completedAt = item.protocol_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-          await this.plugin.client.updateTask(result.id, {
-            completed: true
-          });
         }
+        await this.plugin.syncLogger.log({
+          module: "lpi",
+          direction: "to-yougile",
+          action: "update",
+          itemId,
+          itemTitle,
+          status: "success",
+          details: isTerminal && wasActive ? "\u0417\u0430\u0434\u0430\u0447\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E"
+        });
         return true;
+      } catch (e) {
+        await this.plugin.syncLogger.log({
+          module: "lpi",
+          direction: "to-yougile",
+          action: "update",
+          itemId,
+          itemTitle,
+          status: "error",
+          error: e instanceof Error ? e.message : String(e)
+        });
+        throw e;
       }
-      return false;
+    } else {
+      const statusTerminal = !_LpiView.isStatusActive(item.application_status);
+      try {
+        const result = await this.plugin.client.createTask({
+          title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
+          description: desc,
+          columnId: this.getLpiColumnId()
+        });
+        if (result == null ? void 0 : result.id) {
+          item.taskId = result.id;
+          if (statusTerminal) {
+            item.completedLocally = true;
+            item.completedAt = item.protocol_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+            await this.plugin.client.updateTask(result.id, {
+              completed: true
+            });
+          }
+          await this.plugin.syncLogger.log({
+            module: "lpi",
+            direction: "to-yougile",
+            action: "create",
+            itemId,
+            itemTitle,
+            status: "success",
+            details: `taskId: ${result.id}${statusTerminal ? ", \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : ""}`
+          });
+          return true;
+        }
+        return false;
+      } catch (e) {
+        await this.plugin.syncLogger.log({
+          module: "lpi",
+          direction: "to-yougile",
+          action: "create",
+          itemId,
+          itemTitle,
+          status: "error",
+          error: e instanceof Error ? e.message : String(e)
+        });
+        throw e;
+      }
     }
   }
   buildFullJson(item) {
@@ -69692,10 +70401,10 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
         }
       } catch (e) {
       }
-      new import_obsidian11.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430`);
+      new import_obsidian13.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430`);
       this.renderView();
     } catch (e) {
-      new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
+      new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
     }
   }
   applyFilters(items) {
@@ -70034,24 +70743,28 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       legend: { show: false }
     };
   }
-  renderDetail(item) {
+  async renderDetail(item) {
     const container = this.containerElContent;
     container.empty();
-    const backBtn = container.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434 \u043A \u0441\u043F\u0438\u0441\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
+    const btnRow = container.createDiv();
+    btnRow.style.display = "flex";
+    btnRow.style.gap = "8px";
+    btnRow.style.marginBottom = "8px";
+    btnRow.style.flexWrap = "wrap";
+    const backBtn = btnRow.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434 \u043A \u0441\u043F\u0438\u0441\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
     backBtn.addEventListener("click", () => this.renderView());
-    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs.default.existsSync(this.plugin.settings.lpiDbPath);
-    const sendBtn = container.createEl("button", {
+    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs2.default.existsSync(this.plugin.settings.lpiDbPath);
+    const sendBtn = btnRow.createEl("button", {
       text: "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile",
       cls: "mailer-yougile-refresh-btn"
     });
-    sendBtn.style.marginLeft = "8px";
     sendBtn.disabled = !sqlConnected;
     if (!sqlConnected) {
       sendBtn.title = "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI";
     }
     sendBtn.addEventListener("click", async () => {
       if (!this.plugin.client) {
-        new import_obsidian11.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
+        new import_obsidian13.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
         return;
       }
       sendBtn.disabled = true;
@@ -70059,75 +70772,207 @@ var _LpiView = class _LpiView extends import_obsidian11.ItemView {
       try {
         await this.syncItemToYougile(item, this.isEffectivelyActive(item));
         await this.saveData();
-        new import_obsidian11.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
+        new import_obsidian13.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
       } catch (e) {
-        new import_obsidian11.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
+        new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
       }
       sendBtn.disabled = false;
       sendBtn.textContent = "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile";
     });
     container.createEl("h3", { text: `\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}` });
-    const meta = container.createDiv({ cls: "mailer-yougile-task-meta mailer-mb-12" });
-    const addSection = (title, pairs) => {
-      var _a;
-      if (pairs.length === 0) return;
-      meta.createEl("h4", { text: title, cls: "mailer-mt-8" });
-      for (const p of pairs) {
+    const meta = container.createDiv({ cls: "mailer-yougile-task-meta" });
+    const colorRules = this.viewConfig.colorRules || {};
+    const renderFieldSection = (section) => {
+      if (section.fields.length === 0) return;
+      meta.createEl("h4", { text: section.title, cls: "mailer-mt-8" });
+      for (const f of section.fields) {
+        if (f.visibleIf) {
+          const targetVal = item[f.visibleIf.field];
+          if (f.visibleIf.notNull && (targetVal === null || targetVal === void 0 || targetVal === "")) continue;
+          if (f.visibleIf.equals !== void 0 && String(targetVal) !== f.visibleIf.equals) continue;
+        }
+        const raw = item[f.field];
+        const isMissing = raw === null || raw === void 0 || raw === "";
+        let display = isMissing ? "\u2014" : String(raw);
+        if (f.format && !isMissing) {
+          display = f.format.replace("{value}", display);
+        }
         const div = meta.createDiv();
-        if (p.bold) div.style.fontWeight = "bold";
-        const val = (_a = p.value) != null ? _a : "\u2014";
-        div.textContent = `${p.label}: ${val}`;
-        if (p.color && typeof val === "string") {
-          div.style.color = p.color(val);
+        if (f.bold) div.style.fontWeight = "bold";
+        div.textContent = `${f.label}: ${display}`;
+        if (f.colorRuleId && !isMissing) {
+          const ruleSet = colorRules[f.colorRuleId];
+          if (ruleSet) {
+            const match = ruleSet.rules.find((r) => r.match === raw);
+            div.style.color = match ? match.color : ruleSet.defaultColor || "";
+          }
         }
       }
     };
-    const detailFields = [
-      { label: "\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", value: item.application_external_id },
-      { label: "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F", value: item.application_created_at },
-      { label: "\u0421\u0442\u0430\u0442\u0443\u0441", value: _LpiView.statusDisplay(item.application_status) },
-      { label: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", value: item.product_name },
-      { label: "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A", value: item.customer_name },
-      { label: "Email \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", value: item.customer_mail },
-      { label: "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", value: item.organization },
-      { label: "\u0422\u0435\u043B\u0435\u0444\u043E\u043D", value: item.customer_phone },
-      { label: "\u0410\u0434\u0440\u0435\u0441", value: item.customer_address },
-      { label: "\u0415\u041A\u041D", value: item.ekn },
-      { label: "\u0422\u043E\u043B\u0449\u0438\u043D\u0430", value: item.thickness !== null && item.thickness !== void 0 ? `${item.thickness} \u043C\u043C` : null },
-      { label: "\u0426\u0432\u0435\u0442", value: item.color },
-      { label: "\u041D\u043E\u043C\u0435\u0440 \u043F\u0430\u0440\u0442\u0438\u0438", value: item.batch_number },
-      { label: "\u041D\u043E\u043C\u0435\u0440 \u043E\u0431\u0440\u0430\u0437\u0446\u0430", value: item.sample_number },
-      { label: "\u041E\u0431\u044A\u0435\u043A\u0442", value: item.object_name },
-      { label: "\u0421\u0442\u0430\u043D\u0434\u0430\u0440\u0442", value: item.standard },
-      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438", value: item.target_comb_group },
-      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438", value: item.target_flam_group },
-      { label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F", value: item.target_prop_group },
-      { label: "\u041C\u0435\u0442\u043E\u0434 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", value: item.method_name },
-      { label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", value: this.getProtocolDate(item) }
-    ];
-    addSection("\u0414\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438", detailFields);
-    addSection("\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0437\u043C\u0435\u0440\u0435\u043D\u0438\u0439", [
-      { label: "\u0421\u0440\u0435\u0434\u043D\u044F\u044F \u0442\u0435\u043C\u043F\u0435\u0440\u0430\u0442\u0443\u0440\u0430 \u0434\u044B\u043C\u0430", value: item.agg_avg_smog_temp ? `${item.agg_avg_smog_temp} \xB0C` : null },
-      { label: "\u041F\u043E\u0442\u0435\u0440\u044F \u043C\u0430\u0441\u0441\u044B", value: item.agg_mass_loss ? `${item.agg_mass_loss} %` : null },
-      { label: "\u0412\u0440\u0435\u043C\u044F \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_comb_time ? `${item.agg_comb_time} \u0441` : null },
-      { label: "\u0414\u043B\u0438\u043D\u0430 \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u044F", value: item.agg_dam_length ? `${item.agg_dam_length} \u043C\u043C` : null },
-      { label: "\u041F\u0430\u0434\u0435\u043D\u0438\u0435 \u0433\u043E\u0440\u044F\u0449\u0438\u0445 \u043A\u0430\u043F\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043B\u0430\u0432\u0430", value: item.agg_comb_bulb }
-    ]);
-    addSection("\u0412\u044B\u0432\u043E\u0434\u044B", [
-      { label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", value: item.agg_gen_group, bold: true },
-      { label: "\u041E\u0431\u0449\u0430\u044F \u043E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", value: item.agg_gen_group_complience, bold: true, color: (v) => v === "\u041D\u0435 \u043E\u0446\u0435\u043D\u0438\u0432\u0430\u0435\u0442\u0441\u044F" ? "var(--text-muted)" : v === "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442" ? "var(--text-success)" : v === "\u041D\u0435 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442" ? "var(--text-error)" : "" },
-      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u044B\u043C\u0443", value: item.agg_smog_group },
-      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u044B\u043C\u0443", value: item.agg_smog_complience },
-      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", value: item.agg_group_by_mass },
-      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", value: item.agg_mass_complience },
-      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", value: item.agg_group_by_length },
-      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", value: item.agg_complience_by_length },
-      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_croup_by_comb_time },
-      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", value: item.agg_complience_by_comb_time },
-      { label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0433\u043E\u0440\u044F\u0449\u0438\u043C \u043A\u0430\u043F\u043B\u044F\u043C", value: item.agg_group_by_bulbe },
-      { label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0433\u043E\u0440\u044F\u0449\u0438\u043C \u043A\u0430\u043F\u043B\u044F\u043C", value: item.agg_complience_by_bulbe },
-      { label: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F", value: item.agg_additional_info_1 }
-    ]);
+    const renderSubquerySection = async (section) => {
+      var _a;
+      const dbPath = (_a = this.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
+      if (!dbPath || !import_fs2.default.existsSync(dbPath)) return;
+      let query = section.query;
+      for (const key of section.dependsOn) {
+        const val = item[key];
+        if (val !== null && val !== void 0) {
+          query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(val));
+        }
+      }
+      try {
+        const result = await this.schemaService.runQuery(dbPath, query);
+        if (result.columns.length === 0) return;
+        meta.createEl("h4", { text: section.title, cls: "mailer-mt-8" });
+        const subTable = meta.createEl("table");
+        subTable.style.cssText = "width:100%;border-collapse:collapse;font-size:12px;margin-top:4px";
+        const subHead = subTable.createEl("thead");
+        const subHr = subHead.createEl("tr");
+        for (const col of section.columns) {
+          const th = subHr.createEl("th", { text: col.label });
+          th.style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:3px 6px;text-align:left;white-space:nowrap";
+        }
+        const subBody = subTable.createEl("tbody");
+        for (const row of result.rows) {
+          const tr = subBody.createEl("tr");
+          for (const col of section.columns) {
+            const colIdx = result.columns.indexOf(col.field);
+            const raw = colIdx >= 0 ? row[colIdx] : null;
+            const isMissing = raw === null || raw === void 0 || raw === "";
+            let display = isMissing ? "\u2014" : String(raw);
+            if (col.format && !isMissing) {
+              display = col.format.replace("{value}", display);
+            }
+            tr.createEl("td", { text: display }).style.cssText = "padding:2px 6px;border-bottom:1px solid var(--background-modifier-border)";
+          }
+        }
+      } catch (e) {
+      }
+    };
+    for (const section of this.viewConfig.detailSections) {
+      if (section.type === "fields") {
+        renderFieldSection(section);
+      } else if (section.type === "subquery") {
+        await renderSubquerySection(section);
+      }
+    }
+    this.renderQueryRunner(container, item);
+  }
+  renderQueryRunner(container, item) {
+    var _a;
+    const dbPath = (_a = this.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
+    if (!dbPath || !import_fs2.default.existsSync(dbPath)) return;
+    const details = container.createEl("details", { attr: { style: "margin-top:16px" } });
+    const summary = details.createEl("summary", { text: "\u{1F50D} SQL \u0417\u0430\u043F\u0440\u043E\u0441", attr: { style: "cursor:pointer;font-weight:600;font-size:13px" } });
+    const qContainer = details.createDiv();
+    qContainer.style.cssText = "padding:8px;background:var(--background-primary-alt);border-radius:6px;margin-top:8px";
+    const tableSelRow = qContainer.createDiv();
+    tableSelRow.style.cssText = "display:flex;gap:8px;margin-bottom:8px;align-items:center";
+    const tableSel = tableSelRow.createEl("select");
+    tableSel.style.cssText = "flex:1;font-size:12px;padding:4px";
+    tableSel.createEl("option", { text: "\u2014 \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u0430\u0431\u043B\u0438\u0446\u0443 \u2014", value: "" });
+    this.schemaService.loadSchema(dbPath).then((schema) => {
+      for (const table of schema.tables) {
+        tableSel.createEl("option", { text: table.name, value: table.name });
+      }
+    }).catch(() => {
+    });
+    const autoBtn = tableSelRow.createEl("button", { text: "\u{1F504} \u0410\u0432\u0442\u043E", cls: "mailer-yougile-refresh-btn" });
+    autoBtn.style.fontSize = "11px";
+    const sqlInput = qContainer.createEl("textarea");
+    sqlInput.style.cssText = "width:100%;box-sizing:border-box;padding:6px;font-family:monospace;font-size:11px;min-height:60px;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:4px";
+    sqlInput.placeholder = "SELECT * FROM table WHERE column = '{{application_external_id}}'";
+    autoBtn.addEventListener("click", () => {
+      const tableName = tableSel.value;
+      if (!tableName) return;
+      this.schemaService.loadSchema(dbPath).then((schema) => {
+        const table = schema.byName.get(tableName);
+        if (!table) return;
+        const cols = table.columns.map((c) => c.name).join(",\n  ");
+        const fkClauses = table.foreignKeys.map((fk) => `${fk.from} = '{{aggregate_id}}'`).join("\n  OR ");
+        let where = "";
+        if (fkClauses) where = `WHERE (
+  ${fkClauses}
+)`;
+        else if (table.columns.some((c) => c.name.includes("application_id") || c.name.includes("aggregate_id"))) {
+          where = "WHERE application_id = '{{aggregate_id}}'";
+        }
+        sqlInput.value = `SELECT
+  ${cols}
+FROM ${tableName}
+${where}
+LIMIT 50`;
+      }).catch(() => {
+      });
+    });
+    const runBtn = qContainer.createEl("button", { text: "\u25B6 \u0412\u044B\u043F\u043E\u043B\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    runBtn.style.marginTop = "6px";
+    const resultDiv = qContainer.createDiv();
+    resultDiv.style.cssText = "margin-top:8px;overflow-x:auto";
+    const saveSectionBtn = qContainer.createEl("button", {
+      text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u0430\u043A \u0441\u0435\u043A\u0446\u0438\u044E",
+      cls: "mailer-yougile-refresh-btn",
+      attr: { style: "margin-top:6px;font-size:11px" }
+    });
+    runBtn.addEventListener("click", async () => {
+      let query = sqlInput.value;
+      for (const key of ["aggregate_id", "application_external_id", "product_name"]) {
+        const val = item[key];
+        if (val !== null && val !== void 0) {
+          query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(val));
+        }
+      }
+      resultDiv.empty();
+      runBtn.textContent = "\u23F3";
+      runBtn.disabled = true;
+      try {
+        const result = await this.schemaService.runQuery(dbPath, query);
+        if (result.columns.length === 0) {
+          resultDiv.textContent = "\u041D\u0435\u0442 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432";
+          saveSectionBtn.style.display = "none";
+          return;
+        }
+        const resTable = resultDiv.createEl("table");
+        resTable.style.cssText = "width:100%;border-collapse:collapse;font-size:11px";
+        const resHead = resTable.createEl("thead");
+        const resHr = resHead.createEl("tr");
+        for (const col of result.columns) {
+          resHr.createEl("th", { text: col }).style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:3px 6px;text-align:left;white-space:nowrap";
+        }
+        const resBody = resTable.createEl("tbody");
+        for (const row of result.rows) {
+          const tr = resBody.createEl("tr");
+          for (let i = 0; i < result.columns.length; i++) {
+            tr.createEl("td", { text: row[i] !== null && row[i] !== void 0 ? String(row[i]) : "\u2014" }).style.cssText = "padding:2px 6px;border-bottom:1px solid var(--background-modifier-border);white-space:nowrap";
+          }
+        }
+        saveSectionBtn.style.display = "block";
+        saveSectionBtn.onclick = () => {
+          const newSection = {
+            title: tableSel.value ? `\u0414\u0430\u043D\u043D\u044B\u0435: ${tableSel.value}` : "\u0414\u043E\u043F. \u0434\u0430\u043D\u043D\u044B\u0435",
+            type: "subquery",
+            query: sqlInput.value,
+            columns: result.columns.map((c) => ({ label: c, field: c })),
+            dependsOn: ["aggregate_id", "application_external_id"]
+          };
+          this.viewConfig.detailSections.push(newSection);
+        };
+      } catch (e) {
+        resultDiv.textContent = "\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message;
+        saveSectionBtn.style.display = "none";
+      }
+      runBtn.textContent = "\u25B6 \u0412\u044B\u043F\u043E\u043B\u043D\u0438\u0442\u044C";
+      runBtn.disabled = false;
+    });
+    saveSectionBtn.style.display = "none";
+    const editConfigBtn = qContainer.createEl("button", {
+      text: "\u2699 \u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u043A\u043E\u043D\u0444\u0438\u0433\u0430",
+      cls: "mailer-yougile-refresh-btn",
+      attr: { style: "margin-left:6px;font-size:11px" }
+    });
+    editConfigBtn.addEventListener("click", () => {
+      new LpiConfigEditorModal(this.app, this).open();
+    });
   }
 };
 _LpiView.METHOD_NAMES = {
@@ -70141,7 +70986,7 @@ _LpiView.METHOD_NAMES = {
 _LpiView.TERMINAL_STATUSES = /* @__PURE__ */ new Set(["completed", "received"]);
 _LpiView.YG_MIN_EXT_ID = 642;
 var LpiView = _LpiView;
-var ProductFilterModal = class extends import_obsidian11.Modal {
+var ProductFilterModal = class extends import_obsidian13.Modal {
   constructor(app, allProducts, selected, onSave) {
     super(app);
     this.allProducts = allProducts;
@@ -70213,7 +71058,7 @@ var ProductFilterModal = class extends import_obsidian11.Modal {
     this.contentEl.empty();
   }
 };
-var MethodFilterModal = class extends import_obsidian11.Modal {
+var MethodFilterModal = class extends import_obsidian13.Modal {
   constructor(app, allMethods, selected, onSave) {
     super(app);
     this.allMethods = allMethods;
@@ -70288,7 +71133,7 @@ var MethodFilterModal = class extends import_obsidian11.Modal {
     this.contentEl.empty();
   }
 };
-var YougileSyncModal = class extends import_obsidian11.Modal {
+var YougileSyncModal = class extends import_obsidian13.Modal {
   constructor(app, plugin, view) {
     super(app);
     this.plugin = plugin;
@@ -70495,11 +71340,11 @@ var YougileSyncModal = class extends import_obsidian11.Modal {
           }
           count++;
         } catch (e) {
-          new import_obsidian11.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E \u2116${md.item.application_external_id}: ${e.message}`);
+          new import_obsidian13.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E \u2116${md.item.application_external_id}: ${e.message}`);
         }
       }
       await this.view.saveData();
-      new import_obsidian11.Notice(`\u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u043E: ${count} \u0437\u0430\u044F\u0432\u043E\u043A`);
+      new import_obsidian13.Notice(`\u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u043E: ${count} \u0437\u0430\u044F\u0432\u043E\u043A`);
       this.close();
       this.view.renderView();
     });
@@ -70513,16 +71358,78 @@ var YougileSyncModal = class extends import_obsidian11.Modal {
     });
   }
 };
+var LpiConfigEditorModal = class extends import_obsidian13.Modal {
+  constructor(app, view) {
+    super(app);
+    this.view = view;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h2", { text: "\u2699 \u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u043A\u043E\u043D\u0444\u0438\u0433\u0430 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F" });
+    const info = contentEl.createEl("p", { text: "\u041A\u043E\u043D\u0444\u0438\u0433 \u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0432 yourbase/lpi_view_config.json. \u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0434\u0435\u0442\u0430\u043B\u0435\u0439 \u0437\u0430\u044F\u0432\u043A\u0438." });
+    info.style.color = "var(--text-muted)";
+    info.style.fontSize = "12px";
+    const configJson = JSON.stringify(this.view.viewConfig, null, 2);
+    const textarea = contentEl.createEl("textarea");
+    textarea.value = configJson;
+    textarea.style.cssText = "width:100%;box-sizing:border-box;min-height:400px;font-family:monospace;font-size:11px;padding:8px;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border);border-radius:4px";
+    const btnRow = contentEl.createDiv();
+    btnRow.style.cssText = "display:flex;gap:8px;margin-top:8px";
+    const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    saveBtn.addEventListener("click", async () => {
+      try {
+        const parsed = JSON.parse(textarea.value);
+        this.view.viewConfig = parsed;
+        const adapter = this.view.app.vault.adapter;
+        await adapter.write(CONFIG_PATH, JSON.stringify(parsed, null, 2));
+        new import_obsidian13.Notice("\u041A\u043E\u043D\u0444\u0438\u0433 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D");
+        this.close();
+      } catch (e) {
+        new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u0432 JSON: " + e.message);
+      }
+    });
+    const resetBtn = btnRow.createEl("button", { text: "\u21BA \u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043D\u0430 \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044F", cls: "mailer-yougile-refresh-btn" });
+    resetBtn.addEventListener("click", async () => {
+      this.view.viewConfig = DEFAULT_CONFIG;
+      const adapter = this.view.app.vault.adapter;
+      await adapter.write(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
+      textarea.value = JSON.stringify(DEFAULT_CONFIG, null, 2);
+      new import_obsidian13.Notice("\u041A\u043E\u043D\u0444\u0438\u0433 \u0441\u0431\u0440\u043E\u0448\u0435\u043D \u043D\u0430 \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044F");
+    });
+    const howTo = contentEl.createEl("details", { attr: { style: "margin-top:12px" } });
+    howTo.createEl("summary", { text: "\u{1F4D6} \u041A\u0430\u043A \u0434\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0441\u0435\u043A\u0446\u0438\u044E \u0441 SQL-\u0437\u0430\u043F\u0440\u043E\u0441\u043E\u043C", attr: { style: "cursor:pointer;font-weight:600;font-size:12px" } });
+    const howContent = howTo.createDiv();
+    howContent.style.cssText = "padding:8px;font-size:11px;background:var(--background-primary-alt);border-radius:4px;margin-top:4px";
+    howContent.innerHTML = `<pre style="margin:0;white-space:pre-wrap">
+\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0441\u0435\u043A\u0446\u0438\u044E \u0432 "detailSections":
+
+{
+  "title": "\u041C\u043E\u0438 \u0434\u0430\u043D\u043D\u044B\u0435",
+  "type": "subquery",
+  "query": "SELECT * FROM my_table WHERE fk_id = '{{aggregate_id}}'",
+  "columns": [
+    { "label": "\u041A\u043E\u043B\u043E\u043D\u043A\u0430 1", "field": "col1" }
+  ],
+  "dependsOn": ["aggregate_id"]
+}
+</pre>`;
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 
 // src/commands.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian15 = require("obsidian");
+init_sync_logger();
 function registerCommands(plugin) {
   plugin.addCommand({
     id: "create-task",
     name: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443",
     callback: () => {
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian12.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian15.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return;
       }
       plugin.activateView();
@@ -70546,7 +71453,7 @@ function registerCommands(plugin) {
       const view = leaf == null ? void 0 : leaf.view;
       if (view instanceof TasksView) {
         view.syncAndRender();
-        new import_obsidian12.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
+        new import_obsidian15.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
       }
     }
   });
@@ -70565,7 +71472,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleDocumentsEnabled) return false;
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian12.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian15.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return false;
       }
       if (checking) return true;
@@ -70614,6 +71521,13 @@ function registerCommands(plugin) {
       if (!plugin.settings.moduleLpiEnabled) return false;
       if (checking) return true;
       plugin.activateLpiView();
+    }
+  });
+  plugin.addCommand({
+    id: "open-sync-log",
+    name: "\u0416\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438",
+    callback: () => {
+      new SyncLogModal(plugin.app, plugin.syncLogger).open();
     }
   });
 }
@@ -70895,10 +71809,36 @@ var LocalDatabase = class {
       this.data.tasks = mergedTasks;
       this.data.lastSyncAt = now;
       await this.save();
+      await this.logSync(remoteTasks.length, allBoards.length, allColumns.length);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn("YouGile: sync failed \u2014", msg);
+      await this.logSyncError(msg);
     }
+  }
+  async logSync(taskCount, boardCount, columnCount) {
+    var _a;
+    if (!((_a = this.plugin) == null ? void 0 : _a.syncLogger)) return;
+    await this.plugin.syncLogger.log({
+      module: "tasks",
+      direction: "from-yougile",
+      action: "sync-complete",
+      itemId: "",
+      status: "success",
+      details: `\u0417\u0430\u0434\u0430\u0447\u0438: ${taskCount}, \u0434\u043E\u0441\u043A\u0438: ${boardCount}, \u043A\u043E\u043B\u043E\u043D\u043A\u0438: ${columnCount}`
+    });
+  }
+  async logSyncError(error) {
+    var _a;
+    if (!((_a = this.plugin) == null ? void 0 : _a.syncLogger)) return;
+    await this.plugin.syncLogger.log({
+      module: "tasks",
+      direction: "from-yougile",
+      action: "sync-complete",
+      itemId: "",
+      status: "error",
+      error
+    });
   }
 };
 
@@ -70979,6 +71919,7 @@ var EmailDatabase = class {
   syncFromTasks(tasks) {
     var _a, _b, _c, _d, _e;
     let changed = false;
+    let syncedCount = 0;
     for (const task of tasks) {
       if (!task.description) continue;
       const desc = task.description.trim();
@@ -71000,6 +71941,7 @@ var EmailDatabase = class {
       const directionId = typeof parsed.direction_id === "number" ? parsed.direction_id : 0;
       const directionName = String(parsed.direction_name || parsed.directionName || "");
       if (existing) {
+        const dataChanged = existing.number !== number || existing.subject !== subject || existing.text !== text || existing.author !== author || existing.date !== date || existing.direction_id !== directionId || existing.direction_name !== directionName;
         existing.number = number;
         existing.subject = subject;
         existing.text = text;
@@ -71011,6 +71953,7 @@ var EmailDatabase = class {
         existing.lastSyncTime = (/* @__PURE__ */ new Date()).toISOString();
         existing.sync_status = "synced";
         changed = true;
+        if (dataChanged) syncedCount++;
       } else {
         this.data.emails.push({
           id: emailId,
@@ -71030,9 +71973,31 @@ var EmailDatabase = class {
           taskId: task.id
         });
         changed = true;
+        syncedCount++;
       }
     }
-    if (changed) this.save();
+    if (changed) {
+      this.save();
+      this.logSync(syncedCount);
+    }
+  }
+  logSync(count) {
+    if (!this.app) return;
+    try {
+      const { SyncLogger: SyncLogger2 } = (init_sync_logger(), __toCommonJS(sync_logger_exports));
+      const logger = new SyncLogger2(this.app);
+      logger.init().then(() => {
+        logger.log({
+          module: "emails",
+          direction: "from-yougile",
+          action: "sync-complete",
+          itemId: "",
+          status: "success",
+          details: `\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u043F\u0438\u0441\u0435\u043C \u0438\u0437 YouGile: ${count}`
+        });
+      });
+    } catch (e) {
+    }
   }
   hashTaskId(id) {
     let hash = 0;
@@ -71102,6 +72067,8 @@ var ContactDatabase = class {
         return false;
       }
     });
+    let updatedCount = 0;
+    let addedCount = 0;
     for (const task of contactTasks) {
       try {
         const parsed = JSON.parse(task.description || "{}");
@@ -71115,6 +72082,7 @@ var ContactDatabase = class {
           existing.organization = parsed.organization || "";
           existing.position = parsed.position || "";
           existing.notes = parsed.notes || parsed.note || "";
+          updatedCount++;
         } else {
           const now = (/* @__PURE__ */ new Date()).toISOString();
           this.data.contacts.push({
@@ -71131,16 +72099,38 @@ var ContactDatabase = class {
             updatedAt: parsed.updatedAt || now,
             sync_status: "synced"
           });
+          addedCount++;
         }
       } catch (e) {
       }
     }
     this.save();
+    if (contactTasks.length > 0) {
+      this.logSync(addedCount, updatedCount);
+    }
+  }
+  logSync(added, updated) {
+    if (!this.app) return;
+    try {
+      const { SyncLogger: SyncLogger2 } = (init_sync_logger(), __toCommonJS(sync_logger_exports));
+      const logger = new SyncLogger2(this.app);
+      logger.init().then(() => {
+        logger.log({
+          module: "contacts",
+          direction: "from-yougile",
+          action: "sync-complete",
+          itemId: "",
+          status: "success",
+          details: `\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile. \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: ${added}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}`
+        });
+      });
+    } catch (e) {
+    }
   }
 };
 
 // src/services/llm-service.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 var LLMService = class {
   constructor(plugin) {
     this.lastRequestTime = 0;
@@ -71242,7 +72232,7 @@ ${question}
 ## \u041E\u0422\u0412\u0415\u0422\u042C:`;
     return this.retryWithBackoff(async () => {
       var _a, _b, _c;
-      const response = await (0, import_obsidian13.requestUrl)({
+      const response = await (0, import_obsidian16.requestUrl)({
         url: llmApiUrl || "https://ask.chadgpt.ru/api/v1/chat/completions",
         method: "POST",
         headers: {
@@ -71268,6 +72258,7 @@ ${question}
 };
 
 // src/main.ts
+init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
   "0.2.0": [
@@ -71390,6 +72381,21 @@ var CHANGELOG = {
   "0.4.11": [
     "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0440\u0430\u0437\u0431\u0438\u0435\u043D\u0438\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C (per-product test result donuts)"
   ],
+  "0.6.0": [
+    "LPI: \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u044B \u043D\u0430 config-driven \u0440\u0435\u043D\u0434\u0435\u0440\u0438\u043D\u0433 \u2014 \u043F\u043E\u043B\u044F, \u0441\u0435\u043A\u0446\u0438\u0438 \u0438 \u043F\u043E\u0434\u0437\u0430\u043F\u0440\u043E\u0441\u044B \u0443\u043F\u0440\u0430\u0432\u043B\u044F\u044E\u0442\u0441\u044F \u0447\u0435\u0440\u0435\u0437 yourbase/lpi_view_config.json",
+    'LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D Schema Browser (\u043A\u043D\u043E\u043F\u043A\u0430 "\u{1F4D0} \u0421\u0445\u0435\u043C\u0430 \u0411\u0414") \u2014 \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0442\u0430\u0431\u043B\u0438\u0446, \u043A\u043E\u043B\u043E\u043D\u043E\u043A, FK, \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F \u0448\u0430\u0431\u043B\u043E\u043D\u043E\u0432 \u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432',
+    "LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D Query Runner \u0432 \u0434\u0435\u0442\u0430\u043B\u044F\u0445 \u2014 \u043F\u0440\u043E\u0438\u0437\u0432\u043E\u043B\u044C\u043D\u044B\u0435 SQL-\u0437\u0430\u043F\u0440\u043E\u0441\u044B \u0441 \u043F\u043E\u0434\u0441\u0442\u0430\u043D\u043E\u0432\u043A\u043E\u0439 {{aggregate_id}}/{{application_external_id}}, \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0432 \u0442\u0430\u0431\u043B\u0438\u0446\u0435",
+    'LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D Config Editor (\u043A\u043D\u043E\u043F\u043A\u0430 "\u2699 \u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u043A\u043E\u043D\u0444\u0438\u0433\u0430") \u2014 \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435 \u043A\u043E\u043D\u0444\u0438\u0433\u0430 \u0447\u0435\u0440\u0435\u0437 \u0442\u0435\u043A\u0441\u0442\u043E\u0432\u043E\u0435 \u043F\u043E\u043B\u0435',
+    "LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D LpiSchemaService \u2014 \u0441\u0435\u0440\u0432\u0438\u0441 \u0434\u043B\u044F \u0447\u0442\u0435\u043D\u0438\u044F \u043C\u0435\u0442\u0430\u0434\u0430\u043D\u043D\u044B\u0445 SQLite (sqlite_master, PRAGMA table_info, PRAGMA foreign_key_list)",
+    "LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u043A\u0430 subquery-\u0441\u0435\u043A\u0446\u0438\u0439 \u0432 \u0434\u0435\u0442\u0430\u043B\u044F\u0445 \u2014 SQL-\u0437\u0430\u043F\u0440\u043E\u0441\u044B, \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u043C\u044B\u0435 \u043F\u0440\u0438 \u043E\u0442\u043A\u0440\u044B\u0442\u0438\u0438 \u0437\u0430\u044F\u0432\u043A\u0438, \u0441 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435\u043C \u0432 \u0432\u0438\u0434\u0435 \u0432\u043B\u043E\u0436\u0435\u043D\u043D\u043E\u0439 \u0442\u0430\u0431\u043B\u0438\u0446\u044B",
+    '\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0432\u044B\u0431\u043E\u0440 \u0438\u0441\u0442\u043E\u0447\u043D\u0438\u043A\u0430 \u043A\u043E\u043D\u0444\u0438\u0433\u0430 ("\u0424\u0430\u0439\u043B" / "\u041F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E")'
+  ],
+  "0.5.4s": [
+    "\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0436\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438: \u0432\u0441\u0435 \u043E\u043F\u0435\u0440\u0430\u0446\u0438\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 (LPI, \u041F\u0438\u0441\u044C\u043C\u0430, \u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B, \u0417\u0430\u0434\u0430\u0447\u0438, \u043E\u0444\u043B\u0430\u0439\u043D-\u043E\u0447\u0435\u0440\u0435\u0434\u044C) \u043B\u043E\u0433\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0432 yourbase/sync_log.json",
+    '\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u0438\u043A\u043E\u043D\u043A\u0430 "history" \u043D\u0430 ribbon \u0434\u043B\u044F \u043E\u0442\u043A\u0440\u044B\u0442\u0438\u044F \u0436\u0443\u0440\u043D\u0430\u043B\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438',
+    '\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u043A\u043E\u043C\u0430\u043D\u0434\u0430 "\u0416\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" \u0434\u043B\u044F \u043E\u0442\u043A\u0440\u044B\u0442\u0438\u044F \u043C\u043E\u0434\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u043E\u043A\u043D\u0430 \u0441 \u0444\u0438\u043B\u044C\u0442\u0440\u0430\u0446\u0438\u0435\u0439 \u043F\u043E \u043C\u043E\u0434\u0443\u043B\u044E, \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044E \u0438 \u0441\u0442\u0430\u0442\u0443\u0441\u0443',
+    "\u0416\u0443\u0440\u043D\u0430\u043B \u0441\u043E\u0434\u0435\u0440\u0436\u0438\u0442: \u0432\u0440\u0435\u043C\u044F, \u043C\u043E\u0434\u0443\u043B\u044C, \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 (\u2192YouGile/\u2190YouGile/\u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E), \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435, ID, \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435, \u0441\u0442\u0430\u0442\u0443\u0441 (\u2705/\u274C/\u23ED) \u0438 \u0434\u0435\u0442\u0430\u043B\u0438"
+  ],
   "0.5.3s": [
     "LPI: syncFromTasks \u043E\u0431\u043D\u043E\u0432\u043B\u044F\u0435\u0442 completedLocally \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u0438 \u043D\u0430\u043B\u0438\u0447\u0438\u0438 taskId",
     "LPI: syncItemToYougile \u043F\u0440\u0438 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0438 \u0437\u0430\u0434\u0430\u0447\u0438 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u0441\u0442\u0430\u0442\u0443\u0441 \u0438\u0437 SQLite (\u043D\u0435 completedLocally)"
@@ -71431,7 +72437,7 @@ var CHANGELOG = {
     'LPI: type \u0432 description \u0437\u0430\u0434\u0430\u0447 \u0438\u0437\u043C\u0435\u043D\u0451\u043D \u043D\u0430 "lpi_data" (\u0435\u0434\u0438\u043D\u044B\u0439 \u0442\u0438\u043F \u0434\u043B\u044F \u0432\u0441\u0435\u0445 LPI-\u0437\u0430\u0434\u0430\u0447)'
   ]
 };
-var ChangelogModal = class extends import_obsidian14.Modal {
+var ChangelogModal = class extends import_obsidian17.Modal {
   constructor(app, version, changes) {
     super(app);
     this.version = version;
@@ -71446,14 +72452,14 @@ var ChangelogModal = class extends import_obsidian14.Modal {
       list.createEl("li", { text: change });
     }
     contentEl.createEl("hr");
-    new import_obsidian14.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
+    new import_obsidian17.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
   }
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
   }
 };
-var YouGilePlugin = class extends import_obsidian14.Plugin {
+var YouGilePlugin = class extends import_obsidian17.Plugin {
   async onload() {
     await this.loadSettings();
     this.client = new YouGileClient();
@@ -71478,6 +72484,8 @@ var YouGilePlugin = class extends import_obsidian14.Plugin {
     this.contactDb = new ContactDatabase(this.app);
     await this.contactDb.init();
     this.llmService = new LLMService(this);
+    this.syncLogger = new SyncLogger(this.app);
+    await this.syncLogger.init();
     this.addSettingTab(new YouGileSettingTab(this.app, this));
     this.safeRegisterView(TASKS_VIEW_TYPE, (leaf) => new TasksView(leaf, this));
     if (this.settings.moduleCalendarEnabled) {
@@ -71535,6 +72543,9 @@ var YouGilePlugin = class extends import_obsidian14.Plugin {
         this.activateLpiView();
       });
     }
+    this.addRibbonIcon("history", "\u0416\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438", () => {
+      new SyncLogModal(this.app, this.syncLogger).open();
+    });
     registerCommands(this);
   }
   safeRegisterView(type, viewCreator) {
@@ -71622,7 +72633,7 @@ var YouGilePlugin = class extends import_obsidian14.Plugin {
     this.saveSecret(secretName, key);
     this.settings.apiKeySecret = secretName;
     await this.saveSettings();
-    new import_obsidian14.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
+    new import_obsidian17.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
   }
   async activateView() {
     var _a;

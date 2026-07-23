@@ -1,12 +1,16 @@
-import { ItemView, WorkspaceLeaf, Modal, App, Notice, requestUrl } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Modal, App, Notice, requestUrl, Setting } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { LpiItem } from '../types/lpi';
+import { DEFAULT_CONFIG, type LpiViewConfig, type DetailSectionDef, type FieldSectionDef, type SubquerySectionDef, type ColorRuleSet } from '../types/lpi-config';
+import { LpiSchemaService } from '../services/lpi-schema-service';
+import { LpiSchemaModal } from './lpi-schema-modal';
 import ApexCharts from 'apexcharts';
 import initSqlJs from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 
 const DB_PATH = 'yourbase/lpi_data.json';
+const CONFIG_PATH = 'yourbase/lpi_view_config.json';
 
 export const LPI_VIEW_TYPE = 'yougile-lpi-view';
 
@@ -18,6 +22,8 @@ export class LpiView extends ItemView {
   private items: LpiItem[] = [];
   private searchQuery = '';
   private searchTimeout: number | null = null;
+  viewConfig: LpiViewConfig = DEFAULT_CONFIG;
+  schemaService = new LpiSchemaService();
   private mode: ViewMode = 'table';
   private charts: ApexCharts[] = [];
   private dashboardTimer: number | null = null;
@@ -66,6 +72,7 @@ export class LpiView extends ItemView {
     container.addClass('mailer-yougile-container');
     this.containerElContent = container.createDiv();
     await this.loadData();
+    await this.loadViewConfig();
     await this.syncFromTasks();
     this.renderView();
   }
@@ -106,20 +113,52 @@ export class LpiView extends ItemView {
         }
       }
       let changed = false;
+      let updated = 0;
       for (const task of lpiTasks) {
         const desc = JSON.parse(task.description || '{}');
         let existing = this.items.find(i => i.aggregate_id === desc.aggregate_id);
         if (!existing && desc.application_external_id) {
           existing = this.items.find(i => i.application_external_id === desc.application_external_id);
         }
-        if (!existing) continue;
+        if (!existing) {
+          await this.plugin.syncLogger.log({
+            module: 'lpi',
+            direction: 'from-yougile',
+            action: 'skip',
+            itemId: desc.application_external_id || desc.aggregate_id || '',
+            itemTitle: task.title,
+            status: 'skipped',
+            details: 'Заявка не найдена в локальных данных',
+          });
+          continue;
+        }
         if (existing.taskId && task.completed && !existing.completedLocally) {
           existing.completedLocally = true;
           existing.completedAt = desc.completedAt || '';
           changed = true;
+          updated++;
+          await this.plugin.syncLogger.log({
+            module: 'lpi',
+            direction: 'from-yougile',
+            action: 'complete',
+            itemId: desc.application_external_id || existing.aggregate_id,
+            itemTitle: existing.product_name,
+            status: 'success',
+            details: 'Статус "Завершена" получен из YouGile',
+          });
         }
       }
       if (changed) await this.saveData();
+      if (lpiTasks.length > 0) {
+        await this.plugin.syncLogger.log({
+          module: 'lpi',
+          direction: 'from-yougile',
+          action: 'sync-complete',
+          itemId: '',
+          status: 'success',
+          details: `Обработано задач YouGile: ${lpiTasks.length}, обновлено: ${updated}`,
+        });
+      }
     } catch {}
   }
 
@@ -198,6 +237,19 @@ export class LpiView extends ItemView {
     });
     dashBtn.addEventListener('click', () => { this.mode = 'dashboard'; this.renderView(); });
 
+    const schemaBtn = btnRow.createEl('button', {
+      text: '📐 Схема БД',
+      cls: 'mailer-yougile-refresh-btn',
+    });
+    schemaBtn.addEventListener('click', () => {
+      const dbPath = this.plugin.settings.lpiDbPath?.replace(/\\/g, '/');
+      if (!dbPath || !fs.existsSync(dbPath)) {
+        new Notice('Укажите путь к SQLite БД в настройках LPI');
+        return;
+      }
+      new LpiSchemaModal(this.app, this.schemaService, dbPath).open();
+    });
+
     if (this.mode === 'dashboard') {
       this.renderDashboard(container);
     } else {
@@ -258,7 +310,7 @@ export class LpiView extends ItemView {
 
     for (const item of filtered) {
       const row = tbody.createEl('tr', { cls: 'mailer-clickable mailer-row-hover' });
-      const rowClick = () => this.renderDetail(item);
+      const rowClick = () => { this.renderDetail(item); };
       row.addEventListener('click', rowClick);
       const dotCell = row.createEl('td', { cls: 'mailer-td' });
       dotCell.style.width = '24px';
@@ -345,55 +397,8 @@ export class LpiView extends ItemView {
       const SQL = await initSqlJs({ wasmBinary: wasmBinary.slice(0) });
       const dbBuf = fs.readFileSync(dbPath);
       const db = new SQL.Database(new Uint8Array(dbBuf));
-      const sql = `SELECT
-        ar.aggregate_id,
-        a.external_id AS application_external_id,
-        a.created_at AS application_created_at,
-        a.status AS application_status,
-        COALESCE(p.product_name, '') AS product_name,
-        ar.protocol_date,
-        ar.agg_gen_group_complience,
-        COALESCE(c.customer_name, '') AS customer_name,
-        COALESCE(c.customer_email, '') AS customer_mail,
-        COALESCE(c.organization, '') AS organization,
-        COALESCE(c.customer_tel, '') AS customer_phone,
-        COALESCE(c.address, '') AS customer_address,
-        COALESCE(p.ekn, '') AS ekn,
-        p.thickness,
-        COALESCE(p.color, '') AS color,
-        COALESCE(o.batch_number, '') AS batch_number,
-        COALESCE(o.sample_number, '') AS sample_number,
-        COALESCE(o.object_name, '') AS object_name,
-        COALESCE(p.standard, '') AS standard,
-        COALESCE(p.target_comb_group, '') AS target_comb_group,
-        COALESCE(p.target_flam_group, '') AS target_flam_group,
-        COALESCE(p.target_prop_group, '') AS target_prop_group,
-        COALESCE(m.method_abbreviation, '') AS method_abbreviation,
-        COALESCE(m.method_name, '') AS method_name,
-        COALESCE(m.method_standard, '') AS method_standard,
-        ar.agg_avg_smog_temp,
-        ar.agg_smog_group,
-        ar.agg_smog_complience,
-        ar.agg_mass_loss,
-        ar.agg_comb_time,
-        ar.agg_dam_length,
-        ar.agg_comb_bulb,
-        ar.agg_group_by_mass,
-        ar.agg_group_by_length,
-        ar.agg_croup_by_comb_time,
-        ar.agg_group_by_bulbe,
-        ar.agg_gen_group,
-        ar.agg_mass_complience,
-        ar.agg_complience_by_length,
-        ar.agg_complience_by_comb_time,
-        ar.agg_complience_by_bulbe,
-        ar.agg_additional_info_1
-      FROM aggregated_results ar
-      LEFT JOIN applications a ON ar.application_id = a.application_id
-      LEFT JOIN products p ON p.product_id = a.product_id
-      LEFT JOIN customers c ON c.customer_id = a.customer_id
-      LEFT JOIN objects o ON o.object_id = a.object_id
-      LEFT JOIN methods m ON m.method_id = a.method_id`;
+      await this.loadViewConfig();
+      const sql = this.viewConfig.loadQuery;
       const stmt = db.prepare(sql);
       const sqliteItems: LpiItem[] = [];
       while (stmt.step()) {
@@ -448,9 +453,25 @@ export class LpiView extends ItemView {
       const removed = before - this.items.length;
 
       await this.saveData();
+      await this.plugin.syncLogger.log({
+        module: 'lpi',
+        direction: 'local',
+        action: 'load-sql',
+        itemId: '',
+        status: 'success',
+        details: `SQLite → локально. Добавлено: ${added}, обновлено: ${updated}, удалено: ${removed}, синхр. с YouGile: ${syncedToYougile}`,
+      });
       new Notice(`LPI: обновлено. Добавлено: ${added}, обновлено: ${updated}, синхронизировано с YouGile: ${syncedToYougile}, удалено: ${removed}`);
       this.renderView();
     } catch (e: any) {
+      await this.plugin.syncLogger.log({
+        module: 'lpi',
+        direction: 'local',
+        action: 'load-sql',
+        itemId: '',
+        status: 'error',
+        error: e instanceof Error ? e.message : String(e),
+      });
       new Notice('Ошибка обновления из SQLite: ' + e.message);
     }
   }
@@ -462,41 +483,108 @@ export class LpiView extends ItemView {
     return !isNaN(id) && id < LpiView.YG_MIN_EXT_ID;
   }
 
+  private async loadViewConfig(): Promise<void> {
+    try {
+      if (this.plugin.settings.lpiViewConfigSource === 'default') {
+        this.viewConfig = DEFAULT_CONFIG;
+        return;
+      }
+      const adapter = this.app.vault.adapter;
+      const exists = await adapter.exists(CONFIG_PATH);
+      if (exists) {
+        const content = await adapter.read(CONFIG_PATH);
+        const parsed = JSON.parse(content) as LpiViewConfig;
+        this.viewConfig = { ...DEFAULT_CONFIG, ...parsed, detailSections: parsed.detailSections || DEFAULT_CONFIG.detailSections, colorRules: parsed.colorRules || DEFAULT_CONFIG.colorRules };
+      } else {
+        this.viewConfig = DEFAULT_CONFIG;
+        await adapter.write(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
+      }
+    } catch {
+      this.viewConfig = DEFAULT_CONFIG;
+    }
+  }
+
   private async syncItemToYougile(item: LpiItem, wasActive: boolean): Promise<boolean> {
     const isTerminal = !this.isEffectivelyActive(item);
     const fullJson = this.buildFullJson(item);
     const desc = JSON.stringify(fullJson);
+    const itemId = item.application_external_id || item.aggregate_id;
+    const itemTitle = item.product_name;
 
     if (item.taskId) {
       const payload: Record<string, unknown> = { description: desc };
       if (isTerminal && wasActive) {
         payload.completed = true;
       }
-      await this.plugin.client!.updateTask(item.taskId, payload);
-      if (isTerminal && !item.completedLocally) {
-        item.completedLocally = true;
-        item.completedAt = item.protocol_date || new Date().toISOString().split('T')[0];
-      }
-      return true;
-    } else {
-      const statusTerminal = !LpiView.isStatusActive(item.application_status);
-      const result: any = await this.plugin.client!.createTask({
-        title: `LPI: ${item.application_external_id} — ${item.product_name}`,
-        description: desc,
-        columnId: this.getLpiColumnId(),
-      } as any);
-      if (result?.id) {
-        item.taskId = result.id;
-        if (statusTerminal) {
+      try {
+        await this.plugin.client!.updateTask(item.taskId, payload);
+        if (isTerminal && !item.completedLocally) {
           item.completedLocally = true;
           item.completedAt = item.protocol_date || new Date().toISOString().split('T')[0];
-          await this.plugin.client!.updateTask(result.id, {
-            completed: true,
-          });
         }
+        await this.plugin.syncLogger.log({
+          module: 'lpi',
+          direction: 'to-yougile',
+          action: 'update',
+          itemId,
+          itemTitle,
+          status: 'success',
+          details: isTerminal && wasActive ? 'Задача завершена' : 'Описание обновлено',
+        });
         return true;
+      } catch (e: unknown) {
+        await this.plugin.syncLogger.log({
+          module: 'lpi',
+          direction: 'to-yougile',
+          action: 'update',
+          itemId,
+          itemTitle,
+          status: 'error',
+          error: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
       }
-      return false;
+    } else {
+      const statusTerminal = !LpiView.isStatusActive(item.application_status);
+      try {
+        const result: any = await this.plugin.client!.createTask({
+          title: `LPI: ${item.application_external_id} — ${item.product_name}`,
+          description: desc,
+          columnId: this.getLpiColumnId(),
+        } as any);
+        if (result?.id) {
+          item.taskId = result.id;
+          if (statusTerminal) {
+            item.completedLocally = true;
+            item.completedAt = item.protocol_date || new Date().toISOString().split('T')[0];
+            await this.plugin.client!.updateTask(result.id, {
+              completed: true,
+            });
+          }
+          await this.plugin.syncLogger.log({
+            module: 'lpi',
+            direction: 'to-yougile',
+            action: 'create',
+            itemId,
+            itemTitle,
+            status: 'success',
+            details: `taskId: ${result.id}${statusTerminal ? ', завершена' : ''}`,
+          });
+          return true;
+        }
+        return false;
+      } catch (e: unknown) {
+        await this.plugin.syncLogger.log({
+          module: 'lpi',
+          direction: 'to-yougile',
+          action: 'create',
+          itemId,
+          itemTitle,
+          status: 'error',
+          error: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
+      }
     }
   }
 
@@ -943,19 +1031,24 @@ export class LpiView extends ItemView {
     };
   }
 
-  private renderDetail(item: LpiItem): void {
+  private async renderDetail(item: LpiItem): Promise<void> {
     const container = this.containerElContent;
     container.empty();
 
-    const backBtn = container.createEl('button', { text: '← Назад к списку', cls: 'mailer-yougile-refresh-btn' });
+    const btnRow = container.createDiv();
+    btnRow.style.display = 'flex';
+    btnRow.style.gap = '8px';
+    btnRow.style.marginBottom = '8px';
+    btnRow.style.flexWrap = 'wrap';
+
+    const backBtn = btnRow.createEl('button', { text: '← Назад к списку', cls: 'mailer-yougile-refresh-btn' });
     backBtn.addEventListener('click', () => this.renderView());
 
     const sqlConnected = !!this.plugin.settings.lpiDbPath && fs.existsSync(this.plugin.settings.lpiDbPath);
-    const sendBtn = container.createEl('button', {
+    const sendBtn = btnRow.createEl('button', {
       text: '📤 Отправить в YouGile',
       cls: 'mailer-yougile-refresh-btn',
     });
-    sendBtn.style.marginLeft = '8px';
     sendBtn.disabled = !sqlConnected;
     if (!sqlConnected) {
       sendBtn.title = 'Укажите путь к SQLite БД в настройках LPI';
@@ -980,70 +1073,207 @@ export class LpiView extends ItemView {
 
     container.createEl('h3', { text: `Заявка №${item.application_external_id}` });
 
-    const meta = container.createDiv({ cls: 'mailer-yougile-task-meta mailer-mb-12' });
+    const meta = container.createDiv({ cls: 'mailer-yougile-task-meta' });
 
-    const addSection = (title: string, pairs: Array<{ label: string; value: unknown; bold?: boolean; color?: (v: string) => string }>) => {
-      if (pairs.length === 0) return;
-      meta.createEl('h4', { text: title, cls: 'mailer-mt-8' });
-      for (const p of pairs) {
+    const colorRules = this.viewConfig.colorRules || {};
+
+    const renderFieldSection = (section: FieldSectionDef) => {
+      if (section.fields.length === 0) return;
+      meta.createEl('h4', { text: section.title, cls: 'mailer-mt-8' });
+      for (const f of section.fields) {
+        if (f.visibleIf) {
+          const targetVal = (item as any)[f.visibleIf.field];
+          if (f.visibleIf.notNull && (targetVal === null || targetVal === undefined || targetVal === '')) continue;
+          if (f.visibleIf.equals !== undefined && String(targetVal) !== f.visibleIf.equals) continue;
+        }
+        const raw = (item as any)[f.field];
+        const isMissing = raw === null || raw === undefined || raw === '';
+        let display = isMissing ? '—' : String(raw);
+        if (f.format && !isMissing) {
+          display = f.format.replace('{value}', display);
+        }
         const div = meta.createDiv();
-        if (p.bold) div.style.fontWeight = 'bold';
-        const val = p.value ?? '—';
-        div.textContent = `${p.label}: ${val}`;
-        if (p.color && typeof val === 'string') {
-          div.style.color = p.color(val);
+        if (f.bold) div.style.fontWeight = 'bold';
+        div.textContent = `${f.label}: ${display}`;
+        if (f.colorRuleId && !isMissing) {
+          const ruleSet = colorRules[f.colorRuleId];
+          if (ruleSet) {
+            const match = ruleSet.rules.find(r => r.match === raw);
+            div.style.color = match ? match.color : (ruleSet.defaultColor || '');
+          }
         }
       }
     };
 
-    const detailFields = [
-      { label: '№ заявки', value: item.application_external_id },
-      { label: 'Дата создания', value: item.application_created_at },
-      { label: 'Статус', value: LpiView.statusDisplay(item.application_status) },
-      { label: 'Название материала', value: item.product_name },
-      { label: 'Заказчик', value: item.customer_name },
-      { label: 'Email заказчика', value: item.customer_mail },
-      { label: 'Организация', value: item.organization },
-      { label: 'Телефон', value: item.customer_phone },
-      { label: 'Адрес', value: item.customer_address },
-      { label: 'ЕКН', value: item.ekn },
-      { label: 'Толщина', value: item.thickness !== null && item.thickness !== undefined ? `${item.thickness} мм` : null },
-      { label: 'Цвет', value: item.color },
-      { label: 'Номер партии', value: item.batch_number },
-      { label: 'Номер образца', value: item.sample_number },
-      { label: 'Объект', value: item.object_name },
-      { label: 'Стандарт', value: item.standard },
-      { label: 'Целевая группа горючести', value: item.target_comb_group },
-      { label: 'Целевая группа воспламеняемости', value: item.target_flam_group },
-      { label: 'Целевая группа распространения', value: item.target_prop_group },
-      { label: 'Метод испытаний', value: item.method_name },
-      { label: 'Дата протокола', value: this.getProtocolDate(item) },
-    ];
-    addSection('Детали заявки', detailFields);
+    const renderSubquerySection = async (section: SubquerySectionDef) => {
+      const dbPath = this.plugin.settings.lpiDbPath?.replace(/\\/g, '/');
+      if (!dbPath || !fs.existsSync(dbPath)) return;
+      let query = section.query;
+      for (const key of section.dependsOn) {
+        const val = (item as any)[key];
+        if (val !== null && val !== undefined) {
+          query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(val));
+        }
+      }
+      try {
+        const result = await this.schemaService.runQuery(dbPath, query);
+        if (result.columns.length === 0) return;
+        meta.createEl('h4', { text: section.title, cls: 'mailer-mt-8' });
+        const subTable = meta.createEl('table');
+        subTable.style.cssText = 'width:100%;border-collapse:collapse;font-size:12px;margin-top:4px';
+        const subHead = subTable.createEl('thead');
+        const subHr = subHead.createEl('tr');
+        for (const col of section.columns) {
+          const th = subHr.createEl('th', { text: col.label });
+          th.style.cssText = 'border-bottom:1px solid var(--background-modifier-border);padding:3px 6px;text-align:left;white-space:nowrap';
+        }
+        const subBody = subTable.createEl('tbody');
+        for (const row of result.rows) {
+          const tr = subBody.createEl('tr');
+          for (const col of section.columns) {
+            const colIdx = result.columns.indexOf(col.field);
+            const raw = colIdx >= 0 ? row[colIdx] : null;
+            const isMissing = raw === null || raw === undefined || raw === '';
+            let display = isMissing ? '—' : String(raw);
+            if (col.format && !isMissing) {
+              display = col.format.replace('{value}', display);
+            }
+            tr.createEl('td', { text: display }).style.cssText = 'padding:2px 6px;border-bottom:1px solid var(--background-modifier-border)';
+          }
+        }
+      } catch {}
+    };
 
-    addSection('Результаты измерений', [
-      { label: 'Средняя температура дыма', value: item.agg_avg_smog_temp ? `${item.agg_avg_smog_temp} °C` : null },
-      { label: 'Потеря массы', value: item.agg_mass_loss ? `${item.agg_mass_loss} %` : null },
-      { label: 'Время горения', value: item.agg_comb_time ? `${item.agg_comb_time} с` : null },
-      { label: 'Длина повреждения', value: item.agg_dam_length ? `${item.agg_dam_length} мм` : null },
-      { label: 'Падение горящих капель расплава', value: item.agg_comb_bulb },
-    ]);
+    for (const section of this.viewConfig.detailSections) {
+      if (section.type === 'fields') {
+        renderFieldSection(section);
+      } else if (section.type === 'subquery') {
+        await renderSubquerySection(section);
+      }
+    }
 
-    addSection('Выводы', [
-      { label: 'Результат испытания', value: item.agg_gen_group, bold: true },
-      { label: 'Общая оценка соответствия', value: item.agg_gen_group_complience, bold: true, color: v => v === 'Не оценивается' ? 'var(--text-muted)' : v === 'Соответствует' ? 'var(--text-success)' : v === 'Не соответствует' ? 'var(--text-error)' : '' },
-      { label: 'Группа по дыму', value: item.agg_smog_group },
-      { label: 'Соответствие по дыму', value: item.agg_smog_complience },
-      { label: 'Группа по массе', value: item.agg_group_by_mass },
-      { label: 'Соответствие по массе', value: item.agg_mass_complience },
-      { label: 'Группа по длине', value: item.agg_group_by_length },
-      { label: 'Соответствие по длине', value: item.agg_complience_by_length },
-      { label: 'Группа по времени горения', value: item.agg_croup_by_comb_time },
-      { label: 'Соответствие по времени горения', value: item.agg_complience_by_comb_time },
-      { label: 'Группа по горящим каплям', value: item.agg_group_by_bulbe },
-      { label: 'Соответствие по горящим каплям', value: item.agg_complience_by_bulbe },
-      { label: 'Дополнительная информация', value: item.agg_additional_info_1 },
-    ]);
+    this.renderQueryRunner(container, item);
+  }
+
+  private renderQueryRunner(container: HTMLElement, item: LpiItem): void {
+    const dbPath = this.plugin.settings.lpiDbPath?.replace(/\\/g, '/');
+    if (!dbPath || !fs.existsSync(dbPath)) return;
+
+    const details = container.createEl('details', { attr: { style: 'margin-top:16px' } });
+    const summary = details.createEl('summary', { text: '🔍 SQL Запрос', attr: { style: 'cursor:pointer;font-weight:600;font-size:13px' } });
+
+    const qContainer = details.createDiv();
+    qContainer.style.cssText = 'padding:8px;background:var(--background-primary-alt);border-radius:6px;margin-top:8px';
+
+    const tableSelRow = qContainer.createDiv();
+    tableSelRow.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
+
+    const tableSel = tableSelRow.createEl('select');
+    tableSel.style.cssText = 'flex:1;font-size:12px;padding:4px';
+    tableSel.createEl('option', { text: '— Выберите таблицу —', value: '' });
+
+    this.schemaService.loadSchema(dbPath).then(schema => {
+      for (const table of schema.tables) {
+        tableSel.createEl('option', { text: table.name, value: table.name });
+      }
+    }).catch(() => {});
+
+    const autoBtn = tableSelRow.createEl('button', { text: '🔄 Авто', cls: 'mailer-yougile-refresh-btn' });
+    autoBtn.style.fontSize = '11px';
+
+    const sqlInput = qContainer.createEl('textarea');
+    sqlInput.style.cssText = 'width:100%;box-sizing:border-box;padding:6px;font-family:monospace;font-size:11px;min-height:60px;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:4px';
+    sqlInput.placeholder = 'SELECT * FROM table WHERE column = \'{{application_external_id}}\'';
+
+    autoBtn.addEventListener('click', () => {
+      const tableName = tableSel.value;
+      if (!tableName) return;
+      this.schemaService.loadSchema(dbPath).then(schema => {
+        const table = schema.byName.get(tableName);
+        if (!table) return;
+        const cols = table.columns.map(c => c.name).join(',\n  ');
+        const fkClauses = table.foreignKeys.map(fk => `${fk.from} = '{{aggregate_id}}'`).join('\n  OR ');
+        let where = '';
+        if (fkClauses) where = `WHERE (\n  ${fkClauses}\n)`;
+        else if (table.columns.some(c => c.name.includes('application_id') || c.name.includes('aggregate_id'))) {
+          where = "WHERE application_id = '{{aggregate_id}}'";
+        }
+        sqlInput.value = `SELECT\n  ${cols}\nFROM ${tableName}\n${where}\nLIMIT 50`;
+      }).catch(() => {});
+    });
+
+    const runBtn = qContainer.createEl('button', { text: '▶ Выполнить', cls: 'mailer-yougile-refresh-btn' });
+    runBtn.style.marginTop = '6px';
+
+    const resultDiv = qContainer.createDiv();
+    resultDiv.style.cssText = 'margin-top:8px;overflow-x:auto';
+
+    const saveSectionBtn = qContainer.createEl('button', {
+      text: '💾 Сохранить как секцию',
+      cls: 'mailer-yougile-refresh-btn',
+      attr: { style: 'margin-top:6px;font-size:11px' },
+    });
+
+    runBtn.addEventListener('click', async () => {
+      let query = sqlInput.value;
+      for (const key of ['aggregate_id', 'application_external_id', 'product_name']) {
+        const val = (item as any)[key];
+        if (val !== null && val !== undefined) {
+          query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(val));
+        }
+      }
+      resultDiv.empty();
+      runBtn.textContent = '⏳';
+      runBtn.disabled = true;
+      try {
+        const result = await this.schemaService.runQuery(dbPath, query);
+        if (result.columns.length === 0) {
+          resultDiv.textContent = 'Нет результатов';
+          saveSectionBtn.style.display = 'none';
+          return;
+        }
+        const resTable = resultDiv.createEl('table');
+        resTable.style.cssText = 'width:100%;border-collapse:collapse;font-size:11px';
+        const resHead = resTable.createEl('thead');
+        const resHr = resHead.createEl('tr');
+        for (const col of result.columns) {
+          resHr.createEl('th', { text: col }).style.cssText = 'border-bottom:1px solid var(--background-modifier-border);padding:3px 6px;text-align:left;white-space:nowrap';
+        }
+        const resBody = resTable.createEl('tbody');
+        for (const row of result.rows) {
+          const tr = resBody.createEl('tr');
+          for (let i = 0; i < result.columns.length; i++) {
+            tr.createEl('td', { text: row[i] !== null && row[i] !== undefined ? String(row[i]) : '—' }).style.cssText = 'padding:2px 6px;border-bottom:1px solid var(--background-modifier-border);white-space:nowrap';
+          }
+        }
+        saveSectionBtn.style.display = 'block';
+        saveSectionBtn.onclick = () => {
+          const newSection: SubquerySectionDef = {
+            title: tableSel.value ? `Данные: ${tableSel.value}` : 'Доп. данные',
+            type: 'subquery',
+            query: sqlInput.value,
+            columns: result.columns.map(c => ({ label: c, field: c })),
+            dependsOn: ['aggregate_id', 'application_external_id'],
+          };
+          this.viewConfig.detailSections.push(newSection);
+        };
+      } catch (e: any) {
+        resultDiv.textContent = 'Ошибка: ' + e.message;
+        saveSectionBtn.style.display = 'none';
+      }
+      runBtn.textContent = '▶ Выполнить';
+      runBtn.disabled = false;
+    });
+    saveSectionBtn.style.display = 'none';
+
+    const editConfigBtn = qContainer.createEl('button', {
+      text: '⚙ Редактор конфига',
+      cls: 'mailer-yougile-refresh-btn',
+      attr: { style: 'margin-left:6px;font-size:11px' },
+    });
+    editConfigBtn.addEventListener('click', () => {
+      new LpiConfigEditorModal(this.app, this).open();
+    });
   }
 }
 
@@ -1472,5 +1702,77 @@ class YougileSyncModal extends Modal {
       (this.view as any).renderView();
       this.close();
     });
+  }
+}
+
+class LpiConfigEditorModal extends Modal {
+  private view: LpiView;
+
+  constructor(app: App, view: LpiView) {
+    super(app);
+    this.view = view;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.addClass('mailer-yougile-container');
+    contentEl.createEl('h2', { text: '⚙ Редактор конфига отображения' });
+
+    const info = contentEl.createEl('p', { text: 'Конфиг хранится в yourbase/lpi_view_config.json. Изменения применяются после перезагрузки деталей заявки.' });
+    info.style.color = 'var(--text-muted)';
+    info.style.fontSize = '12px';
+
+    const configJson = JSON.stringify(this.view.viewConfig, null, 2);
+    const textarea = contentEl.createEl('textarea');
+    textarea.value = configJson;
+    textarea.style.cssText = 'width:100%;box-sizing:border-box;min-height:400px;font-family:monospace;font-size:11px;padding:8px;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border);border-radius:4px';
+
+    const btnRow = contentEl.createDiv();
+    btnRow.style.cssText = 'display:flex;gap:8px;margin-top:8px';
+
+    const saveBtn = btnRow.createEl('button', { text: '💾 Сохранить', cls: 'mailer-yougile-refresh-btn' });
+    saveBtn.addEventListener('click', async () => {
+      try {
+        const parsed = JSON.parse(textarea.value);
+        this.view.viewConfig = parsed;
+        const adapter = this.view.app.vault.adapter;
+        await adapter.write(CONFIG_PATH, JSON.stringify(parsed, null, 2));
+        new Notice('Конфиг сохранён');
+        this.close();
+      } catch (e: any) {
+        new Notice('Ошибка в JSON: ' + e.message);
+      }
+    });
+
+    const resetBtn = btnRow.createEl('button', { text: '↺ Сбросить на умолчания', cls: 'mailer-yougile-refresh-btn' });
+    resetBtn.addEventListener('click', async () => {
+      this.view.viewConfig = DEFAULT_CONFIG;
+      const adapter = this.view.app.vault.adapter;
+      await adapter.write(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
+      textarea.value = JSON.stringify(DEFAULT_CONFIG, null, 2);
+      new Notice('Конфиг сброшен на умолчания');
+    });
+
+    const howTo = contentEl.createEl('details', { attr: { style: 'margin-top:12px' } });
+    howTo.createEl('summary', { text: '📖 Как добавить секцию с SQL-запросом', attr: { style: 'cursor:pointer;font-weight:600;font-size:12px' } });
+    const howContent = howTo.createDiv();
+    howContent.style.cssText = 'padding:8px;font-size:11px;background:var(--background-primary-alt);border-radius:4px;margin-top:4px';
+    howContent.innerHTML = `<pre style="margin:0;white-space:pre-wrap">
+Добавьте секцию в "detailSections":
+
+{
+  "title": "Мои данные",
+  "type": "subquery",
+  "query": "SELECT * FROM my_table WHERE fk_id = '{{aggregate_id}}'",
+  "columns": [
+    { "label": "Колонка 1", "field": "col1" }
+  ],
+  "dependsOn": ["aggregate_id"]
+}
+</pre>`;
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
   }
 }

@@ -15,10 +15,11 @@
 | 9 | **Настройки**: складные блоки с toggle, проекты/доски через dropdown, LLM, DOCX, автор | ✅ | `ui/settings-tab.ts`, `types/settings.ts` |
 | 10 | **Предложения**: таблица, создание, детали, редактирование, завершение, офлайн-очередь | ✅ | `ui/suggestions-view.ts` |
 | 11 | **Контакты**: таблица, создание, редактирование, детали, поиск, фильтр по колонкам, QR-код (vCard, красный, 250×250), локальная JSON БД, синхронизация с YouGile | ✅ | `ui/contacts-view.ts`, `database/contact-db.ts`, `types/contacts.ts` |
-| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (9 колонок: ● индикатор, №, материал, дата создания, статус, дата протокола, результат испытания, оценка, действия с кнопкой "Отправить в YouGile"), дашборд (5 графиков ApexCharts: статус, поступление/завершение по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, дата-фильтры (заявки + протоколы), чекбоксы "Серийная/Опытная продукция", фильтр "Подтверждаемый показатель" с человеческими названиями, per-product compliance donuts, кнопки "SQL → Локально" (загрузка данных из SQLite) и "Синхронизация YouGile" (без SQL — прямая загрузка, с SQL — модальное окно с поштучным подтверждением расхождений + автоимпорт новых заявок из YouGile), статус active/new/completed из поля БД LIMS, детали (read-only, 3 блока: Детали заявки, Результаты измерений, Выводы, кнопка "Отправить в YouGile"), локальная JSON БД yourbase/lpi_data.json, sql.js (WASM) для чтения внешней SQLite, настройка пути к SQLite БД, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы, индикатор синхронизации с YouGile (зелёный/серый круг) | ✅ | `ui/lpi-view.ts`, `types/lpi.ts` |
+| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (9 колонок: ● индикатор, №, материал, дата создания, статус, дата протокола, результат испытания, оценка, действия с кнопкой "Отправить в YouGile"), дашборд (5 графиков ApexCharts: статус, поступление/завершение по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, дата-фильтры (заявки + протоколы), чекбоксы "Серийная/Опытная продукция", фильтр "Подтверждаемый показатель" с человеческими названиями, per-product compliance donuts, кнопки "SQL → Локально" (загрузка данных из SQLite) и "Синхронизация YouGile" (без SQL — прямая загрузка, с SQL — модальное окно с поштучным подтверждением расхождений + автоимпорт новых заявок из YouGile), статус active/new/completed из поля БД LIMS, детали (config-driven: поля, секции, subquery-запросы из конфига), кнопка "Отправить в YouGile", локальная JSON БД yourbase/lpi_data.json, sql.js (WASM) для чтения внешней SQLite, Schema Browser (просмотр схемы БД), Query Runner в деталях (произвольные SQL-запросы с {{placeholders}}), Config Editor (редактор конфига отображения yourbase/lpi_view_config.json), настройка пути к SQLite БД, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы, индикатор синхронизации с YouGile (зелёный/серый круг) | ✅ | `ui/lpi-view.ts`, `types/lpi.ts`, `types/lpi-config.ts`, `services/lpi-schema-service.ts`, `ui/lpi-schema-modal.ts` |
 | 13 | **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы + email + setSelectedIds) | ✅ | `ui/assignee-selector.ts` |
 | 14 | **Редактирование задачи**: в деталях задачи (задачи-вьюха) добавлена кнопка "Редактировать" — форма с title, description, project/board/column, assignees, deadline | ✅ | `ui/tasks-view.ts` |
 | 15 | **ScheduleView → TasksView**: вызов `openTaskDetail()` через публичный API вместо прямого доступа к private-членам | ✅ | `ui/tasks-view.ts`, `ui/schedule-view.ts` |
+| 16 | **SyncLogger**: журнал всех синхронизаций (LPI, Письма, Контакты, Задачи, офлайн-очередь), запись в `yourbase/sync_log.json`, модальное окно с фильтрацией, ribbon-иконка, команда | ✅ | `services/sync-logger.ts`, `main.ts`, `db.ts`, `email-db.ts`, `contact-db.ts`, `lpi-view.ts`, `tasks-view.ts` |
 
 ## Структура файлов
 
@@ -32,11 +33,14 @@ src/
 │   └── contact-db.ts              # ContactDatabase (contacts_data.json) (удалён lpi-db — всё в lpi_data.json)
 ├── services/
 │   ├── document-service.ts        # DOCX генерация (jszip + docx)
-│   └── llm-service.ts             # AI-чат с RAG
+│   ├── llm-service.ts             # AI-чат с RAG
+│   ├── lpi-schema-service.ts      # Schema Service — чтение метаданных SQLite
+│   └── sync-logger.ts             # Журнал синхронизации (SyncLogger + SyncLogModal)
 ├── types/
 │   ├── cache.ts                   # CachedTask, OfflineAction, …
 │   ├── contacts.ts                # ContactItem, ContactDbData
 │   ├── emails.ts                  # MailItem, MailDirection, EmailDbData
+│   ├── lpi-config.ts              # LpiViewConfig + DEFAULT_CONFIG
 │   ├── settings.ts                # YouGileSettings + DEFAULT_SETTINGS
 │   ├── sql.js.d.ts                # Type declarations for sql.js
 │   └── yougile.ts                 # YouGileTask, CreateTaskPayload, …
@@ -46,8 +50,9 @@ src/
 │   ├── dashboard-view.ts          # Дашборд (ApexCharts, метрики, фильтры, JPG/CSV)
 │   ├── documents-view.ts          # Документы (таблица, детали, замечания, CSV, HTML)
 │   ├── emails-view.ts             # Письма (таблица, create/edit, файлы, AI-чат, HTML)
+│   ├── lpi-schema-modal.ts        # Schema Browser — просмотр схемы SQLite БД
 │   ├── schedule-view.ts           # Календарь мероприятий
-│   ├── settings-tab.ts            # Настройки: 6 складных блоков + toggle модулей
+│   ├── settings-tab.ts            # Настройки: 7 складных блоков + toggle модулей
 │   ├── suggestions-view.ts        # Предложения (таблица, create/edit, детали, завершение)
 │   └── tasks-view.ts              # Задачи (список, дерево, чаты)
 ├── commands.ts

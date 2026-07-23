@@ -71,6 +71,8 @@ export class ContactDatabase {
         return false;
       }
     });
+    let updatedCount = 0;
+    let addedCount = 0;
     for (const task of contactTasks) {
       try {
         const parsed = JSON.parse(task.description || '{}');
@@ -84,6 +86,7 @@ export class ContactDatabase {
           existing.organization = parsed.organization || '';
           existing.position = parsed.position || '';
           existing.notes = parsed.notes || parsed.note || '';
+          updatedCount++;
         } else {
           const now = new Date().toISOString();
           this.data.contacts.push({
@@ -100,11 +103,33 @@ export class ContactDatabase {
             updatedAt: parsed.updatedAt || now,
             sync_status: 'synced',
           });
+          addedCount++;
         }
       } catch {
         // skip invalid
       }
     }
     this.save();
+    if (contactTasks.length > 0) {
+      this.logSync(addedCount, updatedCount);
+    }
+  }
+
+  private logSync(added: number, updated: number): void {
+    if (!this.app) return;
+    try {
+      const { SyncLogger } = require('../services/sync-logger');
+      const logger = new SyncLogger(this.app);
+      logger.init().then(() => {
+        logger.log({
+          module: 'contacts',
+          direction: 'from-yougile',
+          action: 'sync-complete',
+          itemId: '',
+          status: 'success',
+          details: `Синхронизировано из YouGile. Добавлено: ${added}, обновлено: ${updated}`,
+        });
+      });
+    } catch {}
   }
 }

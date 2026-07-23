@@ -15,6 +15,7 @@ import { LocalDatabase } from './database/db';
 import { EmailDatabase } from './database/email-db';
 import { ContactDatabase } from './database/contact-db';
 import { LLMService } from './services/llm-service';
+import { SyncLogger, SyncLogModal } from './services/sync-logger';
 
 const PASSWORD_SECRET_ID = 'yougile-password';
 
@@ -139,6 +140,21 @@ const CHANGELOG: Record<string, string[]> = {
   '0.4.11': [
     'LPI дашборд: разбиение результатов испытания по продуктам (per-product test result donuts)',
   ],
+  '0.6.0': [
+    'LPI: детали заявки переведены на config-driven рендеринг — поля, секции и подзапросы управляются через yourbase/lpi_view_config.json',
+    'LPI: добавлен Schema Browser (кнопка "📐 Схема БД") — просмотр таблиц, колонок, FK, генерация шаблонов запросов',
+    'LPI: добавлен Query Runner в деталях — произвольные SQL-запросы с подстановкой {{aggregate_id}}/{{application_external_id}}, результат в таблице',
+    'LPI: добавлен Config Editor (кнопка "⚙ Редактор конфига") — редактирование конфига через текстовое поле',
+    'LPI: добавлен LpiSchemaService — сервис для чтения метаданных SQLite (sqlite_master, PRAGMA table_info, PRAGMA foreign_key_list)',
+    'LPI: добавлена поддержка subquery-секций в деталях — SQL-запросы, выполняемые при открытии заявки, с отображением в виде вложенной таблицы',
+    'Настройки LPI: добавлен выбор источника конфига ("Файл" / "По умолчанию")',
+  ],
+  '0.5.4s': [
+    'Добавлен журнал синхронизации: все операции синхронизации (LPI, Письма, Контакты, Задачи, офлайн-очередь) логируются в yourbase/sync_log.json',
+    'Добавлена иконка "history" на ribbon для открытия журнала синхронизации',
+    'Добавлена команда "Журнал синхронизации" для открытия модального окна с фильтрацией по модулю, направлению и статусу',
+    'Журнал содержит: время, модуль, направление (→YouGile/←YouGile/локально), действие, ID, название, статус (✅/❌/⏭) и детали',
+  ],
   '0.5.3s': [
     'LPI: syncFromTasks обновляет completedLocally только при наличии taskId',
     'LPI: syncItemToYougile при создании задачи использует статус из SQLite (не completedLocally)',
@@ -217,6 +233,7 @@ export default class YouGilePlugin extends Plugin {
   emailDb!: EmailDatabase;
   contactDb!: ContactDatabase;
   llmService!: LLMService;
+  syncLogger!: SyncLogger;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -248,6 +265,9 @@ export default class YouGilePlugin extends Plugin {
     await this.contactDb.init();
 
     this.llmService = new LLMService(this);
+
+    this.syncLogger = new SyncLogger(this.app);
+    await this.syncLogger.init();
 
     this.addSettingTab(new YouGileSettingTab(this.app, this));
 
@@ -312,6 +332,10 @@ export default class YouGilePlugin extends Plugin {
         this.activateLpiView();
       });
     }
+
+    this.addRibbonIcon('history', 'Журнал синхронизации', () => {
+      new SyncLogModal(this.app, this.syncLogger).open();
+    });
 
     registerCommands(this);
   }

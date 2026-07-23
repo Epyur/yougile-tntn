@@ -233,6 +233,26 @@ export class TasksView extends ItemView {
     }
   }
 
+  private getOfflineModule(action: { type: string; payload: Record<string, unknown> }): string {
+    const title = (action.payload.title as string) || '';
+    if (title.startsWith('[Письмо]')) return 'emails';
+    if (title.startsWith('LPI:')) return 'lpi';
+    if (title.startsWith('Мероприятие:')) return 'schedule';
+    if (title.startsWith('[Предложение]')) return 'suggestions';
+    if (action.payload.description as string) {
+      try {
+        const desc = JSON.parse(action.payload.description as string);
+        if (desc.type === 'email') return 'emails';
+        if (desc.type === 'contact') return 'contacts';
+        if (desc.type === 'lpi_data' || desc.type === 'lpi_completed') return 'lpi';
+        if (desc.type === 'document') return 'documents';
+        if (desc.type === 'suggestion') return 'suggestions';
+        if (desc.type === 'event') return 'schedule';
+      } catch {}
+    }
+    return 'tasks';
+  }
+
   private async flushOfflineQueue(): Promise<void> {
     const queue = this.plugin.db.getOfflineQueue();
     for (const action of queue) {
@@ -241,6 +261,8 @@ export class TasksView extends ItemView {
         this.plugin.db.markOfflineSynced(action.id);
         continue;
       }
+      const module = this.getOfflineModule(action);
+      const itemTitle = (action.payload.title as string) || (action.payload.taskId as string) || '';
       try {
         switch (action.type) {
           case 'create-task': {
@@ -248,23 +270,63 @@ export class TasksView extends ItemView {
             if (action.payload.completed) {
               await this.plugin.client.updateTask(created.id, { completed: true });
             }
+            await this.plugin.syncLogger.log({
+              module,
+              direction: 'to-yougile',
+              action: 'create',
+              itemId: created.id,
+              itemTitle,
+              status: 'success',
+            });
             break;
           }
           case 'add-info':
           case 'toggle-completed':
             await this.plugin.client.updateTask(action.payload.taskId as string, action.payload);
+            await this.plugin.syncLogger.log({
+              module,
+              direction: 'to-yougile',
+              action: action.type,
+              itemId: action.payload.taskId as string,
+              itemTitle,
+              status: 'success',
+            });
             break;
           case 'send-message':
             await this.plugin.client.sendMessage(action.payload.chatId as string, action.payload.text as string);
+            await this.plugin.syncLogger.log({
+              module,
+              direction: 'to-yougile',
+              action: 'send-message',
+              itemId: action.payload.chatId as string,
+              itemTitle: (action.payload.text as string || '').slice(0, 80),
+              status: 'success',
+            });
             break;
         }
         this.plugin.db.removeOfflineAction(action.id);
         new Notice(`YouGile: Офлайн-действие "${action.type}" синхронизировано`);
       } catch (e: unknown) {
         if (isNetworkError(e)) {
+          await this.plugin.syncLogger.log({
+            module,
+            direction: 'to-yougile',
+            action: action.type,
+            itemId: itemTitle,
+            status: 'error',
+            error: 'Нет сети — офлайн-действие отложено',
+          });
           break;
         }
         this.plugin.db.removeOfflineAction(action.id);
+        await this.plugin.syncLogger.log({
+          module,
+          direction: 'to-yougile',
+          action: action.type,
+          itemId: itemTitle,
+          status: 'error',
+          error: e instanceof Error ? e.message : String(e),
+        });
         new Notice(`YouGile: Ошибка офлайн-действия "${action.type}" — ${e instanceof Error ? e.message : String(e)}`);
       }
     }
