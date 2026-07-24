@@ -1,3 +1,5 @@
+> **Важно**: без явной команды пользователя не выполнять `git commit` и `git push`.
+
 # AGENTS.md — YouGile Obsidian Plugin
 
 ## Статус модулей
