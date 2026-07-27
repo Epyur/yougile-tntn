@@ -6642,11 +6642,11 @@ __export(sync_logger_exports, {
   SyncLogModal: () => SyncLogModal,
   SyncLogger: () => SyncLogger
 });
-var import_obsidian14, LOG_PATH, MAX_ENTRIES, SyncLogger, SyncLogModal;
+var import_obsidian17, LOG_PATH, MAX_ENTRIES, SyncLogger, SyncLogModal;
 var init_sync_logger = __esm({
   "src/services/sync-logger.ts"() {
     "use strict";
-    import_obsidian14 = require("obsidian");
+    import_obsidian17 = require("obsidian");
     LOG_PATH = "yourbase/sync_log.json";
     MAX_ENTRIES = 2e3;
     SyncLogger = class {
@@ -6698,7 +6698,7 @@ var init_sync_logger = __esm({
         }
       }
     };
-    SyncLogModal = class extends import_obsidian14.Modal {
+    SyncLogModal = class extends import_obsidian17.Modal {
       constructor(app, logger) {
         super(app);
         this.filterModule = "";
@@ -6819,7 +6819,7 @@ __export(main_exports, {
   default: () => YouGilePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian17 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 
 // src/types/settings.ts
 var DEFAULT_SETTINGS = {
@@ -6944,6 +6944,30 @@ var YouGileClient = class {
       offset += limit;
     }
     return allTasks;
+  }
+  async getTasksByProject(projectId) {
+    const boards = await this.getBoards();
+    const projectBoardIds = new Set(boards.filter((b) => b.projectId === projectId).map((b) => b.id));
+    const allCols = await this.getColumns();
+    const projectColumnIds = new Set(allCols.filter((c) => projectBoardIds.has(c.boardId)).map((c) => c.id));
+    const all = await this.getTasks();
+    return all.filter((t) => {
+      const col = t.columnId;
+      if (!col) return false;
+      return projectColumnIds.has(col);
+    });
+  }
+  async getTasksExcludingProject(projectId) {
+    const boards = await this.getBoards();
+    const projectBoardIds = new Set(boards.filter((b) => b.projectId === projectId).map((b) => b.id));
+    const allCols = await this.getColumns();
+    const projectColumnIds = new Set(allCols.filter((c) => projectBoardIds.has(c.boardId)).map((c) => c.id));
+    const all = await this.getTasks();
+    return all.filter((t) => {
+      const col = t.columnId;
+      if (!col) return true;
+      return !projectColumnIds.has(col);
+    });
   }
   async createTask(payload) {
     return this.request("POST", "/tasks", payload);
@@ -69406,7 +69430,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
 };
 
 // src/ui/lpi-view.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 
 // src/types/lpi-config.ts
 var DEFAULT_LOAD_QUERY = `SELECT
@@ -69804,337 +69828,58 @@ LIMIT 100`;
   }
 };
 
-// src/ui/lpi-view.ts
+// src/ui/lpi-sync.ts
+var import_obsidian13 = require("obsidian");
 var import_sql2 = __toESM(require_sql_wasm_browser());
 var import_fs2 = __toESM(require("fs"));
 var import_path2 = __toESM(require("path"));
+
+// src/ui/lpi-utils.ts
+function isCompleted(item) {
+  return !!item.protocol_date && item.protocol_date.trim() !== "" && item.protocol_date !== "\u2014";
+}
+function statusDisplay(item) {
+  if (isCompleted(item)) return "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430";
+  return "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
+}
+var METHOD_NAMES = {
+  "method1": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438",
+  "method2": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438",
+  "method3": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u043F\u043B\u0430\u043C\u0435\u043D\u0438",
+  "method4": "\u041A\u0438\u0441\u043B\u043E\u0440\u043E\u0434\u043D\u044B\u0439 \u0438\u043D\u0434\u0435\u043A\u0441",
+  "g56027": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F",
+  "g56927": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F"
+};
+function getMethodDisplayName(abbr) {
+  return METHOD_NAMES[abbr] || abbr;
+}
+function getProtocolDate(item) {
+  if (isCompleted(item)) return item.protocol_date || "";
+  return "\u2014";
+}
+
+// src/ui/lpi-sync.ts
 var DB_PATH = "yourbase/lpi_data.json";
-var CONFIG_PATH = "yourbase/lpi_view_config.json";
-var LPI_VIEW_TYPE = "yougile-lpi-view";
-var _LpiView = class _LpiView extends import_obsidian13.ItemView {
-  constructor(leaf, plugin) {
-    super(leaf);
-    this.items = [];
-    this.searchQuery = "";
-    this.searchTimeout = null;
-    this.viewConfig = DEFAULT_CONFIG;
-    this.schemaService = new LpiSchemaService();
-    this.mode = "table";
-    this.charts = [];
-    this.dashboardTimer = null;
-    this.selectedProducts = /* @__PURE__ */ new Set();
-    this.selectedMethods = /* @__PURE__ */ new Set();
-    this.appDateFrom = "";
-    this.appDateTo = "";
-    this.protocolDateFrom = "";
-    this.protocolDateTo = "";
-    this.yougileTasksByExtId = /* @__PURE__ */ new Map();
-    this.serialOnly = false;
-    this.experimentalOnly = false;
+var LpiSync = class {
+  constructor(view) {
     this.wasmBinary = null;
-    this.plugin = plugin;
-  }
-  static getMethodDisplayName(abbr) {
-    return _LpiView.METHOD_NAMES[abbr] || abbr;
-  }
-  getViewType() {
-    return LPI_VIEW_TYPE;
-  }
-  getDisplayText() {
-    return "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439";
-  }
-  getIcon() {
-    return "flame";
-  }
-  async onOpen() {
-    const container = this.contentEl;
-    container.addClass("mailer-yougile-container");
-    this.containerElContent = container.createDiv();
-    await this.loadData();
-    await this.loadViewConfig();
-    await this.syncFromTasks();
-    this.renderView();
+    this.view = view;
   }
   async loadData() {
     try {
-      const exists = await this.app.vault.adapter.exists(DB_PATH);
+      const exists = await this.view.app.vault.adapter.exists(DB_PATH);
       if (exists) {
-        const content = await this.app.vault.adapter.read(DB_PATH);
-        this.items = JSON.parse(content);
+        const content = await this.view.app.vault.adapter.read(DB_PATH);
+        return JSON.parse(content);
       }
     } catch (e) {
-      this.items = [];
     }
+    return [];
   }
-  async saveData() {
+  async saveData(items) {
     try {
-      await this.app.vault.adapter.write(DB_PATH, JSON.stringify(this.items, null, 2));
+      await this.view.app.vault.adapter.write(DB_PATH, JSON.stringify(items, null, 2));
     } catch (e) {
-    }
-  }
-  async syncFromTasks() {
-    try {
-      if (!this.plugin.client) return;
-      const tasks = await this.plugin.client.getTasks();
-      const lpiTasks = tasks.filter((t) => {
-        try {
-          const desc = JSON.parse(t.description || "{}");
-          return desc.type === "lpi_completed" || desc.type === "lpi_data";
-        } catch (e) {
-          return false;
-        }
-      });
-      this.yougileTasksByExtId.clear();
-      for (const task of lpiTasks) {
-        const desc = JSON.parse(task.description || "{}");
-        if (desc.application_external_id) {
-          this.yougileTasksByExtId.set(desc.application_external_id, task);
-        }
-      }
-      let changed = false;
-      let updated = 0;
-      for (const task of lpiTasks) {
-        const desc = JSON.parse(task.description || "{}");
-        let existing = this.items.find((i) => i.aggregate_id === desc.aggregate_id);
-        if (!existing && desc.application_external_id) {
-          existing = this.items.find((i) => i.application_external_id === desc.application_external_id);
-        }
-        if (!existing) {
-          await this.plugin.syncLogger.log({
-            module: "lpi",
-            direction: "from-yougile",
-            action: "skip",
-            itemId: desc.application_external_id || desc.aggregate_id || "",
-            itemTitle: task.title,
-            status: "skipped",
-            details: "\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430 \u0432 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0445 \u0434\u0430\u043D\u043D\u044B\u0445"
-          });
-          continue;
-        }
-        if (existing.taskId && task.completed && !existing.completedLocally) {
-          existing.completedLocally = true;
-          existing.completedAt = desc.completedAt || "";
-          changed = true;
-          updated++;
-          await this.plugin.syncLogger.log({
-            module: "lpi",
-            direction: "from-yougile",
-            action: "complete",
-            itemId: desc.application_external_id || existing.aggregate_id,
-            itemTitle: existing.product_name,
-            status: "success",
-            details: '\u0421\u0442\u0430\u0442\u0443\u0441 "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438\u0437 YouGile'
-          });
-        }
-      }
-      if (changed) await this.saveData();
-      if (lpiTasks.length > 0) {
-        await this.plugin.syncLogger.log({
-          module: "lpi",
-          direction: "from-yougile",
-          action: "sync-complete",
-          itemId: "",
-          status: "success",
-          details: `\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u043E \u0437\u0430\u0434\u0430\u0447 YouGile: ${lpiTasks.length}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}`
-        });
-      }
-    } catch (e) {
-    }
-  }
-  static isStatusActive(status) {
-    return !_LpiView.TERMINAL_STATUSES.has(status);
-  }
-  static statusDisplay(status) {
-    if (_LpiView.TERMINAL_STATUSES.has(status)) return "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430";
-    if (status === "new") return "\u041D\u043E\u0432\u0430\u044F";
-    return "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
-  }
-  isEffectivelyActive(item) {
-    if (item.completedLocally) return false;
-    return _LpiView.isStatusActive(item.application_status);
-  }
-  getProtocolDate(item) {
-    if (this.isEffectivelyActive(item)) return "\u2014";
-    return item.protocol_date || "";
-  }
-  renderView() {
-    const container = this.containerElContent;
-    if (this.dashboardTimer) {
-      clearTimeout(this.dashboardTimer);
-      this.dashboardTimer = null;
-    }
-    for (const c of this.charts) {
-      try {
-        c.destroy();
-      } catch (e) {
-      }
-    }
-    this.charts = [];
-    container.empty();
-    const header = container.createDiv({ cls: "mailer-yougile-header" });
-    header.createEl("h3", { text: "\u{1F9EA} \u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439" });
-    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mb-8" });
-    const tableBtn = btnRow.createEl("button", {
-      text: "\u{1F4CB} \u0422\u0430\u0431\u043B\u0438\u0446\u0430",
-      cls: "mailer-yougile-refresh-btn"
-    });
-    tableBtn.addEventListener("click", () => {
-      this.mode = "table";
-      this.renderView();
-    });
-    const sqlBtn = btnRow.createEl("button", {
-      text: "\u{1F4E5} SQL \u2192 \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E",
-      cls: "mailer-yougile-refresh-btn"
-    });
-    sqlBtn.addEventListener("click", async () => {
-      sqlBtn.disabled = true;
-      sqlBtn.textContent = "\u23F3 \u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...";
-      await this.loadFromSqliteToLocal();
-      sqlBtn.disabled = false;
-      sqlBtn.textContent = "\u{1F4E5} SQL \u2192 \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E";
-    });
-    const syncBtn = btnRow.createEl("button", {
-      text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile",
-      cls: "mailer-yougile-refresh-btn"
-    });
-    syncBtn.addEventListener("click", async () => {
-      const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs2.default.existsSync(this.plugin.settings.lpiDbPath);
-      if (!sqlConnected) {
-        syncBtn.disabled = true;
-        syncBtn.textContent = "\u23F3 \u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0438\u0437 YouGile...";
-        await this.syncFromTasks();
-        await this.saveData();
-        this.renderView();
-        new import_obsidian13.Notice("\u0414\u0430\u043D\u043D\u044B\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u044B \u0438\u0437 YouGile");
-      } else {
-        new YougileSyncModal(this.app, this.plugin, this).open();
-      }
-    });
-    const dashBtn = btnRow.createEl("button", {
-      text: "\u{1F4CA} \u0414\u0430\u0448\u0431\u043E\u0440\u0434",
-      cls: "mailer-yougile-refresh-btn"
-    });
-    dashBtn.addEventListener("click", () => {
-      this.mode = "dashboard";
-      this.renderView();
-    });
-    const schemaBtn = btnRow.createEl("button", {
-      text: "\u{1F4D0} \u0421\u0445\u0435\u043C\u0430 \u0411\u0414",
-      cls: "mailer-yougile-refresh-btn"
-    });
-    schemaBtn.addEventListener("click", () => {
-      var _a;
-      const dbPath = (_a = this.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
-      if (!dbPath || !import_fs2.default.existsSync(dbPath)) {
-        new import_obsidian13.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
-        return;
-      }
-      new LpiSchemaModal(this.app, this.schemaService, dbPath).open();
-    });
-    if (this.mode === "dashboard") {
-      this.renderDashboard(container);
-    } else {
-      this.renderTable(container);
-    }
-  }
-  renderTable(container) {
-    const searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u2116 \u0437\u0430\u044F\u0432\u043A\u0438, \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044E \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430..." } });
-    searchInput.addClass("mailer-mb-8");
-    searchInput.value = this.searchQuery;
-    const searchHandler = () => {
-      this.searchQuery = searchInput.value;
-      if (this.searchTimeout) clearTimeout(this.searchTimeout);
-      this.searchTimeout = window.setTimeout(() => {
-        this.renderView();
-      }, 100);
-    };
-    searchInput.addEventListener("input", searchHandler);
-    searchInput.addEventListener("keyup", searchHandler);
-    if (this.searchQuery) searchInput.focus();
-    const q = this.searchQuery.trim().toLowerCase();
-    let filtered = this.items;
-    if (q) {
-      filtered = this.items.filter(
-        (item) => (item.application_external_id || "").toLowerCase().includes(q) || (item.product_name || "").toLowerCase().includes(q)
-      );
-    }
-    filtered.sort((a, b) => {
-      const idA = a.application_external_id || "";
-      const idB = b.application_external_id || "";
-      const numA = parseInt(idA, 10);
-      const numB = parseInt(idB, 10);
-      if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
-      return idB.localeCompare(idA);
-    });
-    const table = container.createEl("table", { cls: "mailer-table" });
-    const thead = table.createEl("thead");
-    const headerRow = thead.createEl("tr");
-    const headers = ["", "\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u044F"];
-    for (const h of headers) {
-      const th = headerRow.createEl("th", { cls: "mailer-th" });
-      th.setText(h);
-    }
-    const tbody = table.createEl("tbody");
-    if (filtered.length === 0) {
-      const emptyRow = tbody.createEl("tr");
-      const td = emptyRow.createEl("td", { cls: "mailer-text-center mailer-p-24" });
-      td.setAttr("colspan", "9");
-      td.setText("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445");
-      return;
-    }
-    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs2.default.existsSync(this.plugin.settings.lpiDbPath);
-    for (const item of filtered) {
-      const row = tbody.createEl("tr", { cls: "mailer-clickable mailer-row-hover" });
-      const rowClick = () => {
-        this.renderDetail(item);
-      };
-      row.addEventListener("click", rowClick);
-      const dotCell = row.createEl("td", { cls: "mailer-td" });
-      dotCell.style.width = "24px";
-      dotCell.style.textAlign = "center";
-      const dot = dotCell.createEl("span");
-      dot.style.display = "inline-block";
-      dot.style.width = "10px";
-      dot.style.height = "10px";
-      dot.style.borderRadius = "50%";
-      dot.style.backgroundColor = item.taskId ? "var(--text-success)" : "var(--text-muted)";
-      dot.style.flexShrink = "0";
-      row.createEl("td", { cls: "mailer-td" }).setText(item.application_external_id);
-      row.createEl("td", { cls: "mailer-td" }).setText(item.product_name);
-      row.createEl("td", { cls: "mailer-td" }).setText(item.application_created_at);
-      const statusCell = row.createEl("td", { cls: "mailer-td" });
-      statusCell.style.color = this.isEffectivelyActive(item) ? "var(--text-warning)" : "var(--text-success)";
-      statusCell.setText(_LpiView.statusDisplay(item.application_status));
-      row.createEl("td", { cls: "mailer-td" }).setText(this.getProtocolDate(item));
-      row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group || "");
-      row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group_complience || "");
-      const actionsCell = row.createEl("td", { cls: "mailer-td" });
-      const rowSendBtn = actionsCell.createEl("button", {
-        text: "\u{1F4E4}",
-        cls: "mailer-yougile-refresh-btn"
-      });
-      rowSendBtn.style.fontSize = "var(--font-smaller)";
-      rowSendBtn.style.padding = "2px 6px";
-      rowSendBtn.disabled = !sqlConnected;
-      if (!sqlConnected) rowSendBtn.title = "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI";
-      rowSendBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (!this.plugin.client) {
-          new import_obsidian13.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
-          return;
-        }
-        rowSendBtn.disabled = true;
-        rowSendBtn.textContent = "\u23F3";
-        try {
-          await this.syncItemToYougile(item, this.isEffectivelyActive(item));
-          await this.saveData();
-          new import_obsidian13.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
-        } catch (e2) {
-          new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e2.message);
-        }
-        rowSendBtn.disabled = false;
-        rowSendBtn.textContent = "\u{1F4E4}";
-      });
     }
   }
   async getWasmBinary() {
@@ -70155,146 +69900,297 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
       return this.wasmBinary;
     }
   }
-  async loadFromSqliteToLocal() {
-    try {
-      let dbPath = this.plugin.settings.lpiDbPath;
-      if (!dbPath) {
-        new import_obsidian13.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
-        return;
-      }
-      dbPath = dbPath.replace(/\\/g, "/");
-      if (!import_fs2.default.existsSync(dbPath)) {
-        new import_obsidian13.Notice("\u0424\u0430\u0439\u043B \u0411\u0414 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: " + dbPath);
-        return;
-      }
-      const wasmBinary = await this.getWasmBinary();
-      const SQL = await (0, import_sql2.default)({ wasmBinary: wasmBinary.slice(0) });
-      const dbBuf = import_fs2.default.readFileSync(dbPath);
-      const db = new SQL.Database(new Uint8Array(dbBuf));
-      await this.loadViewConfig();
-      const sql = this.viewConfig.loadQuery;
-      const stmt = db.prepare(sql);
-      const sqliteItems = [];
-      while (stmt.step()) {
-        const obj = stmt.getAsObject();
-        obj.thickness = obj.thickness !== null ? Number(obj.thickness) : null;
-        obj.source_series_count = null;
-        obj.source_series_range = null;
-        obj.calculation_type = null;
-        obj.result_data = null;
-        sqliteItems.push(obj);
-      }
-      stmt.free();
-      db.close();
-      let added = 0;
-      let updated = 0;
-      let syncedToYougile = 0;
-      const sqliteIds = new Set(sqliteItems.map((i) => i.aggregate_id));
-      for (const item of sqliteItems) {
-        const existing = this.items.find((i) => i.aggregate_id === item.aggregate_id);
-        if (existing) {
-          const wasActive = this.isEffectivelyActive(existing);
-          const hadTaskId = !!existing.taskId;
-          const { completedLocally, completedAt, taskId } = existing;
-          const dataChanged = existing.application_status !== item.application_status || existing.protocol_date !== item.protocol_date || existing.agg_gen_group_complience !== item.agg_gen_group_complience || existing.agg_gen_group !== item.agg_gen_group;
-          Object.assign(existing, item);
-          existing.completedLocally = completedLocally;
-          existing.completedAt = completedAt;
-          existing.taskId = taskId;
-          if (dataChanged) updated++;
-          if (!hadTaskId && this.plugin.client && !this.isBeforeCutoff(existing)) {
-            if (await this.syncItemToYougile(existing, wasActive)) syncedToYougile++;
+  getAllYougileExtIds() {
+    return this.view.plugin.client.getTasks().then((tasks) => {
+      const ids = /* @__PURE__ */ new Set();
+      for (const t of tasks) {
+        try {
+          const desc = JSON.parse(t.description || "{}");
+          if (desc.type === "lpi_data" || desc.type === "lpi_completed") {
+            if (desc.application_external_id) ids.add(desc.application_external_id);
           }
-        } else {
-          this.items.push(item);
-          added++;
-          if (this.plugin.client && !this.isBeforeCutoff(item)) {
-            try {
-              if (await this.syncItemToYougile(item, true)) syncedToYougile++;
-            } catch (e) {
-            }
-          }
+        } catch (e) {
         }
       }
-      const before = this.items.length;
-      this.items = this.items.filter((i) => sqliteIds.has(i.aggregate_id));
-      const removed = before - this.items.length;
-      await this.saveData();
-      await this.plugin.syncLogger.log({
-        module: "lpi",
-        direction: "local",
-        action: "load-sql",
-        itemId: "",
-        status: "success",
-        details: `SQLite \u2192 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E. \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: ${added}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}, \u0443\u0434\u0430\u043B\u0435\u043D\u043E: ${removed}, \u0441\u0438\u043D\u0445\u0440. \u0441 YouGile: ${syncedToYougile}`
-      });
-      new import_obsidian13.Notice(`LPI: \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E. \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: ${added}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}, \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0441 YouGile: ${syncedToYougile}, \u0443\u0434\u0430\u043B\u0435\u043D\u043E: ${removed}`);
-      this.renderView();
+      return ids;
+    });
+  }
+  async readSqliteItems() {
+    let dbPath = this.view.plugin.settings.lpiDbPath;
+    if (!dbPath) throw new Error("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
+    dbPath = dbPath.replace(/\\/g, "/");
+    if (!import_fs2.default.existsSync(dbPath)) throw new Error("\u0424\u0430\u0439\u043B \u0411\u0414 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D: " + dbPath);
+    const wasmBinary = await this.getWasmBinary();
+    const SQL = await (0, import_sql2.default)({ wasmBinary: wasmBinary.slice(0) });
+    const dbBuf = import_fs2.default.readFileSync(dbPath);
+    const db = new SQL.Database(new Uint8Array(dbBuf));
+    await this.view.loadViewConfig();
+    const sql = this.view.viewConfig.loadQuery;
+    const stmt = db.prepare(sql);
+    const sqliteItems = [];
+    while (stmt.step()) {
+      const obj = stmt.getAsObject();
+      obj.thickness = obj.thickness !== null ? Number(obj.thickness) : null;
+      obj.source_series_count = null;
+      obj.source_series_range = null;
+      obj.calculation_type = null;
+      obj.result_data = null;
+      sqliteItems.push(obj);
+    }
+    stmt.free();
+    db.close();
+    return sqliteItems;
+  }
+  async loadNewFromSqlite(items) {
+    const plugin = this.view.plugin;
+    try {
+      const sqliteItems = await this.readSqliteItems();
+      const localExtIds = new Set(items.filter((i) => i.application_external_id).map((i) => i.application_external_id));
+      const localAggIds = new Set(items.map((i) => i.aggregate_id));
+      let yougileExtIds = /* @__PURE__ */ new Set();
+      try {
+        yougileExtIds = await this.getAllYougileExtIds();
+      } catch (e) {
+      }
+      const newItems = [...items];
+      let added = 0;
+      for (const item of sqliteItems) {
+        if (localAggIds.has(item.aggregate_id)) continue;
+        const extId = item.application_external_id;
+        if (!extId) continue;
+        if (localExtIds.has(extId)) continue;
+        if (yougileExtIds.has(extId)) continue;
+        newItems.push(item);
+        localAggIds.add(item.aggregate_id);
+        localExtIds.add(extId);
+        added++;
+      }
+      if (added > 0) {
+        await plugin.syncLogger.log({
+          module: "lpi",
+          direction: "local",
+          action: "load-sql-new",
+          itemId: "",
+          status: "success",
+          details: `SQLite \u2192 \u043D\u043E\u0432\u044B\u0435: ${added} \u0437\u0430\u044F\u0432\u043E\u043A`
+        });
+      }
+      return { items: newItems, added };
     } catch (e) {
-      await this.plugin.syncLogger.log({
+      await plugin.syncLogger.log({
         module: "lpi",
         direction: "local",
-        action: "load-sql",
+        action: "load-sql-new",
         itemId: "",
         status: "error",
         error: e instanceof Error ? e.message : String(e)
       });
-      new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u0438\u0437 SQLite: " + e.message);
+      throw e;
     }
   }
-  isBeforeCutoff(item) {
-    const id = parseInt(item.application_external_id, 10);
-    return !isNaN(id) && id < _LpiView.YG_MIN_EXT_ID;
-  }
-  async loadViewConfig() {
+  async syncItemFromSqlite(item) {
+    var _a, _b;
+    const plugin = this.view.plugin;
     try {
-      if (this.plugin.settings.lpiViewConfigSource === "default") {
-        this.viewConfig = DEFAULT_CONFIG;
-        return;
+      const sqliteItems = await this.readSqliteItems();
+      const sqliteItem = sqliteItems.find((i) => i.aggregate_id === item.aggregate_id);
+      if (!sqliteItem) {
+        new import_obsidian13.Notice("\u0417\u0430\u044F\u0432\u043A\u0430 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u0430 \u0432 SQLite");
+        return false;
       }
-      const adapter = this.app.vault.adapter;
-      const exists = await adapter.exists(CONFIG_PATH);
-      if (exists) {
-        const content = await adapter.read(CONFIG_PATH);
-        const parsed = JSON.parse(content);
-        this.viewConfig = { ...DEFAULT_CONFIG, ...parsed, loadQuery: DEFAULT_CONFIG.loadQuery, detailSections: parsed.detailSections || DEFAULT_CONFIG.detailSections, colorRules: parsed.colorRules || DEFAULT_CONFIG.colorRules };
+      const { taskId } = item;
+      const changes = [];
+      const compareFields = [
+        { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
+        { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
+        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" },
+        { key: "product_name", label: "\u041C\u0430\u0442\u0435\u0440\u0438\u0430\u043B" }
+      ];
+      for (const cf of compareFields) {
+        const oldVal = String((_a = item[cf.key]) != null ? _a : "");
+        const newVal = String((_b = sqliteItem[cf.key]) != null ? _b : "");
+        if (oldVal !== newVal && newVal) {
+          changes.push({ label: cf.label, local: oldVal || "\u2014", remote: newVal });
+        }
+      }
+      Object.assign(item, sqliteItem);
+      item.taskId = taskId;
+      item.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      item.updatedBy = this.view.plugin.settings.login || "local";
+      if (changes.length > 0) {
+        new import_obsidian13.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}: \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E ${changes.length} \u043F\u043E\u043B\u0435\u0439 \u0438\u0437 SQLite`);
       } else {
-        this.viewConfig = DEFAULT_CONFIG;
-        await adapter.write(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
+        new import_obsidian13.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0430 \u0438\u0437 SQLite`);
+      }
+      return true;
+    } catch (e) {
+      new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u0438\u0437 SQLite: " + e.message);
+      return false;
+    }
+  }
+  async syncFromTasks(items) {
+    var _a, _b;
+    const plugin = this.view.plugin;
+    if (!plugin.client) return { items, hasChanges: false };
+    let lpiProjectId;
+    try {
+      const projects = await plugin.client.getProjects();
+      const projectTitle = plugin.settings.lpiProjectId;
+      if (projectTitle) {
+        const match = projects.find((p) => p.title === projectTitle || p.id === projectTitle);
+        if (match) lpiProjectId = match.id;
       }
     } catch (e) {
-      this.viewConfig = DEFAULT_CONFIG;
     }
+    const tasks = lpiProjectId ? await plugin.client.getTasksByProject(lpiProjectId) : await plugin.client.getTasks();
+    const lpiTasks = tasks.filter((t) => {
+      try {
+        const desc = JSON.parse(t.description || "{}");
+        return desc.type === "lpi_completed" || desc.type === "lpi_data";
+      } catch (e) {
+        return false;
+      }
+    });
+    if (lpiTasks.length > 0) {
+      console.log("YouGile LPI sample:", lpiTasks.slice(0, 3).map((t) => {
+        var _a2;
+        return {
+          id: t.id,
+          title: t.title,
+          completed: t.completed,
+          desc: (_a2 = t.description) == null ? void 0 : _a2.slice(0, 200)
+        };
+      }));
+    }
+    console.log(`YouGile LPI sync: \u0432\u0441\u0435\u0433\u043E \u0437\u0430\u0434\u0430\u0447=${tasks.length}, LPI-\u0437\u0430\u0434\u0430\u0447=${lpiTasks.length}, \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0445 \u0437\u0430\u044F\u0432\u043E\u043A=${items.length}`);
+    let changed = false;
+    let updated = 0;
+    let imported = 0;
+    const newItems = [...items];
+    const existingExtIds = new Set(newItems.filter((i) => i.application_external_id).map((i) => i.application_external_id));
+    const pendingChanges = [];
+    for (const task of lpiTasks) {
+      const desc = JSON.parse(task.description || "{}");
+      const extId = String(desc.application_external_id || "");
+      if (!extId) continue;
+      if (!existingExtIds.has(extId)) {
+        const newItem = { ...desc, taskId: task.id, updatedAt: task.updatedAt || desc.updated_at || "", updatedBy: desc.updated_by || "" };
+        newItems.push(newItem);
+        existingExtIds.add(extId);
+        imported++;
+        changed = true;
+        await plugin.syncLogger.log({
+          module: "lpi",
+          direction: "from-yougile",
+          action: "import",
+          itemId: extId,
+          itemTitle: desc.product_name || task.title,
+          status: "success",
+          details: "\u0410\u0432\u0442\u043E\u0438\u043C\u043F\u043E\u0440\u0442 \u043D\u043E\u0432\u043E\u0439 \u0437\u0430\u044F\u0432\u043A\u0438 \u0438\u0437 YouGile"
+        });
+        continue;
+      }
+      const existing = newItems.find((i) => i.application_external_id === extId);
+      if (!existing) continue;
+      if (!existing.taskId) {
+        existing.taskId = task.id;
+        changed = true;
+      }
+      const changes = [];
+      const compareFields = [
+        { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
+        { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
+        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" },
+        { key: "product_name", label: "\u041C\u0430\u0442\u0435\u0440\u0438\u0430\u043B" }
+      ];
+      for (const cf of compareFields) {
+        const lv = String((_a = existing[cf.key]) != null ? _a : "");
+        const rv = String((_b = desc[cf.key]) != null ? _b : "");
+        if (lv !== rv && rv) {
+          changes.push({ label: cf.label, field: cf.key, local: lv || "\u2014", remote: rv });
+        }
+      }
+      const localCompleted = isCompleted(existing);
+      const remoteCompleted = !!desc.protocol_date || !!task.completed;
+      if (localCompleted !== remoteCompleted) {
+        changes.push({
+          label: "\u0421\u0442\u0430\u0442\u0443\u0441",
+          field: "_status",
+          local: localCompleted ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430",
+          remote: remoteCompleted ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430"
+        });
+      }
+      const remoteUpdatedAt = desc.updated_at || task.updatedAt || "";
+      const localUpdatedAt = existing.updatedAt || "";
+      if (changes.length > 0 && remoteUpdatedAt >= localUpdatedAt) {
+        pendingChanges.push({
+          extId,
+          existing,
+          desc,
+          changes,
+          taskId: task.id,
+          completed: task.completed
+        });
+      }
+    }
+    console.log(`YouGile LPI sync: \u0438\u0442\u043E\u0433 \u2014 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E=${updated}, \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E=${imported}, pending=${pendingChanges.length}`);
+    for (const pc of pendingChanges) {
+      for (const ch of pc.changes) {
+        if (ch.field !== "_status") {
+          pc.existing[ch.field] = pc.desc[ch.field];
+        }
+      }
+      if (pc.desc.protocol_date) pc.existing.protocol_date = pc.desc.protocol_date;
+      if (pc.desc.updated_at) pc.existing.updatedAt = pc.desc.updated_at;
+      if (pc.desc.updated_by) pc.existing.updatedBy = pc.desc.updated_by;
+      changed = true;
+      updated++;
+      await plugin.syncLogger.log({
+        module: "lpi",
+        direction: "from-yougile",
+        action: "update-from-remote",
+        itemId: pc.extId,
+        itemTitle: pc.existing.product_name,
+        status: "success",
+        details: `\u041E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E ${pc.changes.length} \u043F\u043E\u043B\u0435\u0439 \u0438\u0437 YouGile`
+      });
+    }
+    if (lpiTasks.length > 0) {
+      await plugin.syncLogger.log({
+        module: "lpi",
+        direction: "from-yougile",
+        action: "sync-complete",
+        itemId: "",
+        status: "success",
+        details: `\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u043E \u0437\u0430\u0434\u0430\u0447 YouGile: ${lpiTasks.length}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}, \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E: ${imported}`
+      });
+    }
+    return { items: newItems, hasChanges: changed || imported > 0 };
   }
-  async syncItemToYougile(item, wasActive) {
-    const isTerminal = !this.isEffectivelyActive(item);
-    const fullJson = this.buildFullJson(item);
+  async syncItemToYougile(item) {
+    const plugin = this.view.plugin;
+    const completed = isCompleted(item);
+    const fullJson = this.view.buildFullJson(item);
     const desc = JSON.stringify(fullJson);
     const itemId = item.application_external_id || item.aggregate_id;
     const itemTitle = item.product_name;
     if (item.taskId) {
       const payload = { description: desc };
-      if (isTerminal && wasActive) {
-        payload.completed = true;
-      }
+      if (completed) payload.completed = true;
       try {
-        await this.plugin.client.updateTask(item.taskId, payload);
-        if (isTerminal && !item.completedLocally) {
-          item.completedLocally = true;
-          item.completedAt = item.protocol_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        }
-        await this.plugin.syncLogger.log({
+        await plugin.client.updateTask(item.taskId, payload);
+        await plugin.syncLogger.log({
           module: "lpi",
           direction: "to-yougile",
           action: "update",
           itemId,
           itemTitle,
           status: "success",
-          details: isTerminal && wasActive ? "\u0417\u0430\u0434\u0430\u0447\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E"
+          details: completed ? "\u0417\u0430\u0434\u0430\u0447\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E"
         });
         return true;
       } catch (e) {
-        await this.plugin.syncLogger.log({
+        await plugin.syncLogger.log({
           module: "lpi",
           direction: "to-yougile",
           action: "update",
@@ -70306,36 +70202,31 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
         throw e;
       }
     } else {
-      const statusTerminal = !_LpiView.isStatusActive(item.application_status);
       try {
-        const result = await this.plugin.client.createTask({
+        const result = await plugin.client.createTask({
           title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
           description: desc,
-          columnId: this.getLpiColumnId()
+          columnId: this.view.getLpiColumnId()
         });
         if (result == null ? void 0 : result.id) {
           item.taskId = result.id;
-          if (statusTerminal) {
-            item.completedLocally = true;
-            item.completedAt = item.protocol_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-            await this.plugin.client.updateTask(result.id, {
-              completed: true
-            });
+          if (completed) {
+            await plugin.client.updateTask(result.id, { completed: true });
           }
-          await this.plugin.syncLogger.log({
+          await plugin.syncLogger.log({
             module: "lpi",
             direction: "to-yougile",
             action: "create",
             itemId,
             itemTitle,
             status: "success",
-            details: `taskId: ${result.id}${statusTerminal ? ", \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : ""}`
+            details: `taskId: ${result.id}${completed ? ", \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : ""}`
           });
           return true;
         }
         return false;
       } catch (e) {
-        await this.plugin.syncLogger.log({
+        await plugin.syncLogger.log({
           module: "lpi",
           direction: "to-yougile",
           action: "create",
@@ -70348,120 +70239,470 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
       }
     }
   }
-  buildFullJson(item) {
-    return {
-      type: "lpi_data",
-      aggregate_id: item.aggregate_id,
-      application_external_id: item.application_external_id,
-      application_created_at: item.application_created_at,
-      application_status: item.application_status,
-      product_name: item.product_name,
-      protocol_date: item.protocol_date,
-      agg_gen_group_complience: item.agg_gen_group_complience,
-      customer_name: item.customer_name,
-      customer_mail: item.customer_mail,
-      organization: item.organization,
-      customer_phone: item.customer_phone,
-      customer_address: item.customer_address,
-      ekn: item.ekn,
-      thickness: item.thickness,
-      color: item.color,
-      batch_number: item.batch_number,
-      sample_number: item.sample_number,
-      object_name: item.object_name,
-      standard: item.standard,
-      target_comb_group: item.target_comb_group,
-      target_flam_group: item.target_flam_group,
-      target_prop_group: item.target_prop_group,
-      method_abbreviation: item.method_abbreviation,
-      method_name: item.method_name,
-      method_standard: item.method_standard,
-      agg_avg_smog_temp: item.agg_avg_smog_temp,
-      agg_smog_group: item.agg_smog_group,
-      agg_smog_complience: item.agg_smog_complience,
-      agg_mass_loss: item.agg_mass_loss,
-      agg_comb_time: item.agg_comb_time,
-      agg_dam_length: item.agg_dam_length,
-      agg_comb_bulb: item.agg_comb_bulb,
-      agg_group_by_mass: item.agg_group_by_mass,
-      agg_group_by_length: item.agg_group_by_length,
-      agg_croup_by_comb_time: item.agg_croup_by_comb_time,
-      agg_group_by_bulbe: item.agg_group_by_bulbe,
-      agg_gen_group: item.agg_gen_group,
-      agg_mass_complience: item.agg_mass_complience,
-      agg_complience_by_length: item.agg_complience_by_length,
-      agg_complience_by_comb_time: item.agg_complience_by_comb_time,
-      agg_complience_by_bulbe: item.agg_complience_by_bulbe,
-      agg_additional_info_1: item.agg_additional_info_1
+};
+
+// src/ui/lpi-modals.ts
+var import_obsidian14 = require("obsidian");
+var CONFIG_PATH = "yourbase/lpi_view_config.json";
+var ProductFilterModal = class extends import_obsidian14.Modal {
+  constructor(app, allProducts, selected, onSave) {
+    super(app);
+    this.allProducts = allProducts;
+    this.selected = new Set(selected);
+    this.onSave = onSave;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h3", { text: "\u0412\u044B\u0431\u043E\u0440 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u0434\u043B\u044F \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430" });
+    const searchInput = contentEl.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430..." } });
+    searchInput.style.width = "100%";
+    searchInput.style.marginBottom = "8px";
+    searchInput.style.boxSizing = "border-box";
+    searchInput.focus();
+    const listContainer = contentEl.createDiv();
+    listContainer.style.maxHeight = "400px";
+    listContainer.style.overflowY = "auto";
+    const renderList = () => {
+      listContainer.empty();
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allProducts.filter((p) => p && p.toLowerCase().includes(q)) : this.allProducts;
+      for (const product of filtered) {
+        const wrapper = listContainer.createEl("label");
+        wrapper.style.display = "flex";
+        wrapper.style.alignItems = "center";
+        wrapper.style.padding = "2px 0";
+        wrapper.style.cursor = "pointer";
+        wrapper.style.fontSize = "var(--font-smaller)";
+        const cb = wrapper.createEl("input", { attr: { type: "checkbox" } });
+        cb.style.width = "16px";
+        cb.style.height = "16px";
+        cb.style.margin = "0 6px 0 0";
+        cb.style.flexShrink = "0";
+        cb.checked = this.selected.has(product);
+        cb.addEventListener("change", () => {
+          if (cb.checked) this.selected.add(product);
+          else this.selected.delete(product);
+        });
+        wrapper.createEl("span").setText(product);
+      }
     };
+    renderList();
+    searchInput.addEventListener("input", renderList);
+    searchInput.addEventListener("keyup", renderList);
+    const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
+    const selectAllBtn = btnRow.createEl("button", { text: "\u0412\u044B\u0431\u0440\u0430\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
+    selectAllBtn.addEventListener("click", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allProducts.filter((p) => p && p.toLowerCase().includes(q)) : this.allProducts;
+      for (const product of filtered) this.selected.add(product);
+      renderList();
+    });
+    const deselectAllBtn = btnRow.createEl("button", { text: "\u0421\u043D\u044F\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
+    deselectAllBtn.addEventListener("click", () => {
+      this.selected.clear();
+      renderList();
+    });
+    const applyBtn = btnRow.createEl("button", { text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    applyBtn.addEventListener("click", () => {
+      this.onSave(this.selected);
+      this.close();
+    });
+    const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
+    cancelBtn.addEventListener("click", () => this.close());
   }
-  getLpiColumnId() {
-    const cols = this.plugin.db.getColumns();
-    const boardId = this.plugin.settings.lpiBoardId;
-    const colTitle = this.plugin.settings.lpiColumnTitle;
-    if (boardId && colTitle) {
-      const match = cols.find((c) => c.boardId === boardId && c.title === colTitle);
-      if (match) return match.id;
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var _MethodFilterModal = class _MethodFilterModal extends import_obsidian14.Modal {
+  constructor(app, allMethods, selected, onSave) {
+    super(app);
+    this.allMethods = allMethods;
+    this.selected = new Set(selected);
+    this.onSave = onSave;
+  }
+  displayName(abbr) {
+    return _MethodFilterModal.METHOD_NAMES[abbr] || abbr;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h3", { text: "\u0412\u044B\u0431\u043E\u0440 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u0435\u043C\u043E\u0433\u043E \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044F" });
+    const searchInput = contentEl.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044F..." } });
+    searchInput.style.width = "100%";
+    searchInput.style.marginBottom = "8px";
+    searchInput.style.boxSizing = "border-box";
+    searchInput.focus();
+    const listContainer = contentEl.createDiv();
+    listContainer.style.maxHeight = "400px";
+    listContainer.style.overflowY = "auto";
+    const renderList = () => {
+      listContainer.empty();
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allMethods.filter((m) => this.displayName(m).toLowerCase().includes(q)) : this.allMethods;
+      for (const method of filtered) {
+        const wrapper = listContainer.createEl("label");
+        wrapper.style.display = "flex";
+        wrapper.style.alignItems = "center";
+        wrapper.style.padding = "2px 0";
+        wrapper.style.cursor = "pointer";
+        wrapper.style.fontSize = "var(--font-smaller)";
+        const cb = wrapper.createEl("input", { attr: { type: "checkbox" } });
+        cb.style.width = "16px";
+        cb.style.height = "16px";
+        cb.style.margin = "0 6px 0 0";
+        cb.style.flexShrink = "0";
+        cb.checked = this.selected.has(method);
+        cb.addEventListener("change", () => {
+          if (cb.checked) this.selected.add(method);
+          else this.selected.delete(method);
+        });
+        wrapper.createEl("span").setText(this.displayName(method));
+      }
+    };
+    renderList();
+    searchInput.addEventListener("input", renderList);
+    searchInput.addEventListener("keyup", renderList);
+    const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
+    const selectAllBtn = btnRow.createEl("button", { text: "\u0412\u044B\u0431\u0440\u0430\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
+    selectAllBtn.addEventListener("click", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const filtered = q ? this.allMethods.filter((m) => this.displayName(m).toLowerCase().includes(q)) : this.allMethods;
+      for (const method of filtered) this.selected.add(method);
+      renderList();
+    });
+    const deselectAllBtn = btnRow.createEl("button", { text: "\u0421\u043D\u044F\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
+    deselectAllBtn.addEventListener("click", () => {
+      this.selected.clear();
+      renderList();
+    });
+    const applyBtn = btnRow.createEl("button", { text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    applyBtn.addEventListener("click", () => {
+      this.onSave(this.selected);
+      this.close();
+    });
+    const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
+    cancelBtn.addEventListener("click", () => this.close());
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+_MethodFilterModal.METHOD_NAMES = {
+  "method1": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438",
+  "method2": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438",
+  "method3": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u043F\u043B\u0430\u043C\u0435\u043D\u0438",
+  "method4": "\u041A\u0438\u0441\u043B\u043E\u0440\u043E\u0434\u043D\u044B\u0439 \u0438\u043D\u0434\u0435\u043A\u0441",
+  "g56027": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F",
+  "g56927": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F"
+};
+var MethodFilterModal = _MethodFilterModal;
+var YougileSyncModal = class extends import_obsidian14.Modal {
+  constructor(app, plugin, view) {
+    super(app);
+    this.plugin = plugin;
+    this.view = view;
+    this.choices = /* @__PURE__ */ new Map();
+  }
+  async onOpen() {
+    var _a, _b;
+    const { contentEl } = this;
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h2", { text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile" });
+    if (!this.plugin.client) {
+      contentEl.createEl("p", { text: "\u274C \u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile" });
+      const closeBtn2 = contentEl.createEl("button", { text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+      closeBtn2.addEventListener("click", () => this.close());
+      return;
     }
-    return void 0;
-  }
-  async completeEntry(item) {
-    try {
-      const now = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      item.completedLocally = true;
-      item.completedAt = now;
-      await this.saveData();
+    contentEl.createEl("p", { text: "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0437\u0430\u0434\u0430\u0447 \u0438\u0437 YouGile..." });
+    const tasks = await this.plugin.client.getTasks();
+    const lpiTasks = tasks.filter((t) => {
       try {
-        if (this.plugin.client) {
-          const desc = JSON.stringify({ type: "lpi_completed", aggregate_id: item.aggregate_id, application_external_id: item.application_external_id, product_name: item.product_name, completedAt: now, protocol_date: item.protocol_date || now, agg_gen_group_complience: item.agg_gen_group_complience || "", customer_name: item.customer_name || "", customer_mail: item.customer_mail || "", organization: item.organization || "", ekn: item.ekn || "" });
-          const result = await this.plugin.client.createTask({
-            title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
-            description: desc,
-            columnId: this.getLpiColumnId()
-          });
-          if (result == null ? void 0 : result.id) {
-            await this.plugin.client.updateTask(result.id, { completed: true });
-            item.taskId = result.id;
-            await this.saveData();
-          }
+        const desc = JSON.parse(t.description || "{}");
+        return desc.type === "lpi_completed" || desc.type === "lpi_data";
+      } catch (e) {
+        return false;
+      }
+    });
+    const items = this.view.items;
+    const matchingDiffs = [];
+    const imported = [];
+    for (const task of lpiTasks) {
+      const desc = JSON.parse(task.description || "{}");
+      const extId = desc.application_external_id || "";
+      let localItem = items.find((i) => i.taskId === task.id);
+      if (!localItem && extId) localItem = items.find((i) => i.application_external_id === extId);
+      if (!localItem && desc.aggregate_id) localItem = items.find((i) => i.aggregate_id === desc.aggregate_id);
+      if (!localItem) {
+        imported.push({ task, desc });
+        continue;
+      }
+      const diffs = [];
+      const compareFields = [
+        { key: "application_status", label: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u044F\u0432\u043A\u0438" },
+        { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
+        { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
+        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" }
+      ];
+      for (const { key, label } of compareFields) {
+        const lv = String((_a = localItem[key]) != null ? _a : "");
+        const yv = String((_b = desc[key]) != null ? _b : "");
+        if (lv !== yv) diffs.push({ label, local: lv || "\u2014", yougile: yv || "\u2014" });
+      }
+      const lc = isCompleted(localItem) ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
+      const yc = task.completed ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
+      if (lc !== yc) diffs.push({ label: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F", local: lc, yougile: yc });
+      if (diffs.length > 0) {
+        matchingDiffs.push({ item: localItem, task, yougileDesc: desc, diffs });
+      }
+    }
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile" });
+    let autoImported = 0;
+    for (const imp of imported) {
+      const newItem = { ...imp.desc, taskId: imp.task.id };
+      if (imp.task.completed && imp.desc.protocol_date) {
+        newItem.protocol_date = imp.desc.protocol_date;
+      }
+      const hasItem = items.some((i) => i.aggregate_id === newItem.aggregate_id || i.application_external_id === newItem.application_external_id);
+      if (!hasItem) {
+        items.push(newItem);
+        autoImported++;
+      }
+    }
+    if (matchingDiffs.length === 0) {
+      if (autoImported > 0) {
+        await this.view.saveData();
+        contentEl.createEl("p", { text: `\u2705 \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile: ${autoImported} \u0437\u0430\u044F\u0432\u043E\u043A. \u0420\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043D\u0435\u0442.` });
+      } else {
+        contentEl.createEl("p", { text: "\u2705 \u0420\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043D\u0435\u0442. \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u044B \u0441 YouGile." });
+      }
+      const closeBtn2 = contentEl.createEl("button", { text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+      closeBtn2.addEventListener("click", () => this.close());
+      return;
+    }
+    if (autoImported > 0) {
+      contentEl.createEl("p", { text: `\u2705 \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile: ${autoImported} \u0437\u0430\u044F\u0432\u043E\u043A.` });
+    }
+    contentEl.createEl("p", { text: `\u041D\u0430\u0439\u0434\u0435\u043D\u043E \u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043F\u043E ${matchingDiffs.length} \u0437\u0430\u044F\u0432\u043A\u0430\u043C. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442 \u0434\u043B\u044F \u043A\u0430\u0436\u0434\u043E\u0439:` });
+    const cardsContainer = contentEl.createDiv();
+    cardsContainer.style.maxHeight = "500px";
+    cardsContainer.style.overflowY = "auto";
+    for (let idx = 0; idx < matchingDiffs.length; idx++) {
+      const md = matchingDiffs[idx];
+      const card = cardsContainer.createEl("div");
+      card.style.border = "1px solid var(--background-modifier-border)";
+      card.style.borderRadius = "6px";
+      card.style.padding = "8px 10px";
+      card.style.marginBottom = "8px";
+      card.style.backgroundColor = "var(--background-secondary)";
+      const headerLine = card.createEl("div");
+      headerLine.style.fontWeight = "bold";
+      headerLine.style.marginBottom = "6px";
+      headerLine.setText(`\u2116${md.item.application_external_id} \u2014 ${md.item.product_name || "\u043D\u0435\u0442 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430"}`);
+      const diffTable = card.createEl("table");
+      diffTable.style.width = "100%";
+      diffTable.style.fontSize = "var(--font-smaller)";
+      diffTable.style.borderCollapse = "collapse";
+      diffTable.style.marginBottom = "6px";
+      const headerRow = diffTable.insertRow();
+      for (const text of ["\u041F\u043E\u043B\u0435", "\u{1F4CD} \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E", "YouGile"]) {
+        const th = headerRow.createEl("th");
+        th.style.padding = "2px 6px";
+        th.style.borderBottom = "2px solid var(--background-modifier-border)";
+        th.style.textAlign = "left";
+        th.style.fontWeight = "bold";
+        th.setText(text);
+      }
+      for (const d of md.diffs) {
+        const tr = diffTable.insertRow();
+        const cells = [d.label, d.local, d.yougile];
+        for (let ci = 0; ci < cells.length; ci++) {
+          const td = tr.insertCell();
+          td.style.padding = "2px 6px";
+          td.style.borderBottom = "1px solid var(--background-modifier-border)";
+          td.setText(cells[ci]);
+          if (ci === 1) td.style.backgroundColor = "rgba(var(--color-green-rgb), 0.08)";
+          if (ci === 2) td.style.backgroundColor = "rgba(var(--interactive-accent-rgb), 0.08)";
         }
+      }
+      const toggleLine = card.createDiv();
+      toggleLine.style.display = "flex";
+      toggleLine.style.alignItems = "center";
+      toggleLine.style.gap = "8px";
+      toggleLine.style.marginTop = "4px";
+      const localRadio = toggleLine.createEl("input", { attr: { type: "radio", name: `choice_${idx}`, id: `local_${idx}` } });
+      localRadio.style.width = "14px";
+      localRadio.style.height = "14px";
+      localRadio.checked = true;
+      this.choices.set(idx, "local");
+      localRadio.addEventListener("change", () => {
+        if (localRadio.checked) this.choices.set(idx, "local");
+      });
+      const localLabel = toggleLine.createEl("label", { attr: { for: `local_${idx}` } });
+      localLabel.style.color = "var(--text-success)";
+      localLabel.style.fontWeight = "bold";
+      localLabel.style.fontSize = "var(--font-smaller)";
+      localLabel.setText("\u{1F4CD} \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435");
+      const yougileRadio = toggleLine.createEl("input", { attr: { type: "radio", name: `choice_${idx}`, id: `yougile_${idx}` } });
+      yougileRadio.style.width = "14px";
+      yougileRadio.style.height = "14px";
+      yougileRadio.addEventListener("change", () => {
+        if (yougileRadio.checked) this.choices.set(idx, "yougile");
+      });
+      const yougileLabel = toggleLine.createEl("label", { attr: { for: `yougile_${idx}` } });
+      yougileLabel.style.color = "var(--interactive-accent)";
+      yougileLabel.style.fontWeight = "bold";
+      yougileLabel.style.fontSize = "var(--font-smaller)";
+      yougileLabel.setText("YouGile");
+    }
+    const bottomRow = contentEl.createDiv();
+    bottomRow.style.marginTop = "12px";
+    bottomRow.style.display = "flex";
+    bottomRow.style.gap = "8px";
+    bottomRow.style.flexWrap = "wrap";
+    bottomRow.style.alignItems = "center";
+    const applyAllBtn = bottomRow.createEl("button", {
+      text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C \u0432\u0441\u0435",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    applyAllBtn.addEventListener("click", async () => {
+      applyAllBtn.disabled = true;
+      applyAllBtn.setText("\u23F3 \u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u0435...");
+      let count = 0;
+      for (let idx = 0; idx < matchingDiffs.length; idx++) {
+        const md = matchingDiffs[idx];
+        const choice = this.choices.get(idx) || "local";
+        try {
+          const fullJson = this.view.buildFullJson(md.item);
+          if (choice === "local") {
+            await this.plugin.client.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
+            if (isCompleted(md.item) && !md.task.completed) {
+              await this.plugin.client.updateTask(md.task.id, { completed: true });
+            }
+            if (!md.item.taskId) md.item.taskId = md.task.id;
+          } else {
+            for (const key of ["protocol_date", "agg_gen_group_complience", "agg_gen_group"]) {
+              const yv = md.yougileDesc[key];
+              if (yv !== void 0 && yv !== null) md.item[key] = yv;
+            }
+            if (!md.item.taskId) md.item.taskId = md.task.id;
+          }
+          count++;
+        } catch (e) {
+          new import_obsidian14.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E \u2116${md.item.application_external_id}: ${e.message}`);
+        }
+      }
+      await this.view.saveData();
+      new import_obsidian14.Notice(`\u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u043E: ${count} \u0437\u0430\u044F\u0432\u043E\u043A`);
+      this.close();
+      this.view.renderView();
+    });
+    const closeBtn = bottomRow.createEl("button", {
+      text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    closeBtn.addEventListener("click", () => {
+      this.view.renderView();
+      this.close();
+    });
+  }
+};
+var LpiConfigEditorModal = class extends import_obsidian14.Modal {
+  constructor(view) {
+    super(view.app);
+    this.view = view;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h2", { text: "\u2699 \u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u043A\u043E\u043D\u0444\u0438\u0433\u0430 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F" });
+    const info = contentEl.createEl("p", { text: "\u041A\u043E\u043D\u0444\u0438\u0433 \u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0432 yourbase/lpi_view_config.json. \u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0434\u0435\u0442\u0430\u043B\u0435\u0439 \u0437\u0430\u044F\u0432\u043A\u0438." });
+    info.style.color = "var(--text-muted)";
+    info.style.fontSize = "12px";
+    const configJson = JSON.stringify(this.view.viewConfig, null, 2);
+    const textarea = contentEl.createEl("textarea");
+    textarea.value = configJson;
+    textarea.style.cssText = "width:100%;box-sizing:border-box;min-height:400px;font-family:monospace;font-size:11px;padding:8px;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border);border-radius:4px";
+    const btnRow = contentEl.createDiv();
+    btnRow.style.cssText = "display:flex;gap:8px;margin-top:8px";
+    const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    saveBtn.addEventListener("click", async () => {
+      try {
+        const parsed = JSON.parse(textarea.value);
+        this.view.viewConfig = parsed;
+        const adapter = this.view.app.vault.adapter;
+        await adapter.write(CONFIG_PATH, JSON.stringify(parsed, null, 2));
+        new import_obsidian14.Notice("\u041A\u043E\u043D\u0444\u0438\u0433 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D");
+        this.close();
+      } catch (e) {
+        new import_obsidian14.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u0432 JSON: " + e.message);
+      }
+    });
+    const resetBtn = btnRow.createEl("button", { text: "\u21BA \u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043D\u0430 \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044F", cls: "mailer-yougile-refresh-btn" });
+    resetBtn.addEventListener("click", async () => {
+      this.view.viewConfig = DEFAULT_CONFIG;
+      const adapter = this.view.app.vault.adapter;
+      await adapter.write(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
+      textarea.value = JSON.stringify(DEFAULT_CONFIG, null, 2);
+      new import_obsidian14.Notice("\u041A\u043E\u043D\u0444\u0438\u0433 \u0441\u0431\u0440\u043E\u0448\u0435\u043D \u043D\u0430 \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044F");
+    });
+    const howTo = contentEl.createEl("details", { attr: { style: "margin-top:12px" } });
+    howTo.createEl("summary", { text: "\u{1F4D6} \u041A\u0430\u043A \u0434\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0441\u0435\u043A\u0446\u0438\u044E \u0441 SQL-\u0437\u0430\u043F\u0440\u043E\u0441\u043E\u043C", attr: { style: "cursor:pointer;font-weight:600;font-size:12px" } });
+    const howContent = howTo.createDiv();
+    howContent.style.cssText = "padding:8px;font-size:11px;background:var(--background-primary-alt);border-radius:4px;margin-top:4px";
+    howContent.innerHTML = `<pre style="margin:0;white-space:pre-wrap">
+\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0441\u0435\u043A\u0446\u0438\u044E \u0432 "detailSections":
+
+{
+  "title": "\u041C\u043E\u0438 \u0434\u0430\u043D\u043D\u044B\u0435",
+  "type": "subquery",
+  "query": "SELECT * FROM my_table WHERE fk_id = '{{aggregate_id}}'",
+  "columns": [
+    { "label": "\u041A\u043E\u043B\u043E\u043D\u043A\u0430 1", "field": "col1" }
+  ],
+  "dependsOn": ["aggregate_id"]
+}
+</pre>`;
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/ui/lpi-dashboard.ts
+var LpiDashboard = class {
+  constructor(view) {
+    this.charts = [];
+    this.dashboardTimer = null;
+    this.view = view;
+  }
+  destroy() {
+    if (this.dashboardTimer) {
+      clearTimeout(this.dashboardTimer);
+      this.dashboardTimer = null;
+    }
+    for (const c of this.charts) {
+      try {
+        c.destroy();
       } catch (e) {
       }
-      new import_obsidian13.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430`);
-      this.renderView();
-    } catch (e) {
-      new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
     }
+    this.charts = [];
   }
-  applyFilters(items) {
-    let filtered = items;
-    if (this.selectedProducts.size > 0) {
-      filtered = filtered.filter((item) => this.selectedProducts.has(item.product_name));
-    }
-    if (this.appDateFrom) {
-      filtered = filtered.filter((item) => item.application_created_at >= this.appDateFrom);
-    }
-    if (this.appDateTo) {
-      filtered = filtered.filter((item) => item.application_created_at <= this.appDateTo);
-    }
-    if (this.protocolDateFrom) {
-      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date >= this.protocolDateFrom);
-    }
-    if (this.protocolDateTo) {
-      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date <= this.protocolDateTo);
-    }
-    if (this.serialOnly) {
-      filtered = filtered.filter((item) => item.ekn && /^\d+$/.test(item.ekn));
-    }
-    if (this.experimentalOnly) {
-      filtered = filtered.filter((item) => !item.ekn || !/^\d+$/.test(item.ekn));
-    }
-    if (this.selectedMethods.size > 0) {
-      filtered = filtered.filter((item) => item.method_abbreviation && this.selectedMethods.has(item.method_abbreviation));
-    }
-    return filtered;
+  render(container, items) {
+    this.destroy();
+    this.renderFilterRow(container, items);
+    const filtered = this.view.applyFilters(items);
+    this.renderMetrics(container, filtered);
+    this.renderCharts(container, filtered);
   }
-  renderDashboard(container) {
+  renderFilterRow(container, allItems) {
+    const v = this.view;
     const filterRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap mailer-mb-8" });
     filterRow.style.alignItems = "end";
     filterRow.style.gap = "8px";
@@ -70477,14 +70718,14 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
       inp.value = value;
       inp.addEventListener("change", () => {
         onChange(inp.value);
-        this.renderView();
+        this.render(container, allItems);
       });
       return inp;
     };
-    addDateFilter("\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0441", this.appDateFrom, (v) => this.appDateFrom = v);
-    addDateFilter("\u043F\u043E", this.appDateTo, (v) => this.appDateTo = v);
-    addDateFilter("\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430 \u0441", this.protocolDateFrom, (v) => this.protocolDateFrom = v);
-    addDateFilter("\u043F\u043E", this.protocolDateTo, (v) => this.protocolDateTo = v);
+    addDateFilter("\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0441", v.appDateFrom, (val) => v.appDateFrom = val);
+    addDateFilter("\u043F\u043E", v.appDateTo, (val) => v.appDateTo = val);
+    addDateFilter("\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430 \u0441", v.protocolDateFrom, (val) => v.protocolDateFrom = val);
+    addDateFilter("\u043F\u043E", v.protocolDateTo, (val) => v.protocolDateTo = val);
     const addCb = (label, checked, onChange) => {
       const group = filterRow.createDiv({ attr: { style: "display:flex;align-items:center;margin-left:8px" } });
       const cb = group.createEl("input", { attr: { type: "checkbox" } });
@@ -70494,71 +70735,67 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
       cb.checked = checked;
       cb.addEventListener("change", () => {
         onChange(cb.checked);
-        this.renderView();
+        this.render(container, allItems);
       });
       const lbl = group.createEl("label", { text: label });
       lbl.style.fontSize = "var(--font-smaller)";
     };
-    addCb("\u0421\u0435\u0440\u0438\u0439\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F", this.serialOnly, (v) => this.serialOnly = v);
-    addCb("\u041E\u043F\u044B\u0442\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F", this.experimentalOnly, (v) => this.experimentalOnly = v);
-    const allFiltered = this.applyFilters(this.items);
-    const allProducts = [...new Set(this.items.map((i) => i.product_name))].sort();
-    for (const p of this.selectedProducts) {
-      if (!allProducts.includes(p)) this.selectedProducts.delete(p);
+    addCb("\u0421\u0435\u0440\u0438\u0439\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F", v.serialOnly, (val) => v.serialOnly = val);
+    addCb("\u041E\u043F\u044B\u0442\u043D\u0430\u044F \u043F\u0440\u043E\u0434\u0443\u043A\u0446\u0438\u044F", v.experimentalOnly, (val) => v.experimentalOnly = val);
+    const allFiltered = v.applyFilters(allItems);
+    const allProducts = [...new Set(allItems.map((i) => i.product_name))].sort();
+    for (const p of v.selectedProducts) {
+      if (!allProducts.includes(p)) v.selectedProducts.delete(p);
     }
-    const filteredMethods = [...new Set(allFiltered.filter((i) => i.method_abbreviation).map((i) => i.method_abbreviation))].sort();
-    const allMethods = [...new Set(this.items.filter((i) => i.method_abbreviation).map((i) => i.method_abbreviation))].sort();
-    for (const m of this.selectedMethods) {
-      if (!allMethods.includes(m)) this.selectedMethods.delete(m);
+    const allMethods = [...new Set(allItems.filter((i) => i.method_abbreviation).map((i) => i.method_abbreviation))].sort();
+    for (const m of v.selectedMethods) {
+      if (!allMethods.includes(m)) v.selectedMethods.delete(m);
     }
     const methodBtn = container.createEl("button", {
-      text: this.selectedMethods.size > 0 ? `\u{1F52C} ${[...this.selectedMethods].map((m) => _LpiView.getMethodDisplayName(m)).join(", ")}` : "\u{1F52C} \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u0435\u043C\u044B\u0439 \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044C",
+      text: v.selectedMethods.size > 0 ? `\u{1F52C} ${[...v.selectedMethods].map((m) => getMethodDisplayName(m)).join(", ")}` : "\u{1F52C} \u041F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u0435\u043C\u044B\u0439 \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044C",
       cls: "mailer-yougile-refresh-btn"
     });
     methodBtn.style.marginLeft = "8px";
     methodBtn.addEventListener("click", () => {
-      const modal = new MethodFilterModal(this.app, allMethods, this.selectedMethods, (selected) => {
-        this.selectedMethods = selected;
-        this.renderView();
+      const modal = new MethodFilterModal(v.app, allMethods, v.selectedMethods, (selected) => {
+        v.selectedMethods = selected;
+        this.render(container, allItems);
       });
       modal.open();
     });
-    if (this.selectedMethods.size > 0) {
+    if (v.selectedMethods.size > 0) {
       const clearM = container.createEl("button", { text: "\u2715", cls: "mailer-yougile-refresh-btn" });
       clearM.style.marginLeft = "4px";
       clearM.addEventListener("click", () => {
-        this.selectedMethods.clear();
-        this.renderView();
+        v.selectedMethods.clear();
+        this.render(container, allItems);
       });
     }
     const productBtn = container.createEl("button", {
-      text: this.selectedProducts.size > 0 ? `\u{1F53D} \u041F\u0440\u043E\u0434\u0443\u043A\u0442\u044B (${this.selectedProducts.size})` : "\u{1F53D} \u0412\u044B\u0431\u0440\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u044B",
+      text: v.selectedProducts.size > 0 ? `\u{1F53D} \u041F\u0440\u043E\u0434\u0443\u043A\u0442\u044B (${v.selectedProducts.size})` : "\u{1F53D} \u0412\u044B\u0431\u0440\u0430\u0442\u044C \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u044B",
       cls: "mailer-yougile-refresh-btn"
     });
     productBtn.style.marginLeft = "8px";
     productBtn.addEventListener("click", () => {
-      const modal = new ProductFilterModal(this.app, allProducts, this.selectedProducts, (selected) => {
-        this.selectedProducts = selected;
-        this.renderView();
+      const modal = new ProductFilterModal(v.app, allProducts, v.selectedProducts, (selected) => {
+        v.selectedProducts = selected;
+        this.render(container, allItems);
       });
       modal.open();
     });
-    if (this.selectedProducts.size > 0) {
+    if (v.selectedProducts.size > 0) {
       const clearBtn = container.createEl("button", { text: "\u2715 \u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
       clearBtn.style.marginLeft = "8px";
       clearBtn.addEventListener("click", () => {
-        this.selectedProducts.clear();
-        this.renderView();
+        v.selectedProducts.clear();
+        this.render(container, allItems);
       });
     }
-    let filtered = allFiltered;
-    if (this.selectedProducts.size > 0) {
-      filtered = filtered.filter((item) => this.selectedProducts.has(item.product_name));
-    }
-    const total = filtered.length;
-    const active = filtered.filter((i) => this.isEffectivelyActive(i)).length;
-    const completed = filtered.filter((i) => !this.isEffectivelyActive(i)).length;
-    const withProtocol = filtered.filter((i) => i.protocol_date).length;
+  }
+  renderMetrics(container, items) {
+    const total = items.length;
+    const active = items.filter((i) => !isCompleted(i)).length;
+    const completed = items.filter((i) => isCompleted(i)).length;
     const metricsRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap mailer-mb-8" });
     const metricStyle = "min-width:120px;padding:8px 12px;margin:4px;background:var(--background-modifier-hover);border-radius:6px;text-align:center";
     const addMetric = (label, value) => {
@@ -70569,32 +70806,35 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
     addMetric("\u0412\u0441\u0435\u0433\u043E \u0437\u0430\u044F\u0432\u043E\u043A", total);
     addMetric("\u0410\u043A\u0442\u0438\u0432\u043D\u043E", active);
     addMetric("\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E", completed);
-    addMetric("\u0421 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u043E\u043C", withProtocol);
+    addMetric("\u0421 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u043E\u043C", completed);
+  }
+  renderCharts(container, items) {
+    const v = this.view;
     const chartRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
     const c1 = chartRow.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
     c1.createEl("h4", { text: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u044F\u0432\u043E\u043A" });
-    this.createChart(c1, this.buildStatusSeries(filtered));
+    this.createChart(c1, this.buildStatusSeries(items));
     const c2 = chartRow.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
     c2.createEl("h4", { text: "\u041F\u043E\u0441\u0442\u0443\u043F\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u044F\u0432\u043E\u043A \u043F\u043E \u043C\u0435\u0441\u044F\u0446\u0430\u043C" });
-    this.createChart(c2, this.buildIncomingMonthlySeries(filtered));
+    this.createChart(c2, this.buildIncomingMonthlySeries(items));
     const chartRow2 = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
     const c3 = chartRow2.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
     c3.createEl("h4", { text: "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0435 \u0437\u0430\u044F\u0432\u043E\u043A \u043F\u043E \u043C\u0435\u0441\u044F\u0446\u0430\u043C" });
-    this.createChart(c3, this.buildCompletedMonthlySeries(filtered));
+    this.createChart(c3, this.buildCompletedMonthlySeries(items));
     const c4 = chartRow2.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
     c4.createEl("h4", { text: "\u041E\u0431\u0449\u0430\u044F \u043E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" });
-    this.createChart(c4, this.buildComplianceSeries(filtered));
+    this.createChart(c4, this.buildComplianceSeries(items));
     const chartRow3 = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
-    if (this.selectedProducts.size > 1) {
+    if (v.selectedProducts.size > 1) {
       const c5 = chartRow3.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
       c5.createEl("h4", { text: "\u041E\u0446\u0435\u043D\u043A\u0430 \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C" });
       const perProductWrap = c5.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
       const c62 = chartRow3.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
       c62.createEl("h4", { text: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439 \u043F\u043E \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430\u043C" });
       const perProductTestWrap = c62.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
-      const products = [...this.selectedProducts].sort();
+      const products = [...v.selectedProducts].sort();
       for (const product of products) {
-        const productItems = filtered.filter((i) => i.product_name === product);
+        const productItems = items.filter((i) => i.product_name === product);
         if (productItems.length === 0) continue;
         const card = perProductWrap.createDiv({ attr: { style: "width:45%;min-width:160px;margin:2%" } });
         const title = card.createEl("h5", { text: product });
@@ -70614,12 +70854,12 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
     } else {
       const c5 = chartRow3.createDiv({ attr: { style: "width:98%;min-width:280px;margin:1%" } });
       c5.createEl("h4", { text: "\u0422\u043E\u043F \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u043F\u043E \u0437\u0430\u044F\u0432\u043A\u0430\u043C" });
-      this.createChart(c5, this.buildTopProductsSeries(filtered));
+      this.createChart(c5, this.buildTopProductsSeries(items));
     }
     const chartRow4 = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap" });
     const c6 = chartRow4.createDiv({ attr: { style: "width:48%;min-width:280px;margin:1%" } });
     c6.createEl("h4", { text: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" });
-    this.createChart(c6, this.buildTestResultSeries(filtered));
+    this.createChart(c6, this.buildTestResultSeries(items));
     this.dashboardTimer = window.setTimeout(() => {
       for (const chart of this.charts) {
         try {
@@ -70635,8 +70875,8 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
     return chart;
   }
   buildStatusSeries(items) {
-    const active = items.filter((i) => this.isEffectivelyActive(i)).length;
-    const completed = items.filter((i) => !this.isEffectivelyActive(i)).length;
+    const active = items.filter((i) => isCompleted(i)).length;
+    const completed = items.filter((i) => !isCompleted(i)).length;
     return {
       chart: { type: "donut" },
       labels: ["\u0410\u043A\u0442\u0438\u0432\u043D\u043E", "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E"],
@@ -70769,8 +71009,15 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
       legend: { show: false }
     };
   }
-  async renderDetail(item) {
-    const container = this.containerElContent;
+};
+
+// src/ui/lpi-detail.ts
+var import_obsidian15 = require("obsidian");
+var LpiDetail = class {
+  constructor(view) {
+    this.view = view;
+  }
+  async render(container, item) {
     container.empty();
     const btnRow = container.createDiv();
     btnRow.style.display = "flex";
@@ -70778,8 +71025,8 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
     btnRow.style.marginBottom = "8px";
     btnRow.style.flexWrap = "wrap";
     const backBtn = btnRow.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434 \u043A \u0441\u043F\u0438\u0441\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
-    backBtn.addEventListener("click", () => this.renderView());
-    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs2.default.existsSync(this.plugin.settings.lpiDbPath);
+    backBtn.addEventListener("click", () => this.view.renderView());
+    const sqlConnected = !!this.view.plugin.settings.lpiDbPath;
     const sendBtn = btnRow.createEl("button", {
       text: "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile",
       cls: "mailer-yougile-refresh-btn"
@@ -70789,25 +71036,25 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
       sendBtn.title = "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI";
     }
     sendBtn.addEventListener("click", async () => {
-      if (!this.plugin.client) {
-        new import_obsidian13.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
+      if (!this.view.plugin.client) {
+        new import_obsidian15.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
         return;
       }
       sendBtn.disabled = true;
       sendBtn.textContent = "\u23F3 \u041E\u0442\u043F\u0440\u0430\u0432\u043A\u0430...";
       try {
-        await this.syncItemToYougile(item, this.isEffectivelyActive(item));
-        await this.saveData();
-        new import_obsidian13.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
+        await this.view.sync.syncItemToYougile(item);
+        await this.view.saveData();
+        new import_obsidian15.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
       } catch (e) {
-        new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
+        new import_obsidian15.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
       }
       sendBtn.disabled = false;
       sendBtn.textContent = "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile";
     });
     container.createEl("h3", { text: `\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}` });
     const meta = container.createDiv({ cls: "mailer-yougile-task-meta" });
-    const colorRules = this.viewConfig.colorRules || {};
+    const colorRules = this.view.viewConfig.colorRules || {};
     const renderFieldSection = (section) => {
       if (section.fields.length === 0) return;
       meta.createEl("h4", { text: section.title, cls: "mailer-mt-8" });
@@ -70837,8 +71084,10 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
     };
     const renderSubquerySection = async (section) => {
       var _a;
-      const dbPath = (_a = this.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
-      if (!dbPath || !import_fs2.default.existsSync(dbPath)) return;
+      const dbPath = (_a = this.view.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
+      if (!dbPath) return;
+      const { existsSync } = await import("fs");
+      if (!existsSync(dbPath)) return;
       let query = section.query;
       for (const key of section.dependsOn) {
         const val = item[key];
@@ -70847,7 +71096,7 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
         }
       }
       try {
-        const result = await this.schemaService.runQuery(dbPath, query);
+        const result = await this.view.schemaService.runQuery(dbPath, query);
         if (result.columns.length === 0) return;
         meta.createEl("h4", { text: section.title, cls: "mailer-mt-8" });
         const subTable = meta.createEl("table");
@@ -70875,7 +71124,7 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
       } catch (e) {
       }
     };
-    for (const section of this.viewConfig.detailSections) {
+    for (const section of this.view.viewConfig.detailSections) {
       if (section.type === "fields") {
         renderFieldSection(section);
       } else if (section.type === "subquery") {
@@ -70886,10 +71135,10 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
   }
   renderQueryRunner(container, item) {
     var _a;
-    const dbPath = (_a = this.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
-    if (!dbPath || !import_fs2.default.existsSync(dbPath)) return;
+    const dbPath = (_a = this.view.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
+    if (!dbPath) return;
     const details = container.createEl("details", { attr: { style: "margin-top:16px" } });
-    const summary = details.createEl("summary", { text: "\u{1F50D} SQL \u0417\u0430\u043F\u0440\u043E\u0441", attr: { style: "cursor:pointer;font-weight:600;font-size:13px" } });
+    details.createEl("summary", { text: "\u{1F50D} SQL \u0417\u0430\u043F\u0440\u043E\u0441", attr: { style: "cursor:pointer;font-weight:600;font-size:13px" } });
     const qContainer = details.createDiv();
     qContainer.style.cssText = "padding:8px;background:var(--background-primary-alt);border-radius:6px;margin-top:8px";
     const tableSelRow = qContainer.createDiv();
@@ -70897,7 +71146,7 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
     const tableSel = tableSelRow.createEl("select");
     tableSel.style.cssText = "flex:1;font-size:12px;padding:4px";
     tableSel.createEl("option", { text: "\u2014 \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u0430\u0431\u043B\u0438\u0446\u0443 \u2014", value: "" });
-    this.schemaService.loadSchema(dbPath).then((schema) => {
+    this.view.schemaService.loadSchema(dbPath).then((schema) => {
       for (const table of schema.tables) {
         tableSel.createEl("option", { text: table.name, value: table.name });
       }
@@ -70911,7 +71160,7 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
     autoBtn.addEventListener("click", () => {
       const tableName = tableSel.value;
       if (!tableName) return;
-      this.schemaService.loadSchema(dbPath).then((schema) => {
+      this.view.schemaService.loadSchema(dbPath).then((schema) => {
         const table = schema.byName.get(tableName);
         if (!table) return;
         const cols = table.columns.map((c) => c.name).join(",\n  ");
@@ -70919,9 +71168,7 @@ var _LpiView = class _LpiView extends import_obsidian13.ItemView {
         const otherFks = table.foreignKeys.filter((fk) => !(fk.table === "applications" && fk.to === "application_id"));
         let query = "";
         if (hasAppIdFk) {
-          query = `-- \u0421\u0432\u044F\u0437\u044C \u0447\u0435\u0440\u0435\u0437 application_id:
--- SELECT application_id FROM applications WHERE external_id = '{{application_external_id}}';
-SELECT
+          query = `SELECT
   ${cols}
 FROM ${tableName}
 WHERE application_id = '{{application_id}}'
@@ -70973,7 +71220,7 @@ LIMIT 100`;
       runBtn.textContent = "\u23F3";
       runBtn.disabled = true;
       try {
-        const result = await this.schemaService.runQuery(dbPath, query);
+        const result = await this.view.schemaService.runQuery(dbPath, query);
         if (result.columns.length === 0) {
           resultDiv.textContent = "\u041D\u0435\u0442 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u043E\u0432";
           saveSectionBtn.style.display = "none";
@@ -71002,7 +71249,7 @@ LIMIT 100`;
             columns: result.columns.map((c) => ({ label: c, field: c })),
             dependsOn: ["aggregate_id", "application_id", "application_external_id"]
           };
-          this.viewConfig.detailSections.push(newSection);
+          this.view.viewConfig.detailSections.push(newSection);
         };
       } catch (e) {
         resultDiv.textContent = "\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message;
@@ -71018,457 +71265,455 @@ LIMIT 100`;
       attr: { style: "margin-left:6px;font-size:11px" }
     });
     editConfigBtn.addEventListener("click", () => {
-      new LpiConfigEditorModal(this.app, this).open();
+      new LpiConfigEditorModal(this.view).open();
     });
   }
 };
-_LpiView.METHOD_NAMES = {
-  "method1": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438",
-  "method2": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438",
-  "method3": "\u0413\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u043F\u043B\u0430\u043C\u0435\u043D\u0438",
-  "method4": "\u041A\u0438\u0441\u043B\u043E\u0440\u043E\u0434\u043D\u044B\u0439 \u0438\u043D\u0434\u0435\u043A\u0441",
-  "g56027": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F",
-  "g56927": "\u041C\u0430\u043B\u043E\u0435 \u043F\u043B\u0430\u043C\u044F"
-};
-_LpiView.TERMINAL_STATUSES = /* @__PURE__ */ new Set(["completed", "received"]);
-_LpiView.YG_MIN_EXT_ID = 642;
-var LpiView = _LpiView;
-var ProductFilterModal = class extends import_obsidian13.Modal {
-  constructor(app, allProducts, selected, onSave) {
-    super(app);
-    this.allProducts = allProducts;
-    this.selected = new Set(selected);
-    this.onSave = onSave;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("mailer-yougile-container");
-    contentEl.createEl("h3", { text: "\u0412\u044B\u0431\u043E\u0440 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u043E\u0432 \u0434\u043B\u044F \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430" });
-    const searchInput = contentEl.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430..." } });
-    searchInput.style.width = "100%";
-    searchInput.style.marginBottom = "8px";
-    searchInput.style.boxSizing = "border-box";
-    searchInput.focus();
-    const listContainer = contentEl.createDiv();
-    listContainer.style.maxHeight = "400px";
-    listContainer.style.overflowY = "auto";
-    const renderList = () => {
-      listContainer.empty();
-      const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? this.allProducts.filter((p) => p && p.toLowerCase().includes(q)) : this.allProducts;
-      for (const product of filtered) {
-        const wrapper = listContainer.createEl("label");
-        wrapper.style.display = "flex";
-        wrapper.style.alignItems = "center";
-        wrapper.style.padding = "2px 0";
-        wrapper.style.cursor = "pointer";
-        wrapper.style.fontSize = "var(--font-smaller)";
-        const cb = wrapper.createEl("input", { attr: { type: "checkbox" } });
-        cb.style.width = "16px";
-        cb.style.height = "16px";
-        cb.style.margin = "0 6px 0 0";
-        cb.style.flexShrink = "0";
-        cb.checked = this.selected.has(product);
-        cb.addEventListener("change", () => {
-          if (cb.checked) this.selected.add(product);
-          else this.selected.delete(product);
-        });
-        wrapper.createEl("span").setText(product);
-      }
-    };
-    renderList();
-    searchInput.addEventListener("input", renderList);
-    searchInput.addEventListener("keyup", renderList);
-    const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
-    const selectAllBtn = btnRow.createEl("button", { text: "\u0412\u044B\u0431\u0440\u0430\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
-    selectAllBtn.addEventListener("click", () => {
-      const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? this.allProducts.filter((p) => p && p.toLowerCase().includes(q)) : this.allProducts;
-      for (const product of filtered) this.selected.add(product);
-      renderList();
-    });
-    const deselectAllBtn = btnRow.createEl("button", { text: "\u0421\u043D\u044F\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
-    deselectAllBtn.addEventListener("click", () => {
-      this.selected.clear();
-      renderList();
-    });
-    const applyBtn = btnRow.createEl("button", { text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
-    applyBtn.addEventListener("click", () => {
-      this.onSave(this.selected);
-      this.close();
-    });
-    const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
-    cancelBtn.addEventListener("click", () => this.close());
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var MethodFilterModal = class extends import_obsidian13.Modal {
-  constructor(app, allMethods, selected, onSave) {
-    super(app);
-    this.allMethods = allMethods;
-    this.selected = new Set(selected);
-    this.onSave = onSave;
-  }
-  displayName(abbr) {
-    return LpiView.METHOD_NAMES[abbr] || abbr;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("mailer-yougile-container");
-    contentEl.createEl("h3", { text: "\u0412\u044B\u0431\u043E\u0440 \u043F\u043E\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0430\u0435\u043C\u043E\u0433\u043E \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044F" });
-    const searchInput = contentEl.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044F..." } });
-    searchInput.style.width = "100%";
-    searchInput.style.marginBottom = "8px";
-    searchInput.style.boxSizing = "border-box";
-    searchInput.focus();
-    const listContainer = contentEl.createDiv();
-    listContainer.style.maxHeight = "400px";
-    listContainer.style.overflowY = "auto";
-    const renderList = () => {
-      listContainer.empty();
-      const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? this.allMethods.filter((m) => this.displayName(m).toLowerCase().includes(q)) : this.allMethods;
-      for (const method of filtered) {
-        const wrapper = listContainer.createEl("label");
-        wrapper.style.display = "flex";
-        wrapper.style.alignItems = "center";
-        wrapper.style.padding = "2px 0";
-        wrapper.style.cursor = "pointer";
-        wrapper.style.fontSize = "var(--font-smaller)";
-        const cb = wrapper.createEl("input", { attr: { type: "checkbox" } });
-        cb.style.width = "16px";
-        cb.style.height = "16px";
-        cb.style.margin = "0 6px 0 0";
-        cb.style.flexShrink = "0";
-        cb.checked = this.selected.has(method);
-        cb.addEventListener("change", () => {
-          if (cb.checked) this.selected.add(method);
-          else this.selected.delete(method);
-        });
-        wrapper.createEl("span").setText(this.displayName(method));
-      }
-    };
-    renderList();
-    searchInput.addEventListener("input", renderList);
-    searchInput.addEventListener("keyup", renderList);
-    const btnRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
-    const selectAllBtn = btnRow.createEl("button", { text: "\u0412\u044B\u0431\u0440\u0430\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
-    selectAllBtn.addEventListener("click", () => {
-      const q = searchInput.value.trim().toLowerCase();
-      const filtered = q ? this.allMethods.filter((m) => this.displayName(m).toLowerCase().includes(q)) : this.allMethods;
-      for (const method of filtered) this.selected.add(method);
-      renderList();
-    });
-    const deselectAllBtn = btnRow.createEl("button", { text: "\u0421\u043D\u044F\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
-    deselectAllBtn.addEventListener("click", () => {
-      this.selected.clear();
-      renderList();
-    });
-    const applyBtn = btnRow.createEl("button", { text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
-    applyBtn.addEventListener("click", () => {
-      this.onSave(this.selected);
-      this.close();
-    });
-    const cancelBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
-    cancelBtn.addEventListener("click", () => this.close());
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-var YougileSyncModal = class extends import_obsidian13.Modal {
-  constructor(app, plugin, view) {
-    super(app);
+
+// src/ui/lpi-view.ts
+var import_fs3 = __toESM(require("fs"));
+var CONFIG_PATH2 = "yourbase/lpi_view_config.json";
+var LPI_VIEW_TYPE = "yougile-lpi-view";
+var LpiView = class extends import_obsidian16.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.items = [];
+    this.searchQuery = "";
+    this.searchTimeout = null;
+    this.viewConfig = DEFAULT_CONFIG;
+    this.schemaService = new LpiSchemaService();
+    this.mode = "table";
+    this.selectedProducts = /* @__PURE__ */ new Set();
+    this.selectedMethods = /* @__PURE__ */ new Set();
+    this.appDateFrom = "";
+    this.appDateTo = "";
+    this.protocolDateFrom = "";
+    this.protocolDateTo = "";
+    this.serialOnly = false;
+    this.experimentalOnly = false;
+    // Table filters
+    this.tableDateFrom = "";
+    this.tableDateTo = "";
+    this.tableStatusFilter = "all";
     this.plugin = plugin;
-    this.view = view;
-    this.choices = /* @__PURE__ */ new Map();
+    this.sync = new LpiSync(this);
+    this.dashboard = new LpiDashboard(this);
+    this.detail = new LpiDetail(this);
+  }
+  getViewType() {
+    return LPI_VIEW_TYPE;
+  }
+  getDisplayText() {
+    return "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439";
+  }
+  getIcon() {
+    return "flame";
   }
   async onOpen() {
-    var _a, _b;
-    const { contentEl } = this;
-    contentEl.addClass("mailer-yougile-container");
-    contentEl.createEl("h2", { text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile" });
-    if (!this.plugin.client) {
-      contentEl.createEl("p", { text: "\u274C \u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile" });
-      const closeBtn2 = contentEl.createEl("button", { text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
-      closeBtn2.addEventListener("click", () => this.close());
-      return;
+    const container = this.contentEl;
+    container.addClass("mailer-yougile-container");
+    this.containerElContent = container.createDiv();
+    this.items = await this.sync.loadData();
+    await this.loadViewConfig();
+    try {
+      await this.plugin.db.sync();
+    } catch (e) {
     }
-    contentEl.createEl("p", { text: "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0437\u0430\u0434\u0430\u0447 \u0438\u0437 YouGile..." });
-    const tasks = await this.plugin.client.getTasks();
-    const lpiTasks = tasks.filter((t) => {
-      try {
-        const desc = JSON.parse(t.description || "{}");
-        return desc.type === "lpi_completed" || desc.type === "lpi_data";
-      } catch (e) {
-        return false;
-      }
-    });
-    const items = this.view.items;
-    const byExtId = /* @__PURE__ */ new Map();
-    const byAggId = /* @__PURE__ */ new Map();
-    const existingTaskIds = new Set(items.filter((i) => i.taskId).map((i) => i.taskId));
-    for (const task of lpiTasks) {
-      const desc = JSON.parse(task.description || "{}");
-      if (desc.application_external_id) byExtId.set(desc.application_external_id, { task, desc });
-      if (desc.aggregate_id) byAggId.set(desc.aggregate_id, { task, desc });
+    const syncResult = await this.sync.syncFromTasks(this.items);
+    console.log(`YouGile LPI onOpen: hasChanges=${syncResult.hasChanges}, items=${this.items.length}`);
+    if (syncResult.hasChanges) {
+      this.items = syncResult.items;
+      await this.saveData();
+      console.log(`YouGile LPI saved: items=${this.items.length}, with taskId=${this.items.filter((i) => i.taskId).length}`);
     }
-    const matchingDiffs = [];
-    const imported = [];
-    for (const task of lpiTasks) {
-      const desc = JSON.parse(task.description || "{}");
-      const extId = desc.application_external_id || "";
-      let localItem = items.find((i) => i.taskId === task.id);
-      if (!localItem && extId) localItem = items.find((i) => i.application_external_id === extId);
-      if (!localItem && desc.aggregate_id) localItem = items.find((i) => i.aggregate_id === desc.aggregate_id);
-      if (!localItem) {
-        if (desc.application_created_at && desc.application_created_at < "2026-07-20") continue;
-        imported.push({ task, desc });
-        continue;
+    this.renderView();
+  }
+  async saveData() {
+    await this.sync.saveData(this.items);
+  }
+  async loadViewConfig() {
+    try {
+      if (this.plugin.settings.lpiViewConfigSource === "default") {
+        this.viewConfig = DEFAULT_CONFIG;
+        return;
       }
-      const diffs = [];
-      const compareFields = [
-        { key: "application_status", label: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u044F\u0432\u043A\u0438" },
-        { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
-        { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
-        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" }
-      ];
-      for (const { key, label } of compareFields) {
-        const lv = String((_a = localItem[key]) != null ? _a : "");
-        const yv = String((_b = desc[key]) != null ? _b : "");
-        if (lv !== yv) diffs.push({ label, local: lv || "\u2014", yougile: yv || "\u2014" });
-      }
-      const lc = localItem.completedLocally ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
-      const yc = task.completed ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
-      if (lc !== yc) diffs.push({ label: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F", local: lc, yougile: yc });
-      if (diffs.length > 0) {
-        matchingDiffs.push({ item: localItem, task, yougileDesc: desc, diffs });
-      }
-    }
-    contentEl.empty();
-    contentEl.createEl("h2", { text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile" });
-    let autoImported = 0;
-    for (const imp of imported) {
-      const newItem = { ...imp.desc, taskId: imp.task.id };
-      newItem.completedLocally = !!imp.task.completed;
-      if (imp.task.completed) newItem.completedAt = imp.desc.completedAt || "";
-      const hasItem = items.some((i) => i.aggregate_id === newItem.aggregate_id || i.application_external_id === newItem.application_external_id);
-      if (!hasItem) {
-        items.push(newItem);
-        autoImported++;
-      }
-    }
-    if (matchingDiffs.length === 0) {
-      if (autoImported > 0) {
-        await this.view.saveData();
-        contentEl.createEl("p", { text: `\u2705 \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile: ${autoImported} \u0437\u0430\u044F\u0432\u043E\u043A. \u0420\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043D\u0435\u0442.` });
+      const adapter = this.app.vault.adapter;
+      const exists = await adapter.exists(CONFIG_PATH2);
+      if (exists) {
+        const content = await adapter.read(CONFIG_PATH2);
+        const parsed = JSON.parse(content);
+        this.viewConfig = {
+          ...DEFAULT_CONFIG,
+          ...parsed,
+          loadQuery: DEFAULT_CONFIG.loadQuery,
+          detailSections: parsed.detailSections || DEFAULT_CONFIG.detailSections,
+          colorRules: parsed.colorRules || DEFAULT_CONFIG.colorRules
+        };
       } else {
-        contentEl.createEl("p", { text: "\u2705 \u0420\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043D\u0435\u0442. \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u044B \u0441 YouGile." });
+        this.viewConfig = DEFAULT_CONFIG;
+        await adapter.write(CONFIG_PATH2, JSON.stringify(DEFAULT_CONFIG, null, 2));
       }
-      const closeBtn2 = contentEl.createEl("button", { text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
-      closeBtn2.addEventListener("click", () => this.close());
+    } catch (e) {
+      this.viewConfig = DEFAULT_CONFIG;
+    }
+  }
+  applyFilters(items) {
+    let filtered = items;
+    if (this.selectedProducts.size > 0) {
+      filtered = filtered.filter((item) => this.selectedProducts.has(item.product_name));
+    }
+    if (this.appDateFrom) {
+      filtered = filtered.filter((item) => item.application_created_at >= this.appDateFrom);
+    }
+    if (this.appDateTo) {
+      filtered = filtered.filter((item) => item.application_created_at <= this.appDateTo);
+    }
+    if (this.protocolDateFrom) {
+      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date >= this.protocolDateFrom);
+    }
+    if (this.protocolDateTo) {
+      filtered = filtered.filter((item) => item.protocol_date && item.protocol_date <= this.protocolDateTo);
+    }
+    if (this.serialOnly) {
+      filtered = filtered.filter((item) => item.ekn && /^\d+$/.test(item.ekn));
+    }
+    if (this.experimentalOnly) {
+      filtered = filtered.filter((item) => !item.ekn || !/^\d+$/.test(item.ekn));
+    }
+    if (this.selectedMethods.size > 0) {
+      filtered = filtered.filter((item) => item.method_abbreviation && this.selectedMethods.has(item.method_abbreviation));
+    }
+    return filtered;
+  }
+  buildFullJson(item) {
+    return {
+      type: "lpi_data",
+      aggregate_id: item.aggregate_id,
+      application_external_id: item.application_external_id,
+      application_created_at: item.application_created_at,
+      product_name: item.product_name,
+      protocol_date: item.protocol_date,
+      agg_gen_group_complience: item.agg_gen_group_complience,
+      customer_name: item.customer_name,
+      customer_mail: item.customer_mail,
+      organization: item.organization,
+      customer_phone: item.customer_phone,
+      customer_address: item.customer_address,
+      ekn: item.ekn,
+      thickness: item.thickness,
+      color: item.color,
+      batch_number: item.batch_number,
+      sample_number: item.sample_number,
+      object_name: item.object_name,
+      standard: item.standard,
+      target_comb_group: item.target_comb_group,
+      target_flam_group: item.target_flam_group,
+      target_prop_group: item.target_prop_group,
+      method_abbreviation: item.method_abbreviation,
+      method_name: item.method_name,
+      method_standard: item.method_standard,
+      agg_avg_smog_temp: item.agg_avg_smog_temp,
+      agg_smog_group: item.agg_smog_group,
+      agg_smog_complience: item.agg_smog_complience,
+      agg_mass_loss: item.agg_mass_loss,
+      agg_comb_time: item.agg_comb_time,
+      agg_dam_length: item.agg_dam_length,
+      agg_comb_bulb: item.agg_comb_bulb,
+      agg_group_by_mass: item.agg_group_by_mass,
+      agg_group_by_length: item.agg_group_by_length,
+      agg_croup_by_comb_time: item.agg_croup_by_comb_time,
+      agg_group_by_bulbe: item.agg_group_by_bulbe,
+      agg_gen_group: item.agg_gen_group,
+      agg_mass_complience: item.agg_mass_complience,
+      agg_complience_by_length: item.agg_complience_by_length,
+      agg_complience_by_comb_time: item.agg_complience_by_comb_time,
+      agg_complience_by_bulbe: item.agg_complience_by_bulbe,
+      agg_additional_info_1: item.agg_additional_info_1,
+      updated_at: item.updatedAt,
+      updated_by: item.updatedBy
+    };
+  }
+  getLpiColumnId() {
+    const cols = this.plugin.db.getColumns();
+    const boardId = this.plugin.settings.lpiBoardId;
+    const colTitle = this.plugin.settings.lpiColumnTitle;
+    if (boardId && colTitle) {
+      const match = cols.find((c) => c.boardId === boardId && c.title === colTitle);
+      if (match) return match.id;
+    }
+    return void 0;
+  }
+  getLpiProjectId() {
+    const projects = this.plugin.db.getProjects();
+    const projectTitle = this.plugin.settings.lpiProjectId;
+    if (projectTitle) {
+      const match = projects.find((p) => p.title === projectTitle || p.id === projectTitle);
+      if (match) return match.id;
+    }
+    return void 0;
+  }
+  renderView() {
+    const container = this.containerElContent;
+    this.dashboard.destroy();
+    container.empty();
+    const header = container.createDiv({ cls: "mailer-yougile-header" });
+    header.createEl("h3", { text: "\u{1F9EA} \u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439" });
+    const btnRow = container.createDiv({ cls: "mailer-yougile-header mailer-mb-8" });
+    const tableBtn = btnRow.createEl("button", {
+      text: "\u{1F4CB} \u0422\u0430\u0431\u043B\u0438\u0446\u0430",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    tableBtn.addEventListener("click", () => {
+      this.mode = "table";
+      this.renderView();
+    });
+    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs3.default.existsSync(this.plugin.settings.lpiDbPath);
+    const sqlBtn = btnRow.createEl("button", {
+      text: "\u{1F4E5} SQL \u2192 \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    sqlBtn.title = "\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0442\u043E\u043B\u044C\u043A\u043E \u043D\u043E\u0432\u044B\u0435 \u0437\u0430\u044F\u0432\u043A\u0438 \u0438\u0437 SQL (\u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0435 \u0432 \u043F\u043B\u0430\u0433\u0438\u043D\u0435 \u0438 YouGile)";
+    sqlBtn.addEventListener("click", async () => {
+      if (!sqlConnected) {
+        new import_obsidian16.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
+        return;
+      }
+      sqlBtn.disabled = true;
+      sqlBtn.textContent = "\u23F3 \u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430...";
+      try {
+        const result = await this.sync.loadNewFromSqlite(this.items);
+        if (result.added > 0) {
+          this.items = result.items;
+          await this.saveData();
+          new import_obsidian16.Notice(`LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E ${result.added} \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u044F\u0432\u043E\u043A \u0438\u0437 SQL`);
+        } else {
+          new import_obsidian16.Notice("\u041D\u043E\u0432\u044B\u0445 \u0437\u0430\u044F\u0432\u043E\u043A \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E");
+        }
+      } catch (e) {
+        new import_obsidian16.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
+      }
+      sqlBtn.disabled = false;
+      sqlBtn.textContent = "\u{1F4E5} SQL \u2192 \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E";
+      this.renderView();
+    });
+    const syncBtn = btnRow.createEl("button", {
+      text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    syncBtn.addEventListener("click", async () => {
+      if (!sqlConnected) {
+        syncBtn.disabled = true;
+        syncBtn.textContent = "\u23F3 \u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0438\u0437 YouGile...";
+        const result = await this.sync.syncFromTasks(this.items);
+        if (result.hasChanges) {
+          this.items = result.items;
+          await this.saveData();
+        }
+        this.renderView();
+        new import_obsidian16.Notice("\u0414\u0430\u043D\u043D\u044B\u0435 \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u044B \u0438\u0437 YouGile");
+      } else {
+        new YougileSyncModal(this.app, this.plugin, this).open();
+      }
+    });
+    const dashBtn = btnRow.createEl("button", {
+      text: "\u{1F4CA} \u0414\u0430\u0448\u0431\u043E\u0440\u0434",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    dashBtn.addEventListener("click", () => {
+      this.mode = "dashboard";
+      this.renderView();
+    });
+    const schemaBtn = btnRow.createEl("button", {
+      text: "\u{1F4D0} \u0421\u0445\u0435\u043C\u0430 \u0411\u0414",
+      cls: "mailer-yougile-refresh-btn"
+    });
+    schemaBtn.addEventListener("click", () => {
+      var _a;
+      const dbPath = (_a = this.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
+      if (!dbPath || !import_fs3.default.existsSync(dbPath)) {
+        new import_obsidian16.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI");
+        return;
+      }
+      new LpiSchemaModal(this.app, this.schemaService, dbPath).open();
+    });
+    if (this.mode === "dashboard") {
+      this.dashboard.render(container, this.items);
+    } else {
+      this.renderTable(container);
+    }
+  }
+  renderTable(container) {
+    const searchInput = container.createEl("input", { attr: { type: "text", placeholder: "\u{1F50D} \u041F\u043E\u0438\u0441\u043A \u043F\u043E \u2116 \u0437\u0430\u044F\u0432\u043A\u0438, \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044E \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430..." } });
+    searchInput.addClass("mailer-mb-8");
+    searchInput.value = this.searchQuery;
+    const searchHandler = () => {
+      this.searchQuery = searchInput.value;
+      if (this.searchTimeout) clearTimeout(this.searchTimeout);
+      this.searchTimeout = window.setTimeout(() => {
+        this.renderView();
+      }, 100);
+    };
+    searchInput.addEventListener("input", searchHandler);
+    searchInput.addEventListener("keyup", searchHandler);
+    if (this.searchQuery) searchInput.focus();
+    const filterRow = container.createDiv({ cls: "mailer-flex-row mailer-flex-wrap mailer-mb-8" });
+    filterRow.style.alignItems = "end";
+    filterRow.style.gap = "8px";
+    const addDateFilter = (label, value, onChange) => {
+      const group = filterRow.createDiv();
+      const lbl = group.createEl("label");
+      lbl.setText(label);
+      lbl.style.fontSize = "var(--font-smaller)";
+      lbl.style.marginRight = "4px";
+      const inp = group.createEl("input", { attr: { type: "date" } });
+      inp.style.fontSize = "var(--font-smaller)";
+      inp.style.padding = "2px 4px";
+      inp.value = value;
+      inp.addEventListener("change", () => {
+        onChange(inp.value);
+        this.renderView();
+      });
+      return inp;
+    };
+    addDateFilter("\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0441", this.tableDateFrom, (v) => this.tableDateFrom = v);
+    addDateFilter("\u043F\u043E", this.tableDateTo, (v) => this.tableDateTo = v);
+    const statusGroup = filterRow.createDiv();
+    const statusLabel = statusGroup.createEl("label");
+    statusLabel.setText("\u0421\u0442\u0430\u0442\u0443\u0441");
+    statusLabel.style.fontSize = "var(--font-smaller)";
+    statusLabel.style.marginRight = "4px";
+    const statusSelect = statusGroup.createEl("select");
+    statusSelect.style.fontSize = "var(--font-smaller)";
+    statusSelect.style.padding = "2px 4px";
+    statusSelect.createEl("option", { text: "\u0412\u0441\u0435", value: "all" });
+    statusSelect.createEl("option", { text: "\u0410\u043A\u0442\u0438\u0432\u043D\u044B\u0435", value: "active" });
+    statusSelect.createEl("option", { text: "\u0417\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0435", value: "completed" });
+    statusSelect.value = this.tableStatusFilter;
+    statusSelect.addEventListener("change", () => {
+      this.tableStatusFilter = statusSelect.value;
+      this.renderView();
+    });
+    const q = this.searchQuery.trim().toLowerCase();
+    let filtered = this.items;
+    if (q) {
+      filtered = filtered.filter(
+        (item) => (item.application_external_id || "").toLowerCase().includes(q) || (item.product_name || "").toLowerCase().includes(q)
+      );
+    }
+    if (this.tableDateFrom) {
+      filtered = filtered.filter((item) => item.application_created_at >= this.tableDateFrom);
+    }
+    if (this.tableDateTo) {
+      filtered = filtered.filter((item) => item.application_created_at <= this.tableDateTo);
+    }
+    if (this.tableStatusFilter === "active") {
+      filtered = filtered.filter((item) => !isCompleted(item));
+    } else if (this.tableStatusFilter === "completed") {
+      filtered = filtered.filter((item) => isCompleted(item));
+    }
+    filtered.sort((a, b) => {
+      const idA = a.application_external_id || "";
+      const idB = b.application_external_id || "";
+      const numA = parseInt(idA, 10);
+      const numB = parseInt(idB, 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
+      return idB.localeCompare(idA);
+    });
+    const table = container.createEl("table", { cls: "mailer-table" });
+    const thead = table.createEl("thead");
+    const headerRow = thead.createEl("tr");
+    const headers = ["", "\u2116 \u0437\u0430\u044F\u0432\u043A\u0438", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", "\u0414\u0430\u0442\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u044F"];
+    for (const h of headers) {
+      const th = headerRow.createEl("th", { cls: "mailer-th" });
+      th.setText(h);
+    }
+    const tbody = table.createEl("tbody");
+    if (filtered.length === 0) {
+      const emptyRow = tbody.createEl("tr");
+      const td = emptyRow.createEl("td", { cls: "mailer-text-center mailer-p-24" });
+      td.setAttr("colspan", "9");
+      td.setText("\u041D\u0435\u0442 \u0434\u0430\u043D\u043D\u044B\u0445");
       return;
     }
-    if (autoImported > 0) {
-      contentEl.createEl("p", { text: `\u2705 \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile: ${autoImported} \u0437\u0430\u044F\u0432\u043E\u043A.` });
-    }
-    contentEl.createEl("p", { text: `\u041D\u0430\u0439\u0434\u0435\u043D\u043E \u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439 \u043F\u043E ${matchingDiffs.length} \u0437\u0430\u044F\u0432\u043A\u0430\u043C. \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u043F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442 \u0434\u043B\u044F \u043A\u0430\u0436\u0434\u043E\u0439:` });
-    const cardsContainer = contentEl.createDiv();
-    cardsContainer.style.maxHeight = "500px";
-    cardsContainer.style.overflowY = "auto";
-    for (let idx = 0; idx < matchingDiffs.length; idx++) {
-      const md = matchingDiffs[idx];
-      const card = cardsContainer.createEl("div");
-      card.style.border = "1px solid var(--background-modifier-border)";
-      card.style.borderRadius = "6px";
-      card.style.padding = "8px 10px";
-      card.style.marginBottom = "8px";
-      card.style.backgroundColor = "var(--background-secondary)";
-      const headerLine = card.createEl("div");
-      headerLine.style.fontWeight = "bold";
-      headerLine.style.marginBottom = "6px";
-      headerLine.setText(`\u2116${md.item.application_external_id} \u2014 ${md.item.product_name || "\u043D\u0435\u0442 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430"}`);
-      const diffTable = card.createEl("table");
-      diffTable.style.width = "100%";
-      diffTable.style.fontSize = "var(--font-smaller)";
-      diffTable.style.borderCollapse = "collapse";
-      diffTable.style.marginBottom = "6px";
-      const headerRow = diffTable.insertRow();
-      for (const text of ["\u041F\u043E\u043B\u0435", "\u{1F4CD} \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E", "YouGile"]) {
-        const th = headerRow.createEl("th");
-        th.style.padding = "2px 6px";
-        th.style.borderBottom = "2px solid var(--background-modifier-border)";
-        th.style.textAlign = "left";
-        th.style.fontWeight = "bold";
-        th.setText(text);
-      }
-      for (const d of md.diffs) {
-        const tr = diffTable.insertRow();
-        const cells = [d.label, d.local, d.yougile];
-        for (let ci = 0; ci < cells.length; ci++) {
-          const td = tr.insertCell();
-          td.style.padding = "2px 6px";
-          td.style.borderBottom = "1px solid var(--background-modifier-border)";
-          td.setText(cells[ci]);
-          if (ci === 1) td.style.backgroundColor = "rgba(var(--color-green-rgb), 0.08)";
-          if (ci === 2) td.style.backgroundColor = "rgba(var(--interactive-accent-rgb), 0.08)";
+    const sqlConnected = !!this.plugin.settings.lpiDbPath && import_fs3.default.existsSync(this.plugin.settings.lpiDbPath);
+    for (const item of filtered) {
+      const row = tbody.createEl("tr", { cls: "mailer-clickable mailer-row-hover" });
+      const rowClick = () => {
+        this.detail.render(this.containerElContent, item);
+      };
+      row.addEventListener("click", rowClick);
+      const dotCell = row.createEl("td", { cls: "mailer-td" });
+      dotCell.style.width = "24px";
+      dotCell.style.textAlign = "center";
+      const dot = dotCell.createEl("span");
+      dot.style.display = "inline-block";
+      dot.style.width = "10px";
+      dot.style.height = "10px";
+      dot.style.borderRadius = "50%";
+      dot.style.backgroundColor = item.taskId ? "var(--text-success)" : "var(--text-muted)";
+      dot.style.flexShrink = "0";
+      row.createEl("td", { cls: "mailer-td" }).setText(item.application_external_id);
+      row.createEl("td", { cls: "mailer-td" }).setText(item.product_name);
+      row.createEl("td", { cls: "mailer-td" }).setText(item.application_created_at);
+      const statusCell = row.createEl("td", { cls: "mailer-td" });
+      statusCell.style.color = isCompleted(item) ? "var(--text-success)" : "var(--text-warning)";
+      statusCell.setText(statusDisplay(item));
+      row.createEl("td", { cls: "mailer-td" }).setText(getProtocolDate(item));
+      row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group || "");
+      row.createEl("td", { cls: "mailer-td" }).setText(item.agg_gen_group_complience || "");
+      const actionsCell = row.createEl("td", { cls: "mailer-td" });
+      actionsCell.style.whiteSpace = "nowrap";
+      const rowSqlBtn = actionsCell.createEl("button", {
+        text: "\u{1F4E5}",
+        cls: "mailer-yougile-refresh-btn"
+      });
+      rowSqlBtn.title = "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u0434\u0430\u043D\u043D\u044B\u0435 \u0437\u0430\u044F\u0432\u043A\u0438 \u0438\u0437 SQLite";
+      rowSqlBtn.style.fontSize = "var(--font-smaller)";
+      rowSqlBtn.style.padding = "2px 6px";
+      rowSqlBtn.disabled = !sqlConnected;
+      if (!sqlConnected) rowSqlBtn.title = "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI";
+      rowSqlBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        rowSqlBtn.disabled = true;
+        rowSqlBtn.textContent = "\u23F3";
+        const ok = await this.sync.syncItemFromSqlite(item);
+        if (ok) await this.saveData();
+        rowSqlBtn.disabled = false;
+        rowSqlBtn.textContent = "\u{1F4E5}";
+        this.renderView();
+      });
+      const rowSendBtn = actionsCell.createEl("button", {
+        text: "\u{1F4E4}",
+        cls: "mailer-yougile-refresh-btn"
+      });
+      rowSendBtn.title = "\u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile";
+      rowSendBtn.style.fontSize = "var(--font-smaller)";
+      rowSendBtn.style.padding = "2px 6px";
+      rowSendBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!this.plugin.client) {
+          new import_obsidian16.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
+          return;
         }
-      }
-      const toggleLine = card.createDiv();
-      toggleLine.style.display = "flex";
-      toggleLine.style.alignItems = "center";
-      toggleLine.style.gap = "8px";
-      toggleLine.style.marginTop = "4px";
-      const localRadio = toggleLine.createEl("input", { attr: { type: "radio", name: `choice_${idx}`, id: `local_${idx}` } });
-      localRadio.style.width = "14px";
-      localRadio.style.height = "14px";
-      localRadio.checked = true;
-      this.choices.set(idx, "local");
-      localRadio.addEventListener("change", () => {
-        if (localRadio.checked) this.choices.set(idx, "local");
-      });
-      const localLabel = toggleLine.createEl("label", { attr: { for: `local_${idx}` } });
-      localLabel.style.color = "var(--text-success)";
-      localLabel.style.fontWeight = "bold";
-      localLabel.style.fontSize = "var(--font-smaller)";
-      localLabel.setText("\u{1F4CD} \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u044B\u0435");
-      const yougileRadio = toggleLine.createEl("input", { attr: { type: "radio", name: `choice_${idx}`, id: `yougile_${idx}` } });
-      yougileRadio.style.width = "14px";
-      yougileRadio.style.height = "14px";
-      yougileRadio.addEventListener("change", () => {
-        if (yougileRadio.checked) this.choices.set(idx, "yougile");
-      });
-      const yougileLabel = toggleLine.createEl("label", { attr: { for: `yougile_${idx}` } });
-      yougileLabel.style.color = "var(--interactive-accent)";
-      yougileLabel.style.fontWeight = "bold";
-      yougileLabel.style.fontSize = "var(--font-smaller)";
-      yougileLabel.setText("YouGile");
-    }
-    const bottomRow = contentEl.createDiv();
-    bottomRow.style.marginTop = "12px";
-    bottomRow.style.display = "flex";
-    bottomRow.style.gap = "8px";
-    bottomRow.style.flexWrap = "wrap";
-    bottomRow.style.alignItems = "center";
-    const applyAllBtn = bottomRow.createEl("button", {
-      text: "\u2705 \u041F\u0440\u0438\u043C\u0435\u043D\u0438\u0442\u044C \u0432\u0441\u0435",
-      cls: "mailer-yougile-refresh-btn"
-    });
-    applyAllBtn.addEventListener("click", async () => {
-      applyAllBtn.disabled = true;
-      applyAllBtn.setText("\u23F3 \u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u0435...");
-      let count = 0;
-      for (let idx = 0; idx < matchingDiffs.length; idx++) {
-        const md = matchingDiffs[idx];
-        const choice = this.choices.get(idx) || "local";
+        rowSendBtn.disabled = true;
+        rowSendBtn.textContent = "\u23F3";
         try {
-          const fullJson = this.view.buildFullJson(md.item);
-          const isTerminal = !this.view.isEffectivelyActive(md.item);
-          if (choice === "local") {
-            await this.plugin.client.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
-            if (isTerminal && !md.task.completed) {
-              await this.plugin.client.updateTask(md.task.id, { completed: true });
-            }
-            if (!md.item.taskId) md.item.taskId = md.task.id;
-          } else {
-            for (const key of ["application_status", "protocol_date", "agg_gen_group_complience", "agg_gen_group"]) {
-              const yv = md.yougileDesc[key];
-              if (yv !== void 0 && yv !== null) md.item[key] = yv;
-            }
-            if (md.task.completed && !md.item.completedLocally) {
-              md.item.completedLocally = true;
-              md.item.completedAt = md.yougileDesc.completedAt || "";
-            }
-            if (!md.item.taskId) md.item.taskId = md.task.id;
-          }
-          count++;
-        } catch (e) {
-          new import_obsidian13.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E \u2116${md.item.application_external_id}: ${e.message}`);
+          await this.sync.syncItemToYougile(item);
+          await this.saveData();
+          new import_obsidian16.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
+        } catch (e2) {
+          new import_obsidian16.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e2.message);
         }
-      }
-      await this.view.saveData();
-      new import_obsidian13.Notice(`\u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u043E: ${count} \u0437\u0430\u044F\u0432\u043E\u043A`);
-      this.close();
-      this.view.renderView();
-    });
-    const closeBtn = bottomRow.createEl("button", {
-      text: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
-      cls: "mailer-yougile-refresh-btn"
-    });
-    closeBtn.addEventListener("click", () => {
-      this.view.renderView();
-      this.close();
-    });
-  }
-};
-var LpiConfigEditorModal = class extends import_obsidian13.Modal {
-  constructor(app, view) {
-    super(app);
-    this.view = view;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("mailer-yougile-container");
-    contentEl.createEl("h2", { text: "\u2699 \u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u043A\u043E\u043D\u0444\u0438\u0433\u0430 \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F" });
-    const info = contentEl.createEl("p", { text: "\u041A\u043E\u043D\u0444\u0438\u0433 \u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0432 yourbase/lpi_view_config.json. \u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0434\u0435\u0442\u0430\u043B\u0435\u0439 \u0437\u0430\u044F\u0432\u043A\u0438." });
-    info.style.color = "var(--text-muted)";
-    info.style.fontSize = "12px";
-    const configJson = JSON.stringify(this.view.viewConfig, null, 2);
-    const textarea = contentEl.createEl("textarea");
-    textarea.value = configJson;
-    textarea.style.cssText = "width:100%;box-sizing:border-box;min-height:400px;font-family:monospace;font-size:11px;padding:8px;background:var(--background-primary-alt);border:1px solid var(--background-modifier-border);border-radius:4px";
-    const btnRow = contentEl.createDiv();
-    btnRow.style.cssText = "display:flex;gap:8px;margin-top:8px";
-    const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
-    saveBtn.addEventListener("click", async () => {
-      try {
-        const parsed = JSON.parse(textarea.value);
-        this.view.viewConfig = parsed;
-        const adapter = this.view.app.vault.adapter;
-        await adapter.write(CONFIG_PATH, JSON.stringify(parsed, null, 2));
-        new import_obsidian13.Notice("\u041A\u043E\u043D\u0444\u0438\u0433 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D");
-        this.close();
-      } catch (e) {
-        new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u0432 JSON: " + e.message);
-      }
-    });
-    const resetBtn = btnRow.createEl("button", { text: "\u21BA \u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043D\u0430 \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044F", cls: "mailer-yougile-refresh-btn" });
-    resetBtn.addEventListener("click", async () => {
-      this.view.viewConfig = DEFAULT_CONFIG;
-      const adapter = this.view.app.vault.adapter;
-      await adapter.write(CONFIG_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
-      textarea.value = JSON.stringify(DEFAULT_CONFIG, null, 2);
-      new import_obsidian13.Notice("\u041A\u043E\u043D\u0444\u0438\u0433 \u0441\u0431\u0440\u043E\u0448\u0435\u043D \u043D\u0430 \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044F");
-    });
-    const howTo = contentEl.createEl("details", { attr: { style: "margin-top:12px" } });
-    howTo.createEl("summary", { text: "\u{1F4D6} \u041A\u0430\u043A \u0434\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0441\u0435\u043A\u0446\u0438\u044E \u0441 SQL-\u0437\u0430\u043F\u0440\u043E\u0441\u043E\u043C", attr: { style: "cursor:pointer;font-weight:600;font-size:12px" } });
-    const howContent = howTo.createDiv();
-    howContent.style.cssText = "padding:8px;font-size:11px;background:var(--background-primary-alt);border-radius:4px;margin-top:4px";
-    howContent.innerHTML = `<pre style="margin:0;white-space:pre-wrap">
-\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0441\u0435\u043A\u0446\u0438\u044E \u0432 "detailSections":
-
-{
-  "title": "\u041C\u043E\u0438 \u0434\u0430\u043D\u043D\u044B\u0435",
-  "type": "subquery",
-  "query": "SELECT * FROM my_table WHERE fk_id = '{{aggregate_id}}'",
-  "columns": [
-    { "label": "\u041A\u043E\u043B\u043E\u043D\u043A\u0430 1", "field": "col1" }
-  ],
-  "dependsOn": ["aggregate_id"]
-}
-</pre>`;
-  }
-  onClose() {
-    this.contentEl.empty();
+        rowSendBtn.disabled = false;
+        rowSendBtn.textContent = "\u{1F4E4}";
+        this.renderView();
+      });
+    }
   }
 };
 
 // src/commands.ts
-var import_obsidian15 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 init_sync_logger();
 function registerCommands(plugin) {
   plugin.addCommand({
@@ -71476,7 +71721,7 @@ function registerCommands(plugin) {
     name: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443",
     callback: () => {
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian15.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian18.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return;
       }
       plugin.activateView();
@@ -71500,7 +71745,7 @@ function registerCommands(plugin) {
       const view = leaf == null ? void 0 : leaf.view;
       if (view instanceof TasksView) {
         view.syncAndRender();
-        new import_obsidian15.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
+        new import_obsidian18.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
       }
     }
   });
@@ -71519,7 +71764,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleDocumentsEnabled) return false;
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian15.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian18.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return false;
       }
       if (checking) return true;
@@ -71721,30 +71966,7 @@ var LocalDatabase = class {
       } catch (e) {
         console.warn("YouGile: failed to load boards", e instanceof Error ? e.message : String(e));
       }
-      const remoteTasks = await this.plugin.client.getTasks();
-      const taskMap = new Map(remoteTasks.map((t) => [t.id, t]));
-      const allSubtaskIds = /* @__PURE__ */ new Set();
-      for (const rt of remoteTasks) {
-        if (rt.subtasks) {
-          for (const sid of rt.subtasks) {
-            allSubtaskIds.add(sid);
-          }
-        }
-      }
-      const subtaskCache = /* @__PURE__ */ new Map();
-      for (const sid of allSubtaskIds) {
-        const known = taskMap.get(sid);
-        if (known && known.title) {
-          subtaskCache.set(sid, known.title);
-        } else {
-          try {
-            const st = await this.plugin.client.getTaskById(sid);
-            subtaskCache.set(sid, st.title || sid);
-          } catch (e) {
-            subtaskCache.set(sid, sid);
-          }
-        }
-      }
+      let remoteTasks = await this.plugin.client.getTasks();
       let allColumns = [];
       try {
         const cols = await this.plugin.client.getColumns();
@@ -71779,7 +72001,41 @@ var LocalDatabase = class {
       this.data.projects = remoteProjects.map((p) => ({ id: p.id, title: p.title }));
       this.data.boards = allBoards;
       this.data.columns = allColumns;
+      const lpiProjectId = this.getLpiProjectId();
+      if (lpiProjectId) {
+        const lpiBoardIds = new Set(allBoards.filter((b) => b.projectId === lpiProjectId).map((b) => b.id));
+        const lpiColumnIds = new Set(allColumns.filter((c) => lpiBoardIds.has(c.boardId)).map((c) => c.id));
+        if (lpiColumnIds.size > 0) {
+          remoteTasks = remoteTasks.filter((t) => {
+            var _a2;
+            return !lpiColumnIds.has((_a2 = t.columnId) != null ? _a2 : "");
+          });
+        }
+      }
       const now = Date.now();
+      const taskMap = new Map(remoteTasks.map((t) => [t.id, t]));
+      const allSubtaskIds = /* @__PURE__ */ new Set();
+      for (const rt of remoteTasks) {
+        if (rt.subtasks) {
+          for (const sid of rt.subtasks) {
+            allSubtaskIds.add(sid);
+          }
+        }
+      }
+      const subtaskCache = /* @__PURE__ */ new Map();
+      for (const sid of allSubtaskIds) {
+        const known = taskMap.get(sid);
+        if (known && known.title) {
+          subtaskCache.set(sid, known.title);
+        } else {
+          try {
+            const st = await this.plugin.client.getTaskById(sid);
+            subtaskCache.set(sid, st.title || sid);
+          } catch (e) {
+            subtaskCache.set(sid, sid);
+          }
+        }
+      }
       const boardMap = new Map(allBoards.map((b) => [b.id, b]));
       const columnMap = new Map(allColumns.map((c) => [c.id, c]));
       const projectMap = new Map(remoteProjects.map((p) => [p.id, p.title]));
@@ -71862,6 +72118,15 @@ var LocalDatabase = class {
       console.warn("YouGile: sync failed \u2014", msg);
       await this.logSyncError(msg);
     }
+  }
+  getLpiProjectId() {
+    const projects = this.getProjects();
+    const projectTitle = this.plugin.settings.lpiProjectId;
+    if (projectTitle) {
+      const match = projects.find((p) => p.title === projectTitle || p.id === projectTitle);
+      if (match) return match.id;
+    }
+    return void 0;
   }
   async logSync(taskCount, boardCount, columnCount) {
     var _a;
@@ -72177,7 +72442,7 @@ var ContactDatabase = class {
 };
 
 // src/services/llm-service.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 var LLMService = class {
   constructor(plugin) {
     this.lastRequestTime = 0;
@@ -72279,7 +72544,7 @@ ${question}
 ## \u041E\u0422\u0412\u0415\u0422\u042C:`;
     return this.retryWithBackoff(async () => {
       var _a, _b, _c;
-      const response = await (0, import_obsidian16.requestUrl)({
+      const response = await (0, import_obsidian19.requestUrl)({
         url: llmApiUrl || "https://ask.chadgpt.ru/api/v1/chat/completions",
         method: "POST",
         headers: {
@@ -72308,6 +72573,21 @@ ${question}
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.7.0": [
+    "LPI: \u0440\u0435\u0444\u0430\u043A\u0442\u043E\u0440\u0438\u043D\u0433 \u2014 \u043C\u043E\u0434\u0443\u043B\u044C \u0440\u0430\u0437\u0431\u0438\u0442 \u043D\u0430 6 \u0444\u0430\u0439\u043B\u043E\u0432 (lpi-view, lpi-sync, lpi-dashboard, lpi-detail, lpi-modals, lpi-utils)",
+    "LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u0444\u0438\u043B\u044C\u0442\u0440\u044B \u043F\u043E \u0434\u0430\u0442\u0435 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0438 \u0441\u0442\u0430\u0442\u0443\u0441\u0443 \u0432 \u0442\u0430\u0431\u043B\u0438\u0446\u0443",
+    "LPI: \u0430\u0432\u0442\u043E\u0438\u043C\u043F\u043E\u0440\u0442 \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u044F\u0432\u043E\u043A \u0438\u0437 YouGile (\u0432\u0441\u0435\u0445 \u0441\u0442\u0430\u0442\u0443\u0441\u043E\u0432)",
+    "LPI: \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0438\u0437 SQL \u0442\u043E\u043B\u044C\u043A\u043E \u043D\u043E\u0432\u044B\u0445 \u0437\u0430\u044F\u0432\u043E\u043A (\u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0445 \u0432 \u043F\u043B\u0430\u0433\u0438\u043D\u0435 \u0438 YouGile)",
+    "LPI: \u0434\u0432\u0435 \u0438\u043A\u043E\u043D\u043A\u0438 \u0432 \u043A\u043E\u043B\u043E\u043D\u043A\u0435 \u0414\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u2014 \u{1F4E5} (\u043E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u0438\u0437 SQL) \u0438 \u{1F4E4} (\u043E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile)",
+    "LPI: \u0435\u0434\u0438\u043D\u044B\u0439 \u0441\u0442\u0430\u0442\u0443\u0441 active/completed \u043D\u0430 \u043E\u0441\u043D\u043E\u0432\u0435 protocol_date (completedLocally \u0443\u0434\u0430\u043B\u0451\u043D)",
+    "LPI: \u0437\u0430\u0434\u0430\u0447\u0438 \u043B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u0438 \u043D\u0435 \u043F\u043E\u043F\u0430\u0434\u0430\u044E\u0442 \u0432 \u043E\u0431\u0449\u0438\u0439 \u043A\u044D\u0448 yougile_cache.json (\u0444\u0438\u043B\u044C\u0442\u0440 \u043F\u043E \u043F\u0440\u043E\u0435\u043A\u0442\u0443)",
+    "LPI: \u043C\u0430\u0442\u0447\u0438\u043D\u0433 \u0437\u0430\u044F\u0432\u043E\u043A \u0441 YouGile \u043F\u043E application_external_id (\u043D\u0435 \u043F\u043E taskId)",
+    "LPI: \u043F\u0440\u0438\u043E\u0440\u0438\u0442\u0435\u0442 YouGile \u043A\u0430\u043A \u0438\u0441\u0442\u043E\u0447\u043D\u0438\u043A\u0430 \u0438\u0441\u0442\u0438\u043D\u044B \u0434\u043B\u044F protocol_date",
+    "LPI: \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0435 taskId \u043F\u0440\u0438 \u0441\u0438\u043D\u043A\u0435 (\u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u0437\u0430\u0446\u0438\u043A\u043B\u0438\u0432\u0430\u043D\u0438\u0435 \u043F\u0440\u0438 \u0434\u0443\u0431\u043B\u044F\u0445)",
+    "LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u043C\u0435\u0442\u0430\u0434\u0430\u043D\u043D\u044B\u0435 updatedAt/updatedBy",
+    "LPI: \u0434\u0438\u0430\u043B\u043E\u0433 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439 LpiChangesModal \u0434\u043B\u044F \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u0440\u0430\u0441\u0445\u043E\u0436\u0434\u0435\u043D\u0438\u0439",
+    "LPI: \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435 \u043E \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u0435 \u0438\u0437\u043C\u0435\u043D\u0451\u043D\u043D\u044B\u0445 \u043F\u043E\u043B\u0435\u0439 \u043F\u0440\u0438 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0438 \u0438\u0437 SQL"
+  ],
   "0.6.2": [
     '\u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0430 "\u0420\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0439" \u0441 \u0434\u0438\u043D\u0430\u043C\u0438\u0447\u0435\u0441\u043A\u0438\u043C \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u0451\u043C, \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435\u043C \u043C\u0435\u0441\u044F\u0446\u0435\u0432, \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440\u043E\u043C \u0434\u043D\u044F',
     "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u0440\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u044F: \u0432\u044B\u0431\u043E\u0440 \u043F\u0440\u043E\u0435\u043A\u0442\u0430/\u0434\u043E\u0441\u043A\u0438/\u043A\u043E\u043B\u043E\u043D\u043A\u0438 \u0447\u0435\u0440\u0435\u0437 \u0432\u044B\u043F\u0430\u0434\u0430\u044E\u0449\u0438\u0435 \u0441\u043F\u0438\u0441\u043A\u0438 \u0432 GUI",
@@ -72499,7 +72779,7 @@ var CHANGELOG = {
     'LPI: type \u0432 description \u0437\u0430\u0434\u0430\u0447 \u0438\u0437\u043C\u0435\u043D\u0451\u043D \u043D\u0430 "lpi_data" (\u0435\u0434\u0438\u043D\u044B\u0439 \u0442\u0438\u043F \u0434\u043B\u044F \u0432\u0441\u0435\u0445 LPI-\u0437\u0430\u0434\u0430\u0447)'
   ]
 };
-var ChangelogModal = class extends import_obsidian17.Modal {
+var ChangelogModal = class extends import_obsidian20.Modal {
   constructor(app, version, changes) {
     super(app);
     this.version = version;
@@ -72514,14 +72794,14 @@ var ChangelogModal = class extends import_obsidian17.Modal {
       list.createEl("li", { text: change });
     }
     contentEl.createEl("hr");
-    new import_obsidian17.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
+    new import_obsidian20.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
   }
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
   }
 };
-var YouGilePlugin = class extends import_obsidian17.Plugin {
+var YouGilePlugin = class extends import_obsidian20.Plugin {
   async onload() {
     await this.loadSettings();
     this.client = new YouGileClient();
@@ -72695,7 +72975,7 @@ var YouGilePlugin = class extends import_obsidian17.Plugin {
     this.saveSecret(secretName, key);
     this.settings.apiKeySecret = secretName;
     await this.saveSettings();
-    new import_obsidian17.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
+    new import_obsidian20.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
   }
   async activateView() {
     var _a;

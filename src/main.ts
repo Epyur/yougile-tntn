@@ -20,6 +20,21 @@ import { SyncLogger, SyncLogModal } from './services/sync-logger';
 const PASSWORD_SECRET_ID = 'yougile-password';
 
 const CHANGELOG: Record<string, string[]> = {
+  '0.7.0': [
+    'LPI: рефакторинг — модуль разбит на 6 файлов (lpi-view, lpi-sync, lpi-dashboard, lpi-detail, lpi-modals, lpi-utils)',
+    'LPI: добавлены фильтры по дате создания и статусу в таблицу',
+    'LPI: автоимпорт новых заявок из YouGile (всех статусов)',
+    'LPI: загрузка из SQL только новых заявок (отсутствующих в плагине и YouGile)',
+    'LPI: две иконки в колонке Действия — 📥 (обновить из SQL) и 📤 (отправить в YouGile)',
+    'LPI: единый статус active/completed на основе protocol_date (completedLocally удалён)',
+    'LPI: задачи лаборатории не попадают в общий кэш yougile_cache.json (фильтр по проекту)',
+    'LPI: матчинг заявок с YouGile по application_external_id (не по taskId)',
+    'LPI: приоритет YouGile как источника истины для protocol_date',
+    'LPI: обновление taskId при синке (исправлено зацикливание при дублях)',
+    'LPI: добавлены метаданные updatedAt/updatedBy',
+    'LPI: диалог изменений LpiChangesModal для отображения расхождений',
+    'LPI: уведомление о количестве изменённых полей при обновлении из SQL',
+  ],
   '0.6.2': [
     'Добавлена вкладка "Расписание мероприятий" с динамическим календарём, переключением месяцев, просмотром дня',
     'Настройки расписания: выбор проекта/доски/колонки через выпадающие списки в GUI',

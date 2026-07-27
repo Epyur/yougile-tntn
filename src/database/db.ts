@@ -167,32 +167,7 @@ export class LocalDatabase {
         console.warn('YouGile: failed to load boards', e instanceof Error ? e.message : String(e));
       }
 
-      const remoteTasks = await this.plugin.client.getTasks();
-
-      const taskMap = new Map(remoteTasks.map(t => [t.id, t]));
-
-      const allSubtaskIds = new Set<string>();
-      for (const rt of remoteTasks) {
-        if (rt.subtasks) {
-          for (const sid of rt.subtasks) {
-            allSubtaskIds.add(sid);
-          }
-        }
-      }
-      const subtaskCache = new Map<string, string>();
-      for (const sid of allSubtaskIds) {
-        const known = taskMap.get(sid);
-        if (known && known.title) {
-          subtaskCache.set(sid, known.title);
-        } else {
-          try {
-            const st = await this.plugin.client.getTaskById(sid);
-            subtaskCache.set(sid, st.title || sid);
-          } catch {
-            subtaskCache.set(sid, sid);
-          }
-        }
-      }
+      let remoteTasks = await this.plugin.client.getTasks();
 
       let allColumns: CachedColumn[] = [];
       try {
@@ -234,7 +209,42 @@ export class LocalDatabase {
       this.data.boards = allBoards;
       this.data.columns = allColumns;
 
+      // Exclude LPI tasks from general cache
+      const lpiProjectId = this.getLpiProjectId();
+      if (lpiProjectId) {
+        const lpiBoardIds = new Set(allBoards.filter(b => b.projectId === lpiProjectId).map(b => b.id));
+        const lpiColumnIds = new Set(allColumns.filter(c => lpiBoardIds.has(c.boardId)).map(c => c.id));
+        if (lpiColumnIds.size > 0) {
+          remoteTasks = remoteTasks.filter(t => !lpiColumnIds.has(t.columnId ?? ''));
+        }
+      }
+
       const now = Date.now();
+
+      const taskMap = new Map(remoteTasks.map(t => [t.id, t]));
+
+      const allSubtaskIds = new Set<string>();
+      for (const rt of remoteTasks) {
+        if (rt.subtasks) {
+          for (const sid of rt.subtasks) {
+            allSubtaskIds.add(sid);
+          }
+        }
+      }
+      const subtaskCache = new Map<string, string>();
+      for (const sid of allSubtaskIds) {
+        const known = taskMap.get(sid);
+        if (known && known.title) {
+          subtaskCache.set(sid, known.title);
+        } else {
+          try {
+            const st = await this.plugin.client.getTaskById(sid);
+            subtaskCache.set(sid, st.title || sid);
+          } catch {
+            subtaskCache.set(sid, sid);
+          }
+        }
+      }
 
       const boardMap = new Map(allBoards.map(b => [b.id, b]));
       const columnMap = new Map(allColumns.map(c => [c.id, c]));
@@ -324,6 +334,16 @@ export class LocalDatabase {
       console.warn('YouGile: sync failed —', msg);
       await this.logSyncError(msg);
     }
+  }
+
+  private getLpiProjectId(): string | undefined {
+    const projects = this.getProjects();
+    const projectTitle = this.plugin.settings.lpiProjectId;
+    if (projectTitle) {
+      const match = projects.find(p => p.title === projectTitle || p.id === projectTitle);
+      if (match) return match.id;
+    }
+    return undefined;
   }
 
   private async logSync(taskCount: number, boardCount: number, columnCount: number): Promise<void> {

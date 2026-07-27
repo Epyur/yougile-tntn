@@ -60,7 +60,7 @@ export interface LpiItem {
   source_series_range: string | null;
   calculation_type: string | null;
   result_data: string | null;
-  completedLocally?: boolean;
-  completedAt?: string;
   taskId?: string;
+  updatedAt?: string;
+  updatedBy?: string;
 }

@@ -98,6 +98,32 @@ export class YouGileClient {
     return allTasks;
   }
 
+  async getTasksByProject(projectId: string): Promise<YouGileTask[]> {
+    const boards = await this.getBoards();
+    const projectBoardIds = new Set(boards.filter((b: any) => b.projectId === projectId).map((b: any) => b.id));
+    const allCols = await this.getColumns();
+    const projectColumnIds = new Set(allCols.filter((c: any) => projectBoardIds.has(c.boardId)).map((c: any) => c.id));
+    const all = await this.getTasks();
+    return all.filter(t => {
+      const col = (t as any).columnId;
+      if (!col) return false;
+      return projectColumnIds.has(col);
+    });
+  }
+
+  async getTasksExcludingProject(projectId: string): Promise<YouGileTask[]> {
+    const boards = await this.getBoards();
+    const projectBoardIds = new Set(boards.filter((b: any) => b.projectId === projectId).map((b: any) => b.id));
+    const allCols = await this.getColumns();
+    const projectColumnIds = new Set(allCols.filter((c: any) => projectBoardIds.has(c.boardId)).map((c: any) => c.id));
+    const all = await this.getTasks();
+    return all.filter(t => {
+      const col = (t as any).columnId;
+      if (!col) return true;
+      return !projectColumnIds.has(col);
+    });
+  }
+
   async createTask(payload: CreateTaskPayload): Promise<{ id: string }> {
     return this.request<{ id: string }>('POST', '/tasks', payload as unknown as Record<string, unknown>);
   }

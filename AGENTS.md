@@ -17,7 +17,7 @@
 | 9 | **Настройки**: складные блоки с toggle, проекты/доски через dropdown, LLM, DOCX, автор | ✅ | `ui/settings-tab.ts`, `types/settings.ts` |
 | 10 | **Предложения**: таблица, создание, детали, редактирование, завершение, офлайн-очередь | ✅ | `ui/suggestions-view.ts` |
 | 11 | **Контакты**: таблица, создание, редактирование, детали, поиск, фильтр по колонкам, QR-код (vCard, красный, 250×250), локальная JSON БД, синхронизация с YouGile | ✅ | `ui/contacts-view.ts`, `database/contact-db.ts`, `types/contacts.ts` |
-| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (9 колонок: ● индикатор, №, материал, дата создания, статус, дата протокола, результат испытания, оценка, действия с кнопкой "Отправить в YouGile"), дашборд (5 графиков ApexCharts: статус, поступление/завершение по месяцам, оценка соответствия, топ продуктов), фильтр продуктов для дашборда, дата-фильтры (заявки + протоколы), чекбоксы "Серийная/Опытная продукция", фильтр "Подтверждаемый показатель" с человеческими названиями, per-product compliance donuts, кнопки "SQL → Локально" (загрузка данных из SQLite) и "Синхронизация YouGile" (без SQL — прямая загрузка, с SQL — модальное окно с поштучным подтверждением расхождений + автоимпорт новых заявок из YouGile), статус active/new/completed из поля БД LIMS, детали (config-driven: поля, секции, subquery-запросы из конфига), кнопка "Отправить в YouGile", локальная JSON БД yourbase/lpi_data.json, sql.js (WASM) для чтения внешней SQLite, Schema Browser (просмотр схемы БД), Query Runner в деталях (произвольные SQL-запросы с {{placeholders}}), Config Editor (редактор конфига отображения yourbase/lpi_view_config.json), настройка пути к SQLite БД, toggle в настройках (по умолч. false), проект/доска/колонка жёстко заданы, индикатор синхронизации с YouGile (зелёный/серый круг) | ✅ | `ui/lpi-view.ts`, `types/lpi.ts`, `types/lpi-config.ts`, `services/lpi-schema-service.ts`, `ui/lpi-schema-modal.ts` |
+| 12 | **LPI (Лаборатория пожарных испытаний)**: таблица (9 колонок: ● индикатор, №, материал, дата создания, статус, дата протокола, результат испытания, оценка, действия: 📥 из SQL, 📤 в YouGile), фильтры (дата создания, статус), дашборд (6 графиков), фильтры дашборда (даты, продукты, методы, серийная/опытная), per-product donuts, кнопка "SQL → Локально" (только новые заявки), автоимпорт из YouGile, единый статус по protocol_date, детали (config-driven), Schema Browser, Query Runner, Config Editor, метаданные updatedAt/updatedBy, задачи LPI исключены из общего кэша | ✅ | `ui/lpi-view.ts`, `ui/lpi-sync.ts`, `ui/lpi-dashboard.ts`, `ui/lpi-detail.ts`, `ui/lpi-modals.ts`, `ui/lpi-utils.ts`, `types/lpi.ts`, `types/lpi-config.ts`, `services/lpi-schema-service.ts`, `ui/lpi-schema-modal.ts` |
 | 13 | **AssigneeSelector**: переиспользуемый компонент выбора пользователей (чекбоксы + email + setSelectedIds) | ✅ | `ui/assignee-selector.ts` |
 | 14 | **Редактирование задачи**: в деталях задачи (задачи-вьюха) добавлена кнопка "Редактировать" — форма с title, description, project/board/column, assignees, deadline | ✅ | `ui/tasks-view.ts` |
 | 15 | **ScheduleView → TasksView**: вызов `openTaskDetail()` через публичный API вместо прямого доступа к private-членам | ✅ | `ui/tasks-view.ts`, `ui/schedule-view.ts` |
@@ -52,6 +52,12 @@ src/
 │   ├── dashboard-view.ts          # Дашборд (ApexCharts, метрики, фильтры, JPG/CSV)
 │   ├── documents-view.ts          # Документы (таблица, детали, замечания, CSV, HTML)
 │   ├── emails-view.ts             # Письма (таблица, create/edit, файлы, AI-чат, HTML)
+│   ├── lpi-view.ts                # LPI: основной view (таблица, фильтры, роутинг)
+│   ├── lpi-sync.ts                # LPI: синхронизация (YouGile, SQLite, индивид. операции)
+│   ├── lpi-dashboard.ts           # LPI: дашборд (ApexCharts, фильтры дашборда)
+│   ├── lpi-detail.ts              # LPI: детали заявки + SQL Query Runner
+│   ├── lpi-modals.ts              # LPI: модалки (ProductFilter, MethodFilter, YougileSync, ConfigEditor, LpiChanges)
+│   ├── lpi-utils.ts               # LPI: утилиты (статусы, отображение)
 │   ├── lpi-schema-modal.ts        # Schema Browser — просмотр схемы SQLite БД
 │   ├── schedule-view.ts           # Календарь мероприятий
 │   ├── settings-tab.ts            # Настройки: 7 складных блоков + toggle модулей
@@ -111,9 +117,10 @@ src/
 - **Updater: разделение TARGET_DIR/TARGET_ID**: Для путей к файлам используется `TARGET_DIR` (имя папки плагина `yougile-tntn`), для disablePlugin/enablePlugin — `TARGET_ID` (ID плагина из манифеста `obsidian-yougile`), чтобы файлы скачивались в правильную директорию
 - **Updater: очистка require.cache**: Перед enablePlugin удаляется закешированный модуль `main.js` через `delete require.cache[resolve(path)]`, чтобы загружался новый код с диска
 - **LPI дашборд**: 6 графиков ApexCharts (status donut, incoming/completed monthly bar, compliance donut, test result donut, top products horizontal bar); фильтр продуктов через модалку (search + select/deselect all); дата-фильтры (дата создания заявки, дата протокола); чекбоксы "Серийная продукция" (ЕКН цифровой) / "Опытная продукция" (ЕКН отсутствует) — независимые; перцептуальные compliance donuts при выборе нескольких продуктов; deferred render через setTimeout (100ms) для стабильности; графики на четырёх рядах (2+2+1+1)
-- **LPI таблица**: 7 колонок; active-статус жёлтый, completed — зелёный; у active protocol_date показывается как "—" (без fallback-даты)
-- **LPI завершение заявок**: всё хранится в едином `lpi_data.json` (поля `completedLocally`, `completedAt`, `taskId`), без отдельного файла; синхронизация через YouGile-задачи с `type:"lpi_data"` (или `"lpi_completed"` для старых задач) при загрузке; `taskId` проставляется только при явной отправке через syncItemToYougile
-- **LPI статус**: терминальные статусы — `completed` и `received` (оба → "Завершена"); `isEffectivelyActive()` проверяет `completedLocally` в первую очередь, статус из SQLite не может откатить `completedLocally: true` обратно
+- **LPI таблица**: 9 колонок (● индикатор, №, материал, дата, статус, дата протокола, результат, оценка, действия); фильтры (дата, статус); две кнопки в колонке действий (📥 из SQL, 📤 в YouGile)
+- **LPI статус**: единый — active/completed по наличию `protocol_date`; `completedLocally` удалён
+- **LPI загрузка из SQL**: групповая — только новые заявки (отсутствующие в плагине и YouGile); индивидуальная — через 📥 в таблице
+- **LPI синхронизация с YouGile**: матчинг по `application_external_id`; приоритет YouGile для `protocol_date`; задачи LPI исключены из общего кэша (фильтр по проекту)
 - **LPI детали заявки**: 3 блока (Детали заявки, Результаты измерений, Выводы), все поля read-only (пустые — "—"), "Результат испытания" и "Общая оценка соответствия" — жирным, цветная Оценка (зелёный/красный/серый)"
 - **LPI завершение**: только через LIMS (статус `received`) или YouGile-задачи (тип `lpi_data` или `lpi_completed`, `completed: true`); кнопка "Завершить заявку" из деталей удалена
 - **LPI синхронизация (изменена в v0.5.3s)**:
