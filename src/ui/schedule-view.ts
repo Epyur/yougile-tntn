@@ -631,7 +631,6 @@ export class ScheduleView extends ItemView {
       if (!title) { new Notice('Название мероприятия обязательно'); return; }
       const place = inputs.place.value.trim();
       const targetAudience = inputs.targetAudience.value.trim();
-      const responsibleEmail = inputs.responsible.value.trim();
       const dateVal = inputs.date.value;
       const startTime = inputs.startTime.value;
       const endTime = inputs.endTime.value;
