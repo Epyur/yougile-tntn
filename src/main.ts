@@ -20,6 +20,13 @@ import { SyncLogger, SyncLogModal } from './services/sync-logger';
 const PASSWORD_SECRET_ID = 'yougile-password';
 
 const CHANGELOG: Record<string, string[]> = {
+  '0.7.1': [
+    'LPI: детали заявки — все поля рендерятся как форма (input/select/textarea)',
+    'LPI: кнопка "✏ Редактировать" переключает поля в активный режим',
+    'LPI: редактирование доступно только при подключённой SQLite БД',
+    'LPI: при сохранении изменения отправляются в YouGile и обновляются локально',
+    'LPI: исправлено отображение даты протокола (ДД.ММ.ГГГГ → input[type=date])',
+  ],
   '0.7.0': [
     'LPI: рефакторинг — модуль разбит на 6 файлов (lpi-view, lpi-sync, lpi-dashboard, lpi-detail, lpi-modals, lpi-utils)',
     'LPI: добавлены фильтры по дате создания и статусу в таблицу',

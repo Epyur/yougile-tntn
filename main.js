@@ -71015,26 +71015,58 @@ var LpiDashboard = class {
 var import_obsidian15 = require("obsidian");
 var LpiDetail = class {
   constructor(view) {
+    this.editFieldsConfig = [
+      { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430", type: "date" },
+      { key: "product_name", label: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u0430", type: "text" },
+      { key: "customer_name", label: "\u0417\u0430\u043A\u0430\u0437\u0447\u0438\u043A", type: "text" },
+      { key: "customer_mail", label: "Email \u0437\u0430\u043A\u0430\u0437\u0447\u0438\u043A\u0430", type: "text" },
+      { key: "organization", label: "\u041E\u0440\u0433\u0430\u043D\u0438\u0437\u0430\u0446\u0438\u044F", type: "text" },
+      { key: "customer_phone", label: "\u0422\u0435\u043B\u0435\u0444\u043E\u043D", type: "text" },
+      { key: "customer_address", label: "\u0410\u0434\u0440\u0435\u0441", type: "text" },
+      { key: "ekn", label: "\u0415\u041A\u041D", type: "text" },
+      { key: "thickness", label: "\u0422\u043E\u043B\u0449\u0438\u043D\u0430", type: "text" },
+      { key: "color", label: "\u0426\u0432\u0435\u0442", type: "text" },
+      { key: "batch_number", label: "\u041D\u043E\u043C\u0435\u0440 \u043F\u0430\u0440\u0442\u0438\u0438", type: "text" },
+      { key: "sample_number", label: "\u041D\u043E\u043C\u0435\u0440 \u043E\u0431\u0440\u0430\u0437\u0446\u0430", type: "text" },
+      { key: "object_name", label: "\u041E\u0431\u044A\u0435\u043A\u0442", type: "text" },
+      { key: "standard", label: "\u0421\u0442\u0430\u043D\u0434\u0430\u0440\u0442", type: "text" },
+      { key: "target_comb_group", label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0433\u043E\u0440\u044E\u0447\u0435\u0441\u0442\u0438", type: "text" },
+      { key: "target_flam_group", label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0432\u043E\u0441\u043F\u043B\u0430\u043C\u0435\u043D\u044F\u0435\u043C\u043E\u0441\u0442\u0438", type: "text" },
+      { key: "target_prop_group", label: "\u0426\u0435\u043B\u0435\u0432\u0430\u044F \u0433\u0440\u0443\u043F\u043F\u0430 \u0440\u0430\u0441\u043F\u0440\u043E\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u0438\u044F", type: "text" },
+      { key: "method_name", label: "\u041C\u0435\u0442\u043E\u0434 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", type: "text" },
+      { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F", type: "text" },
+      { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F", type: "select", options: ["", "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442", "\u041D\u0435 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0443\u0435\u0442", "\u041D\u0435 \u043E\u0446\u0435\u043D\u0438\u0432\u0430\u0435\u0442\u0441\u044F"] },
+      { key: "agg_avg_smog_temp", label: "\u0421\u0440\u0435\u0434\u043D\u044F\u044F \u0442\u0435\u043C\u043F\u0435\u0440\u0430\u0442\u0443\u0440\u0430 \u0434\u044B\u043C\u0430 (\xB0C)", type: "text" },
+      { key: "agg_mass_loss", label: "\u041F\u043E\u0442\u0435\u0440\u044F \u043C\u0430\u0441\u0441\u044B (%)", type: "text" },
+      { key: "agg_comb_time", label: "\u0412\u0440\u0435\u043C\u044F \u0433\u043E\u0440\u0435\u043D\u0438\u044F (\u0441)", type: "text" },
+      { key: "agg_dam_length", label: "\u0414\u043B\u0438\u043D\u0430 \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u044F (\u043C\u043C)", type: "text" },
+      { key: "agg_comb_bulb", label: "\u041F\u0430\u0434\u0435\u043D\u0438\u0435 \u0433\u043E\u0440\u044F\u0449\u0438\u0445 \u043A\u0430\u043F\u0435\u043B\u044C \u0440\u0430\u0441\u043F\u043B\u0430\u0432\u0430", type: "text" },
+      { key: "agg_smog_group", label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u044B\u043C\u0443", type: "text" },
+      { key: "agg_smog_complience", label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u044B\u043C\u0443", type: "text" },
+      { key: "agg_group_by_mass", label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", type: "text" },
+      { key: "agg_mass_complience", label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u043C\u0430\u0441\u0441\u0435", type: "text" },
+      { key: "agg_group_by_length", label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", type: "text" },
+      { key: "agg_complience_by_length", label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0434\u043B\u0438\u043D\u0435", type: "text" },
+      { key: "agg_croup_by_comb_time", label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", type: "text" },
+      { key: "agg_complience_by_comb_time", label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 \u0433\u043E\u0440\u0435\u043D\u0438\u044F", type: "text" },
+      { key: "agg_group_by_bulbe", label: "\u0413\u0440\u0443\u043F\u043F\u0430 \u043F\u043E \u0433\u043E\u0440\u044F\u0449\u0438\u043C \u043A\u0430\u043F\u043B\u044F\u043C", type: "text" },
+      { key: "agg_complience_by_bulbe", label: "\u0421\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E \u0433\u043E\u0440\u044F\u0449\u0438\u043C \u043A\u0430\u043F\u043B\u044F\u043C", type: "text" },
+      { key: "agg_additional_info_1", label: "\u0414\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u0430\u044F \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F", type: "textarea" }
+    ];
     this.view = view;
   }
   async render(container, item) {
     container.empty();
+    const sqlConnected = !!this.view.plugin.settings.lpiDbPath;
+    let editing = false;
+    const inputs = {};
     const btnRow = container.createDiv();
-    btnRow.style.display = "flex";
-    btnRow.style.gap = "8px";
-    btnRow.style.marginBottom = "8px";
-    btnRow.style.flexWrap = "wrap";
+    btnRow.style.cssText = "display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap";
     const backBtn = btnRow.createEl("button", { text: "\u2190 \u041D\u0430\u0437\u0430\u0434 \u043A \u0441\u043F\u0438\u0441\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
     backBtn.addEventListener("click", () => this.view.renderView());
-    const sqlConnected = !!this.view.plugin.settings.lpiDbPath;
-    const sendBtn = btnRow.createEl("button", {
-      text: "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile",
-      cls: "mailer-yougile-refresh-btn"
-    });
+    const sendBtn = btnRow.createEl("button", { text: "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile", cls: "mailer-yougile-refresh-btn" });
     sendBtn.disabled = !sqlConnected;
-    if (!sqlConnected) {
-      sendBtn.title = "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI";
-    }
+    if (!sqlConnected) sendBtn.title = "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u0443\u0442\u044C \u043A SQLite \u0411\u0414 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 LPI";
     sendBtn.addEventListener("click", async () => {
       if (!this.view.plugin.client) {
         new import_obsidian15.Notice("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
@@ -71052,6 +71084,12 @@ var LpiDetail = class {
       sendBtn.disabled = false;
       sendBtn.textContent = "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile";
     });
+    const saveBtn = btnRow.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    saveBtn.style.display = "none";
+    const cancelEditBtn = btnRow.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
+    cancelEditBtn.style.display = "none";
+    const editBtn = btnRow.createEl("button", { text: "\u270F \u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    if (!sqlConnected) editBtn.style.display = "none";
     container.createEl("h3", { text: `\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}` });
     const meta = container.createDiv({ cls: "mailer-yougile-task-meta" });
     const colorRules = this.view.viewConfig.colorRules || {};
@@ -71067,17 +71105,31 @@ var LpiDetail = class {
         const raw = item[f.field];
         const isMissing = raw === null || raw === void 0 || raw === "";
         let display = isMissing ? "\u2014" : String(raw);
-        if (f.format && !isMissing) {
-          display = f.format.replace("{value}", display);
-        }
-        const div = meta.createDiv();
-        if (f.bold) div.style.fontWeight = "bold";
-        div.textContent = `${f.label}: ${display}`;
-        if (f.colorRuleId && !isMissing) {
-          const ruleSet = colorRules[f.colorRuleId];
-          if (ruleSet) {
-            const match = ruleSet.rules.find((r) => r.match === raw);
-            div.style.color = match ? match.color : ruleSet.defaultColor || "";
+        if (f.format && !isMissing && f.field !== "protocol_date") display = f.format.replace("{value}", display);
+        const efc = this.editFieldsConfig.find((e) => e.key === f.field);
+        if (efc && sqlConnected) {
+          const row = meta.createDiv({ attr: { style: "display:flex;align-items:center;gap:8px;margin-bottom:4px" } });
+          const lbl = row.createEl("span", { text: f.label + ":", attr: { style: "min-width:240px;font-size:var(--font-smaller);font-weight:" + (f.bold ? "bold" : "normal") } });
+          const inp = this.createInput(efc, display === "\u2014" ? "" : display, !editing);
+          row.appendChild(inp);
+          inputs[f.field] = inp;
+          if (f.colorRuleId && !isMissing && raw) {
+            const ruleSet = colorRules[f.colorRuleId];
+            if (ruleSet) {
+              const match = ruleSet.rules.find((r) => r.match === raw);
+              if (match) inp.style.color = match.color;
+            }
+          }
+        } else {
+          const div = meta.createDiv();
+          if (f.bold) div.style.fontWeight = "bold";
+          div.textContent = `${f.label}: ${display}`;
+          if (f.colorRuleId && !isMissing) {
+            const ruleSet = colorRules[f.colorRuleId];
+            if (ruleSet) {
+              const match = ruleSet.rules.find((r) => r.match === raw);
+              div.style.color = match ? match.color : ruleSet.defaultColor || "";
+            }
           }
         }
       }
@@ -71086,14 +71138,12 @@ var LpiDetail = class {
       var _a;
       const dbPath = (_a = this.view.plugin.settings.lpiDbPath) == null ? void 0 : _a.replace(/\\/g, "/");
       if (!dbPath) return;
-      const { existsSync } = await import("fs");
-      if (!existsSync(dbPath)) return;
+      const fs4 = await import("fs");
+      if (!fs4.existsSync(dbPath)) return;
       let query = section.query;
       for (const key of section.dependsOn) {
         const val = item[key];
-        if (val !== null && val !== void 0) {
-          query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(val));
-        }
+        if (val !== null && val !== void 0) query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(val));
       }
       try {
         const result = await this.view.schemaService.runQuery(dbPath, query);
@@ -71101,11 +71151,9 @@ var LpiDetail = class {
         meta.createEl("h4", { text: section.title, cls: "mailer-mt-8" });
         const subTable = meta.createEl("table");
         subTable.style.cssText = "width:100%;border-collapse:collapse;font-size:12px;margin-top:4px";
-        const subHead = subTable.createEl("thead");
-        const subHr = subHead.createEl("tr");
+        const subHr = subTable.createEl("thead").createEl("tr");
         for (const col of section.columns) {
-          const th = subHr.createEl("th", { text: col.label });
-          th.style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:3px 6px;text-align:left;white-space:nowrap";
+          subHr.createEl("th", { text: col.label }).style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:3px 6px;text-align:left;white-space:nowrap";
         }
         const subBody = subTable.createEl("tbody");
         for (const row of result.rows) {
@@ -71115,9 +71163,7 @@ var LpiDetail = class {
             const raw = colIdx >= 0 ? row[colIdx] : null;
             const isMissing = raw === null || raw === void 0 || raw === "";
             let display = isMissing ? "\u2014" : String(raw);
-            if (col.format && !isMissing) {
-              display = col.format.replace("{value}", display);
-            }
+            if (col.format && !isMissing) display = col.format.replace("{value}", display);
             tr.createEl("td", { text: display }).style.cssText = "padding:2px 6px;border-bottom:1px solid var(--background-modifier-border)";
           }
         }
@@ -71125,13 +71171,100 @@ var LpiDetail = class {
       }
     };
     for (const section of this.view.viewConfig.detailSections) {
-      if (section.type === "fields") {
-        renderFieldSection(section);
-      } else if (section.type === "subquery") {
-        await renderSubquerySection(section);
-      }
+      if (section.type === "fields") renderFieldSection(section);
+      else if (section.type === "subquery") await renderSubquerySection(section);
     }
     this.renderQueryRunner(container, item);
+    const toggleEdit = (enable) => {
+      editing = enable;
+      for (const ef of this.editFieldsConfig) {
+        const inp = inputs[ef.key];
+        if (!inp) continue;
+        inp.disabled = !enable;
+        if (inp instanceof HTMLInputElement || inp instanceof HTMLTextAreaElement) {
+          inp.readOnly = !enable;
+        }
+      }
+      editBtn.style.display = enable ? "none" : sqlConnected ? "" : "none";
+      saveBtn.style.display = enable ? "" : "none";
+      cancelEditBtn.style.display = enable ? "" : "none";
+    };
+    editBtn.addEventListener("click", () => toggleEdit(true));
+    cancelEditBtn.addEventListener("click", async () => {
+      this.render(container, item);
+    });
+    saveBtn.addEventListener("click", async () => {
+      var _a;
+      const changedKeys = [];
+      for (const ef of this.editFieldsConfig) {
+        const inp = inputs[ef.key];
+        if (!inp) continue;
+        let newVal = inp.value.trim();
+        const oldVal = String((_a = item[ef.key]) != null ? _a : "");
+        if (ef.type === "date" && newVal) {
+          const m = newVal.match(/(\d{4})-(\d{2})-(\d{2})/);
+          if (m) newVal = `${m[3]}.${m[2]}.${m[1]}`;
+        }
+        if (newVal !== oldVal) {
+          item[ef.key] = newVal || null;
+          changedKeys.push(ef.label);
+        }
+      }
+      if (changedKeys.length === 0) {
+        new import_obsidian15.Notice("\u041D\u0435\u0442 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439");
+        return;
+      }
+      item.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      item.updatedBy = this.view.plugin.settings.login || "local";
+      saveBtn.disabled = true;
+      saveBtn.textContent = "\u23F3 \u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435...";
+      try {
+        await this.view.sync.syncItemToYougile(item);
+        await this.view.saveData();
+        new import_obsidian15.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}: \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u043E ${changedKeys.length} \u043F\u043E\u043B\u0435\u0439`);
+      } catch (e) {
+        new import_obsidian15.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F: " + e.message);
+      }
+      this.render(container, item);
+    });
+  }
+  createInput(ef, value, readOnly) {
+    const style = "flex:1;font-size:var(--font-smaller);padding:3px 6px;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:4px";
+    if (ef.type === "select") {
+      const sel = document.createElement("select");
+      sel.style.cssText = style;
+      for (const opt of ef.options || []) sel.createEl("option", { text: opt || "(\u043F\u0443\u0441\u0442\u043E)", value: opt });
+      sel.value = value;
+      sel.disabled = readOnly;
+      return sel;
+    } else if (ef.type === "textarea") {
+      const ta = document.createElement("textarea");
+      ta.style.cssText = style + ";min-height:50px;resize:vertical";
+      ta.value = value;
+      ta.readOnly = readOnly;
+      return ta;
+    } else if (ef.type === "date") {
+      const inp = document.createElement("input");
+      inp.type = "date";
+      inp.style.cssText = style;
+      inp.readOnly = readOnly;
+      if (value) {
+        const match = value.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        if (match) {
+          inp.value = `${match[3]}-${match[2]}-${match[1]}`;
+        } else {
+          inp.value = value;
+        }
+      }
+      return inp;
+    } else {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.style.cssText = style;
+      inp.value = value;
+      inp.readOnly = readOnly;
+      return inp;
+    }
   }
   renderQueryRunner(container, item) {
     var _a;
@@ -71147,9 +71280,7 @@ var LpiDetail = class {
     tableSel.style.cssText = "flex:1;font-size:12px;padding:4px";
     tableSel.createEl("option", { text: "\u2014 \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u0430\u0431\u043B\u0438\u0446\u0443 \u2014", value: "" });
     this.view.schemaService.loadSchema(dbPath).then((schema) => {
-      for (const table of schema.tables) {
-        tableSel.createEl("option", { text: table.name, value: table.name });
-      }
+      for (const table of schema.tables) tableSel.createEl("option", { text: table.name, value: table.name });
     }).catch(() => {
     });
     const autoBtn = tableSelRow.createEl("button", { text: "\u{1F504} \u0410\u0432\u0442\u043E", cls: "mailer-yougile-refresh-btn" });
@@ -71167,54 +71298,39 @@ var LpiDetail = class {
         const hasAppIdFk = table.foreignKeys.some((fk) => fk.table === "applications" && fk.to === "application_id");
         const otherFks = table.foreignKeys.filter((fk) => !(fk.table === "applications" && fk.to === "application_id"));
         let query = "";
-        if (hasAppIdFk) {
-          query = `SELECT
+        if (hasAppIdFk) query = `SELECT
   ${cols}
 FROM ${tableName}
 WHERE application_id = '{{application_id}}'
 LIMIT 50`;
-        } else if (tableName === "applications") {
-          query = `SELECT
+        else if (tableName === "applications") query = `SELECT
   ${cols}
 FROM ${tableName}
 WHERE external_id = '{{application_external_id}}'
 LIMIT 50`;
-        } else if (otherFks.length > 0) {
-          const fkWhere = otherFks.map((fk) => `${fk.from} = '{{${fk.from}}}'`).join("\n  OR ");
-          query = `SELECT
+        else if (otherFks.length > 0) query = `SELECT
   ${cols}
 FROM ${tableName}
 WHERE (
-  ${fkWhere}
+  ${otherFks.map((fk) => `${fk.from} = '{{${fk.from}}}'`).join("\n  OR ")}
 )
 LIMIT 50`;
-        } else {
-          query = `SELECT
+        else query = `SELECT
   ${cols}
 FROM ${tableName}
 LIMIT 100`;
-        }
         sqlInput.value = query;
       }).catch(() => {
       });
     });
-    const runBtn = qContainer.createEl("button", { text: "\u25B6 \u0412\u044B\u043F\u043E\u043B\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
-    runBtn.style.marginTop = "6px";
-    const resultDiv = qContainer.createDiv();
-    resultDiv.style.cssText = "margin-top:8px;overflow-x:auto";
-    const saveSectionBtn = qContainer.createEl("button", {
-      text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u0430\u043A \u0441\u0435\u043A\u0446\u0438\u044E",
-      cls: "mailer-yougile-refresh-btn",
-      attr: { style: "margin-top:6px;font-size:11px" }
-    });
+    const runBtn = qContainer.createEl("button", { text: "\u25B6 \u0412\u044B\u043F\u043E\u043B\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn", attr: { style: "margin-top:6px" } });
+    const resultDiv = qContainer.createDiv({ attr: { style: "margin-top:8px;overflow-x:auto" } });
+    const saveSectionBtn = qContainer.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u0430\u043A \u0441\u0435\u043A\u0446\u0438\u044E", cls: "mailer-yougile-refresh-btn", attr: { style: "margin-top:6px;font-size:11px" } });
     runBtn.addEventListener("click", async () => {
       let query = sqlInput.value;
-      const placeholderKeys = ["aggregate_id", "application_id", "application_external_id", "product_name"];
-      for (const key of placeholderKeys) {
+      for (const key of ["aggregate_id", "application_id", "application_external_id", "product_name"]) {
         const val = item[key];
-        if (val !== null && val !== void 0) {
-          query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(val));
-        }
+        if (val !== null && val !== void 0) query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(val));
       }
       resultDiv.empty();
       runBtn.textContent = "\u23F3";
@@ -71228,17 +71344,12 @@ LIMIT 100`;
         }
         const resTable = resultDiv.createEl("table");
         resTable.style.cssText = "width:100%;border-collapse:collapse;font-size:11px";
-        const resHead = resTable.createEl("thead");
-        const resHr = resHead.createEl("tr");
-        for (const col of result.columns) {
-          resHr.createEl("th", { text: col }).style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:3px 6px;text-align:left;white-space:nowrap";
-        }
+        const resHr = resTable.createEl("thead").createEl("tr");
+        for (const col of result.columns) resHr.createEl("th", { text: col }).style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:3px 6px;text-align:left;white-space:nowrap";
         const resBody = resTable.createEl("tbody");
         for (const row of result.rows) {
           const tr = resBody.createEl("tr");
-          for (let i = 0; i < result.columns.length; i++) {
-            tr.createEl("td", { text: row[i] !== null && row[i] !== void 0 ? String(row[i]) : "\u2014" }).style.cssText = "padding:2px 6px;border-bottom:1px solid var(--background-modifier-border);white-space:nowrap";
-          }
+          for (let i = 0; i < result.columns.length; i++) tr.createEl("td", { text: row[i] !== null && row[i] !== void 0 ? String(row[i]) : "\u2014" }).style.cssText = "padding:2px 6px;border-bottom:1px solid var(--background-modifier-border);white-space:nowrap";
         }
         saveSectionBtn.style.display = "block";
         saveSectionBtn.onclick = () => {
@@ -71259,14 +71370,7 @@ LIMIT 100`;
       runBtn.disabled = false;
     });
     saveSectionBtn.style.display = "none";
-    const editConfigBtn = qContainer.createEl("button", {
-      text: "\u2699 \u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u043A\u043E\u043D\u0444\u0438\u0433\u0430",
-      cls: "mailer-yougile-refresh-btn",
-      attr: { style: "margin-left:6px;font-size:11px" }
-    });
-    editConfigBtn.addEventListener("click", () => {
-      new LpiConfigEditorModal(this.view).open();
-    });
+    qContainer.createEl("button", { text: "\u2699 \u0420\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u043A\u043E\u043D\u0444\u0438\u0433\u0430", cls: "mailer-yougile-refresh-btn", attr: { style: "margin-left:6px;font-size:11px" } }).addEventListener("click", () => new LpiConfigEditorModal(this.view).open());
   }
 };
 
@@ -72573,6 +72677,13 @@ ${question}
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.7.1": [
+    "LPI: \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u2014 \u0432\u0441\u0435 \u043F\u043E\u043B\u044F \u0440\u0435\u043D\u0434\u0435\u0440\u044F\u0442\u0441\u044F \u043A\u0430\u043A \u0444\u043E\u0440\u043C\u0430 (input/select/textarea)",
+    'LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u270F \u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C" \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0430\u0435\u0442 \u043F\u043E\u043B\u044F \u0432 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0439 \u0440\u0435\u0436\u0438\u043C',
+    "LPI: \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u0438 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0451\u043D\u043D\u043E\u0439 SQLite \u0411\u0414",
+    "LPI: \u043F\u0440\u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0438 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u044F\u044E\u0442\u0441\u044F \u0432 YouGile \u0438 \u043E\u0431\u043D\u043E\u0432\u043B\u044F\u044E\u0442\u0441\u044F \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E",
+    "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u043E\u0442\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u0434\u0430\u0442\u044B \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430 (\u0414\u0414.\u041C\u041C.\u0413\u0413\u0413\u0413 \u2192 input[type=date])"
+  ],
   "0.7.0": [
     "LPI: \u0440\u0435\u0444\u0430\u043A\u0442\u043E\u0440\u0438\u043D\u0433 \u2014 \u043C\u043E\u0434\u0443\u043B\u044C \u0440\u0430\u0437\u0431\u0438\u0442 \u043D\u0430 6 \u0444\u0430\u0439\u043B\u043E\u0432 (lpi-view, lpi-sync, lpi-dashboard, lpi-detail, lpi-modals, lpi-utils)",
     "LPI: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u044B \u0444\u0438\u043B\u044C\u0442\u0440\u044B \u043F\u043E \u0434\u0430\u0442\u0435 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0438 \u0441\u0442\u0430\u0442\u0443\u0441\u0443 \u0432 \u0442\u0430\u0431\u043B\u0438\u0446\u0443",
