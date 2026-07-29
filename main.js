@@ -70879,8 +70879,8 @@ var LpiDashboard = class {
     return chart;
   }
   buildStatusSeries(items) {
-    const active = items.filter((i) => isCompleted(i)).length;
-    const completed = items.filter((i) => !isCompleted(i)).length;
+    const active = items.filter((i) => !isCompleted(i)).length;
+    const completed = items.filter((i) => isCompleted(i)).length;
     return {
       chart: { type: "donut" },
       labels: ["\u0410\u043A\u0442\u0438\u0432\u043D\u043E", "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E"],
@@ -72681,6 +72681,9 @@ ${question}
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.7.4": [
+    "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u044B \u043F\u0435\u0440\u0435\u043F\u0443\u0442\u0430\u043D\u043D\u044B\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u044B \u0432 donut-\u0433\u0440\u0430\u0444\u0438\u043A\u0435 \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430"
+  ],
   "0.7.3": [
     "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u0434\u0443\u0431\u043B\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435 \u0444\u0438\u043B\u044C\u0442\u0440\u043E\u0432 \u0432 \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0435 \u2014 container.empty() \u043F\u0435\u0440\u0435\u0434 \u0440\u0435\u043D\u0434\u0435\u0440\u043E\u043C"
   ],

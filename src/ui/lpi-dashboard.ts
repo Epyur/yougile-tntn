@@ -213,8 +213,8 @@ export class LpiDashboard {
   }
 
   private buildStatusSeries(items: LpiItem[]): Record<string, unknown> {
-    const active = items.filter(i => isCompleted(i)).length;
-    const completed = items.filter(i => !isCompleted(i)).length;
+    const active = items.filter(i => !isCompleted(i)).length;
+    const completed = items.filter(i => isCompleted(i)).length;
     return {
       chart: { type: 'donut' },
       labels: ['Активно', 'Завершено'],
