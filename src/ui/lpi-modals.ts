@@ -241,10 +241,10 @@ export class YougileSyncModal extends Modal {
 
       const diffs: { label: string; local: string; yougile: string }[] = [];
       const compareFields: { key: string; label: string }[] = [
-        { key: 'application_status', label: 'Статус заявки' },
         { key: 'protocol_date', label: 'Дата протокола' },
         { key: 'agg_gen_group_complience', label: 'Оценка соответствия' },
         { key: 'agg_gen_group', label: 'Результат испытания' },
+        { key: 'product_name', label: 'Материал' },
       ];
       for (const { key, label } of compareFields) {
         const lv = String((localItem as any)[key] ?? '');
@@ -252,8 +252,8 @@ export class YougileSyncModal extends Modal {
         if (lv !== yv) diffs.push({ label, local: lv || '—', yougile: yv || '—' });
       }
       const lc = isCompleted(localItem) ? 'Завершена' : 'Активна';
-      const yc = task.completed ? 'Завершена' : 'Активна';
-      if (lc !== yc) diffs.push({ label: 'Статус завершения', local: lc, yougile: yc });
+      const yc = isCompleted({ ...localItem, ...desc } as any) ? 'Завершена' : 'Активна';
+      if (lc !== yc) diffs.push({ label: 'Статус', local: lc, yougile: yc });
 
       if (diffs.length > 0) {
         matchingDiffs.push({ item: localItem, task, yougileDesc: desc, diffs });
@@ -398,9 +398,13 @@ export class YougileSyncModal extends Modal {
             }
             if (!md.item.taskId) md.item.taskId = md.task.id;
           } else {
-            for (const key of ['protocol_date', 'agg_gen_group_complience', 'agg_gen_group']) {
+            // Copy all fields from YouGile description to local item
+            for (const key of Object.keys(md.yougileDesc)) {
+              if (key === 'type' || key === 'aggregate_id') continue;
               const yv = md.yougileDesc[key];
-              if (yv !== undefined && yv !== null) (md.item as any)[key] = yv;
+              if (yv !== undefined && yv !== null) {
+                (md.item as any)[key] = yv;
+              }
             }
             if (!md.item.taskId) md.item.taskId = md.task.id;
           }

@@ -70443,10 +70443,10 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
       }
       const diffs = [];
       const compareFields = [
-        { key: "application_status", label: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u044F\u0432\u043A\u0438" },
         { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
         { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
-        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" }
+        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" },
+        { key: "product_name", label: "\u041C\u0430\u0442\u0435\u0440\u0438\u0430\u043B" }
       ];
       for (const { key, label } of compareFields) {
         const lv = String((_a = localItem[key]) != null ? _a : "");
@@ -70454,8 +70454,8 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
         if (lv !== yv) diffs.push({ label, local: lv || "\u2014", yougile: yv || "\u2014" });
       }
       const lc = isCompleted(localItem) ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
-      const yc = task.completed ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
-      if (lc !== yc) diffs.push({ label: "\u0421\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F", local: lc, yougile: yc });
+      const yc = isCompleted({ ...localItem, ...desc }) ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
+      if (lc !== yc) diffs.push({ label: "\u0421\u0442\u0430\u0442\u0443\u0441", local: lc, yougile: yc });
       if (diffs.length > 0) {
         matchingDiffs.push({ item: localItem, task, yougileDesc: desc, diffs });
       }
@@ -70586,9 +70586,12 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
             }
             if (!md.item.taskId) md.item.taskId = md.task.id;
           } else {
-            for (const key of ["protocol_date", "agg_gen_group_complience", "agg_gen_group"]) {
+            for (const key of Object.keys(md.yougileDesc)) {
+              if (key === "type" || key === "aggregate_id") continue;
               const yv = md.yougileDesc[key];
-              if (yv !== void 0 && yv !== null) md.item[key] = yv;
+              if (yv !== void 0 && yv !== null) {
+                md.item[key] = yv;
+              }
             }
             if (!md.item.taskId) md.item.taskId = md.task.id;
           }
@@ -72677,6 +72680,10 @@ ${question}
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.7.2": [
+    "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile \u2014 \u043F\u0440\u0438 \u0432\u044B\u0431\u043E\u0440\u0435 YouGile \u043A\u043E\u043F\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0432\u0441\u0435 \u043F\u043E\u043B\u044F",
+    "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u0441\u0440\u0430\u0432\u043D\u0435\u043D\u0438\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u0430 \u2014 \u0442\u0435\u043F\u0435\u0440\u044C \u043F\u043E protocol_date, \u0430 \u043D\u0435 application_status"
+  ],
   "0.7.1": [
     "LPI: \u0434\u0435\u0442\u0430\u043B\u0438 \u0437\u0430\u044F\u0432\u043A\u0438 \u2014 \u0432\u0441\u0435 \u043F\u043E\u043B\u044F \u0440\u0435\u043D\u0434\u0435\u0440\u044F\u0442\u0441\u044F \u043A\u0430\u043A \u0444\u043E\u0440\u043C\u0430 (input/select/textarea)",
     'LPI: \u043A\u043D\u043E\u043F\u043A\u0430 "\u270F \u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C" \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0430\u0435\u0442 \u043F\u043E\u043B\u044F \u0432 \u0430\u043A\u0442\u0438\u0432\u043D\u044B\u0439 \u0440\u0435\u0436\u0438\u043C',

@@ -20,6 +20,10 @@ import { SyncLogger, SyncLogModal } from './services/sync-logger';
 const PASSWORD_SECRET_ID = 'yougile-password';
 
 const CHANGELOG: Record<string, string[]> = {
+  '0.7.2': [
+    'LPI: исправлена синхронизация YouGile — при выборе YouGile копируются все поля',
+    'LPI: исправлено сравнение статуса — теперь по protocol_date, а не application_status',
+  ],
   '0.7.1': [
     'LPI: детали заявки — все поля рендерятся как форма (input/select/textarea)',
     'LPI: кнопка "✏ Редактировать" переключает поля в активный режим',
