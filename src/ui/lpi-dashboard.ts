@@ -21,6 +21,7 @@ export class LpiDashboard {
 
   render(container: HTMLElement, items: LpiItem[]): void {
     this.destroy();
+    container.empty();
     this.renderFilterRow(container, items);
     const filtered = this.view.applyFilters(items);
     this.renderMetrics(container, filtered);
