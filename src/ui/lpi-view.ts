@@ -142,52 +142,30 @@ export class LpiView extends ItemView {
   }
 
   buildFullJson(item: LpiItem): Record<string, unknown> {
-    return {
+    const result: Record<string, unknown> = {
       type: 'lpi_data',
       aggregate_id: item.aggregate_id,
       application_external_id: item.application_external_id,
       application_created_at: item.application_created_at,
-      product_name: item.product_name,
-      protocol_date: item.protocol_date,
-      agg_gen_group_complience: item.agg_gen_group_complience,
-      customer_name: item.customer_name,
-      customer_mail: item.customer_mail,
-      organization: item.organization,
-      customer_phone: item.customer_phone,
-      customer_address: item.customer_address,
-      ekn: item.ekn,
-      thickness: item.thickness,
-      color: item.color,
-      batch_number: item.batch_number,
-      sample_number: item.sample_number,
-      object_name: item.object_name,
-      standard: item.standard,
-      target_comb_group: item.target_comb_group,
-      target_flam_group: item.target_flam_group,
-      target_prop_group: item.target_prop_group,
-      method_abbreviation: item.method_abbreviation,
-      method_name: item.method_name,
-      method_standard: item.method_standard,
-      agg_avg_smog_temp: item.agg_avg_smog_temp,
-      agg_smog_group: item.agg_smog_group,
-      agg_smog_complience: item.agg_smog_complience,
-      agg_mass_loss: item.agg_mass_loss,
-      agg_comb_time: item.agg_comb_time,
-      agg_dam_length: item.agg_dam_length,
-      agg_comb_bulb: item.agg_comb_bulb,
-      agg_group_by_mass: item.agg_group_by_mass,
-      agg_group_by_length: item.agg_group_by_length,
-      agg_croup_by_comb_time: item.agg_croup_by_comb_time,
-      agg_group_by_bulbe: item.agg_group_by_bulbe,
-      agg_gen_group: item.agg_gen_group,
-      agg_mass_complience: item.agg_mass_complience,
-      agg_complience_by_length: item.agg_complience_by_length,
-      agg_complience_by_comb_time: item.agg_complience_by_comb_time,
-      agg_complience_by_bulbe: item.agg_complience_by_bulbe,
-      agg_additional_info_1: item.agg_additional_info_1,
-      updated_at: item.updatedAt,
-      updated_by: item.updatedBy,
     };
+    const fields: (keyof LpiItem)[] = [
+      'product_name', 'protocol_date', 'agg_gen_group_complience',
+      'customer_name', 'customer_mail', 'organization', 'customer_phone', 'customer_address',
+      'ekn', 'thickness', 'color', 'batch_number', 'sample_number', 'object_name',
+      'standard', 'target_comb_group', 'target_flam_group', 'target_prop_group',
+      'method_abbreviation', 'method_name', 'method_standard',
+      'agg_avg_smog_temp', 'agg_smog_group', 'agg_smog_complience',
+      'agg_mass_loss', 'agg_comb_time', 'agg_dam_length', 'agg_comb_bulb',
+      'agg_group_by_mass', 'agg_group_by_length', 'agg_croup_by_comb_time', 'agg_group_by_bulbe',
+      'agg_gen_group', 'agg_mass_complience', 'agg_complience_by_length',
+      'agg_complience_by_comb_time', 'agg_complience_by_bulbe', 'agg_additional_info_1',
+    ];
+    for (const key of fields) {
+      result[key] = item[key] ?? null;
+    }
+    if (item.updatedAt) result.updated_at = item.updatedAt;
+    if (item.updatedBy) result.updated_by = item.updatedBy;
+    return result;
   }
 
   getLpiColumnId(): string | undefined {

@@ -239,6 +239,11 @@ export class YougileSyncModal extends Modal {
         continue;
       }
 
+      // Link taskId if this local item doesn't have one yet
+      if (!localItem.taskId) {
+        localItem.taskId = task.id;
+      }
+
       const diffs: { label: string; local: string; yougile: string }[] = [];
       const compareFields: { key: string; label: string }[] = [
         { key: 'protocol_date', label: 'Дата протокола' },
@@ -248,8 +253,12 @@ export class YougileSyncModal extends Modal {
       ];
       for (const { key, label } of compareFields) {
         const lv = String((localItem as any)[key] ?? '');
-        const yv = String(desc[key] ?? '');
-        if (lv !== yv) diffs.push({ label, local: lv || '—', yougile: yv || '—' });
+        const rawYv = desc[key];
+        const yv = String(rawYv ?? '');
+        if (lv !== yv) {
+          console.log(`YouGile sync diff: extId=${extId}, field=${key}, local=[${lv}], yougile=[${yv}], local.length=${lv.length}, yougile.length=${yv.length}, raw type=${typeof rawYv}, raw value=${JSON.stringify(rawYv)}`);
+          diffs.push({ label, local: lv || '—', yougile: yv || '—' });
+        }
       }
       const lc = isCompleted(localItem) ? 'Завершена' : 'Активна';
       const yc = isCompleted({ ...localItem, ...desc } as any) ? 'Завершена' : 'Активна';
@@ -398,21 +407,27 @@ export class YougileSyncModal extends Modal {
             }
             if (!md.item.taskId) md.item.taskId = md.task.id;
           } else {
-            // Copy all fields from YouGile description to local item
+            console.log(`YouGile sync apply yougile: extId=${md.item.application_external_id}, before protocol_date=${md.item.protocol_date}, yougile protocol_date=${md.yougileDesc.protocol_date}`);
+            // Copy fields from YouGile description to local item
             for (const key of Object.keys(md.yougileDesc)) {
               if (key === 'type' || key === 'aggregate_id') continue;
               const yv = md.yougileDesc[key];
-              if (yv !== undefined && yv !== null) {
+              if (yv !== undefined) {
                 (md.item as any)[key] = yv;
               }
             }
+            if (md.task.completed && !md.item.protocol_date) {
+              md.item.protocol_date = md.yougileDesc.protocol_date || '';
+            }
             if (!md.item.taskId) md.item.taskId = md.task.id;
+            console.log(`YouGile sync apply yougile: after protocol_date=${md.item.protocol_date}, completed=${md.task.completed}`);
           }
           count++;
         } catch (e: any) {
           new Notice(`Ошибка по №${md.item.application_external_id}: ${e.message}`);
         }
       }
+      console.log(`YouGile sync applied: ${count} items, sample item after: extId=${matchingDiffs[0]?.item.application_external_id}, protocol_date=${matchingDiffs[0]?.item.protocol_date}`);
       await this.view.saveData();
       new Notice(`Применено: ${count} заявок`);
       this.close();

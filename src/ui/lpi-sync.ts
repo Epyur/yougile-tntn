@@ -282,8 +282,8 @@ export class LpiSync {
       for (const cf of compareFields) {
         const lv = String((existing as any)[cf.key] ?? '');
         const rv = String(desc[cf.key] ?? '');
-        if (lv !== rv && rv) {
-          changes.push({ label: cf.label, field: cf.key, local: lv || '—', remote: rv });
+        if (lv !== rv) {
+          changes.push({ label: cf.label, field: cf.key, local: lv || '—', remote: rv || '—' });
         }
       }
 

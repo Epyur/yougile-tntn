@@ -70106,8 +70106,8 @@ var LpiSync = class {
       for (const cf of compareFields) {
         const lv = String((_a = existing[cf.key]) != null ? _a : "");
         const rv = String((_b = desc[cf.key]) != null ? _b : "");
-        if (lv !== rv && rv) {
-          changes.push({ label: cf.label, field: cf.key, local: lv || "\u2014", remote: rv });
+        if (lv !== rv) {
+          changes.push({ label: cf.label, field: cf.key, local: lv || "\u2014", remote: rv || "\u2014" });
         }
       }
       const localCompleted = isCompleted(existing);
@@ -70408,7 +70408,7 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
     this.choices = /* @__PURE__ */ new Map();
   }
   async onOpen() {
-    var _a, _b;
+    var _a;
     const { contentEl } = this;
     contentEl.addClass("mailer-yougile-container");
     contentEl.createEl("h2", { text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile" });
@@ -70441,6 +70441,9 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
         imported.push({ task, desc });
         continue;
       }
+      if (!localItem.taskId) {
+        localItem.taskId = task.id;
+      }
       const diffs = [];
       const compareFields = [
         { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
@@ -70450,8 +70453,12 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
       ];
       for (const { key, label } of compareFields) {
         const lv = String((_a = localItem[key]) != null ? _a : "");
-        const yv = String((_b = desc[key]) != null ? _b : "");
-        if (lv !== yv) diffs.push({ label, local: lv || "\u2014", yougile: yv || "\u2014" });
+        const rawYv = desc[key];
+        const yv = String(rawYv != null ? rawYv : "");
+        if (lv !== yv) {
+          console.log(`YouGile sync diff: extId=${extId}, field=${key}, local=[${lv}], yougile=[${yv}], local.length=${lv.length}, yougile.length=${yv.length}, raw type=${typeof rawYv}, raw value=${JSON.stringify(rawYv)}`);
+          diffs.push({ label, local: lv || "\u2014", yougile: yv || "\u2014" });
+        }
       }
       const lc = isCompleted(localItem) ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
       const yc = isCompleted({ ...localItem, ...desc }) ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
@@ -70571,6 +70578,7 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
       cls: "mailer-yougile-refresh-btn"
     });
     applyAllBtn.addEventListener("click", async () => {
+      var _a2, _b;
       applyAllBtn.disabled = true;
       applyAllBtn.setText("\u23F3 \u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u0435...");
       let count = 0;
@@ -70586,20 +70594,26 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
             }
             if (!md.item.taskId) md.item.taskId = md.task.id;
           } else {
+            console.log(`YouGile sync apply yougile: extId=${md.item.application_external_id}, before protocol_date=${md.item.protocol_date}, yougile protocol_date=${md.yougileDesc.protocol_date}`);
             for (const key of Object.keys(md.yougileDesc)) {
               if (key === "type" || key === "aggregate_id") continue;
               const yv = md.yougileDesc[key];
-              if (yv !== void 0 && yv !== null) {
+              if (yv !== void 0) {
                 md.item[key] = yv;
               }
             }
+            if (md.task.completed && !md.item.protocol_date) {
+              md.item.protocol_date = md.yougileDesc.protocol_date || "";
+            }
             if (!md.item.taskId) md.item.taskId = md.task.id;
+            console.log(`YouGile sync apply yougile: after protocol_date=${md.item.protocol_date}, completed=${md.task.completed}`);
           }
           count++;
         } catch (e) {
           new import_obsidian14.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E \u2116${md.item.application_external_id}: ${e.message}`);
         }
       }
+      console.log(`YouGile sync applied: ${count} items, sample item after: extId=${(_a2 = matchingDiffs[0]) == null ? void 0 : _a2.item.application_external_id}, protocol_date=${(_b = matchingDiffs[0]) == null ? void 0 : _b.item.protocol_date}`);
       await this.view.saveData();
       new import_obsidian14.Notice(`\u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u043E: ${count} \u0437\u0430\u044F\u0432\u043E\u043A`);
       this.close();
@@ -71494,52 +71508,59 @@ var LpiView = class extends import_obsidian16.ItemView {
     return filtered;
   }
   buildFullJson(item) {
-    return {
+    var _a;
+    const result = {
       type: "lpi_data",
       aggregate_id: item.aggregate_id,
       application_external_id: item.application_external_id,
-      application_created_at: item.application_created_at,
-      product_name: item.product_name,
-      protocol_date: item.protocol_date,
-      agg_gen_group_complience: item.agg_gen_group_complience,
-      customer_name: item.customer_name,
-      customer_mail: item.customer_mail,
-      organization: item.organization,
-      customer_phone: item.customer_phone,
-      customer_address: item.customer_address,
-      ekn: item.ekn,
-      thickness: item.thickness,
-      color: item.color,
-      batch_number: item.batch_number,
-      sample_number: item.sample_number,
-      object_name: item.object_name,
-      standard: item.standard,
-      target_comb_group: item.target_comb_group,
-      target_flam_group: item.target_flam_group,
-      target_prop_group: item.target_prop_group,
-      method_abbreviation: item.method_abbreviation,
-      method_name: item.method_name,
-      method_standard: item.method_standard,
-      agg_avg_smog_temp: item.agg_avg_smog_temp,
-      agg_smog_group: item.agg_smog_group,
-      agg_smog_complience: item.agg_smog_complience,
-      agg_mass_loss: item.agg_mass_loss,
-      agg_comb_time: item.agg_comb_time,
-      agg_dam_length: item.agg_dam_length,
-      agg_comb_bulb: item.agg_comb_bulb,
-      agg_group_by_mass: item.agg_group_by_mass,
-      agg_group_by_length: item.agg_group_by_length,
-      agg_croup_by_comb_time: item.agg_croup_by_comb_time,
-      agg_group_by_bulbe: item.agg_group_by_bulbe,
-      agg_gen_group: item.agg_gen_group,
-      agg_mass_complience: item.agg_mass_complience,
-      agg_complience_by_length: item.agg_complience_by_length,
-      agg_complience_by_comb_time: item.agg_complience_by_comb_time,
-      agg_complience_by_bulbe: item.agg_complience_by_bulbe,
-      agg_additional_info_1: item.agg_additional_info_1,
-      updated_at: item.updatedAt,
-      updated_by: item.updatedBy
+      application_created_at: item.application_created_at
     };
+    const fields = [
+      "product_name",
+      "protocol_date",
+      "agg_gen_group_complience",
+      "customer_name",
+      "customer_mail",
+      "organization",
+      "customer_phone",
+      "customer_address",
+      "ekn",
+      "thickness",
+      "color",
+      "batch_number",
+      "sample_number",
+      "object_name",
+      "standard",
+      "target_comb_group",
+      "target_flam_group",
+      "target_prop_group",
+      "method_abbreviation",
+      "method_name",
+      "method_standard",
+      "agg_avg_smog_temp",
+      "agg_smog_group",
+      "agg_smog_complience",
+      "agg_mass_loss",
+      "agg_comb_time",
+      "agg_dam_length",
+      "agg_comb_bulb",
+      "agg_group_by_mass",
+      "agg_group_by_length",
+      "agg_croup_by_comb_time",
+      "agg_group_by_bulbe",
+      "agg_gen_group",
+      "agg_mass_complience",
+      "agg_complience_by_length",
+      "agg_complience_by_comb_time",
+      "agg_complience_by_bulbe",
+      "agg_additional_info_1"
+    ];
+    for (const key of fields) {
+      result[key] = (_a = item[key]) != null ? _a : null;
+    }
+    if (item.updatedAt) result.updated_at = item.updatedAt;
+    if (item.updatedBy) result.updated_by = item.updatedBy;
+    return result;
   }
   getLpiColumnId() {
     const cols = this.plugin.db.getColumns();
@@ -72682,6 +72703,10 @@ ${question}
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.7.6": [
+    "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile \u2192 \u043B\u043E\u043A\u0430\u043B\u044C \u2014 null \u0438\u0437 YouGile \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435",
+    "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u043F\u0440\u043E\u043F\u0443\u0441\u043A \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439 \u043F\u0440\u0438 \u043F\u0443\u0441\u0442\u044B\u0445 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F\u0445 \u0432 YouGile (\u0443\u0431\u0440\u0430\u043D\u043E \u0443\u0441\u043B\u043E\u0432\u0438\u0435 && rv)"
+  ],
   "0.7.5": [
     "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u0438\u0441\u0447\u0435\u0437\u043D\u043E\u0432\u0435\u043D\u0438\u0435 \u043C\u0435\u043D\u044E \u043F\u0440\u0438 \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u0435 \u043D\u0430 \u0434\u0430\u0448\u0431\u043E\u0440\u0434 \u2014 \u0434\u043E\u0447\u0435\u0440\u043D\u0438\u0439 \u043A\u043E\u043D\u0442\u0435\u0439\u043D\u0435\u0440 \u0432\u043C\u0435\u0441\u0442\u043E \u043A\u043E\u0440\u043D\u0435\u0432\u043E\u0433\u043E"
   ],

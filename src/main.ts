@@ -20,6 +20,10 @@ import { SyncLogger, SyncLogModal } from './services/sync-logger';
 const PASSWORD_SECRET_ID = 'yougile-password';
 
 const CHANGELOG: Record<string, string[]> = {
+  '0.7.6': [
+    'LPI: исправлена синхронизация YouGile → локаль — null из YouGile перезаписывает локальное значение',
+    'LPI: исправлен пропуск изменений при пустых значениях в YouGile (убрано условие && rv)',
+  ],
   '0.7.5': [
     'LPI: исправлено исчезновение меню при переходе на дашборд — дочерний контейнер вместо корневого',
   ],
