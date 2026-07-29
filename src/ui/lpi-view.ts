@@ -297,7 +297,8 @@ export class LpiView extends ItemView {
     });
 
     if (this.mode === 'dashboard') {
-      this.dashboard.render(container, this.items);
+      const dashContainer = container.createDiv();
+      this.dashboard.render(dashContainer, this.items);
     } else {
       this.renderTable(container);
     }

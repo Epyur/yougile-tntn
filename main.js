@@ -71645,7 +71645,8 @@ var LpiView = class extends import_obsidian16.ItemView {
       new LpiSchemaModal(this.app, this.schemaService, dbPath).open();
     });
     if (this.mode === "dashboard") {
-      this.dashboard.render(container, this.items);
+      const dashContainer = container.createDiv();
+      this.dashboard.render(dashContainer, this.items);
     } else {
       this.renderTable(container);
     }
@@ -72681,6 +72682,9 @@ ${question}
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.7.5": [
+    "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E \u0438\u0441\u0447\u0435\u0437\u043D\u043E\u0432\u0435\u043D\u0438\u0435 \u043C\u0435\u043D\u044E \u043F\u0440\u0438 \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u0435 \u043D\u0430 \u0434\u0430\u0448\u0431\u043E\u0440\u0434 \u2014 \u0434\u043E\u0447\u0435\u0440\u043D\u0438\u0439 \u043A\u043E\u043D\u0442\u0435\u0439\u043D\u0435\u0440 \u0432\u043C\u0435\u0441\u0442\u043E \u043A\u043E\u0440\u043D\u0435\u0432\u043E\u0433\u043E"
+  ],
   "0.7.4": [
     "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u044B \u043F\u0435\u0440\u0435\u043F\u0443\u0442\u0430\u043D\u043D\u044B\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u044B \u0432 donut-\u0433\u0440\u0430\u0444\u0438\u043A\u0435 \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430"
   ],
