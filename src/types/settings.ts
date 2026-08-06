@@ -32,6 +32,8 @@ export interface YouGileSettings {
   moduleDashboardEnabled: boolean;
   moduleContactsEnabled: boolean;
   moduleLpiEnabled: boolean;
+  modulePresentationsEnabled: boolean;
+  presentationDefaultTemplate: string;
   lpiDbPath: string;
   lpiProjectId: string;
   lpiBoardId: string;
@@ -75,6 +77,8 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   contactSelectedColumnIds: '',
   shownVersion: '',
   moduleLpiEnabled: false,
+  modulePresentationsEnabled: true,
+  presentationDefaultTemplate: 'technonicol',
   lpiDbPath: 'C:/Users/adm/Downloads/Новая папка/lims/lims.db',
   lpiProjectId: 'Лаборатория пожарных испытаний',
   lpiBoardId: 'Заявки',

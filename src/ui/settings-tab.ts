@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting, Notice, SecretComponent, App, SuggestModal, TFile } from 'obsidian';
+import { PluginSettingTab, Setting, Notice, App, SuggestModal, TFile } from 'obsidian';
 import type YouGilePlugin from '../main';
 
 class DocxTemplateSuggestModal extends SuggestModal<TFile> {
@@ -69,11 +69,15 @@ export class YouGileSettingTab extends PluginSettingTab {
       const passwordSetting = new Setting(body)
         .setName('Пароль')
         .setDesc('Пароль от аккаунта YouGile (хранится защищённо)');
-      new SecretComponent(this.app, passwordSetting.controlEl)
-        .onChange((value) => {
-          this.plugin.savePassword(value);
-          this.tryAutoAuth();
-        });
+      passwordSetting.addText(text => {
+        text.inputEl.type = 'password';
+        text.setPlaceholder('••••••••')
+          .onChange((value) => {
+            this.plugin.savePassword(value);
+            this.tryAutoAuth();
+          });
+        return text;
+      });
 
       new Setting(body)
         .setName('Получить API Key')
@@ -190,13 +194,21 @@ export class YouGileSettingTab extends PluginSettingTab {
       const llmKeySetting = new Setting(body)
         .setName('API ключ')
         .setDesc('API ключ для OpenAI-совместимого API');
-      new SecretComponent(this.app, llmKeySetting.controlEl)
-        .onChange((value) => {
-          const secretName = `yougile-llm-${Date.now()}`;
-          this.plugin.saveSecret(secretName, value);
-          this.plugin.settings.llmApiKeySecret = secretName;
-          this.plugin.saveSettings();
-        });
+      llmKeySetting.addText(text => {
+        text.inputEl.type = 'password';
+        text.setPlaceholder('sk-...');
+        text
+          .setValue(this.plugin.getSecretValue(this.plugin.settings.llmApiKeySecret) ?? '')
+          .onChange((value) => {
+            // Стабильный ID: перезаписываем один и тот же секрет, а не плодим yougile-llm-<ts> каждый раз.
+            const secretName = 'yougile-llm';
+            this.plugin.saveSecret(secretName, value);
+            this.plugin.settings.llmApiKeySecret = secretName;
+            this.plugin.saveSettings();
+            console.log('[YouGile LLM] сохранён ключ (длина ' + value.length + ').'); // DEBUG-отладка
+          });
+        return text;
+      });
 
       new Setting(body)
         .setName('URL API')
@@ -312,7 +324,6 @@ export class YouGileSettingTab extends PluginSettingTab {
           .onClick(() => {
             this.plugin.activateLpiView();
           }));
-
       const projectSetting = new Setting(body).setName('Проект').setDesc('Проект для заявок ЛПИ');
       const projectSelect = projectSetting.descEl.parentElement!.createEl('select');
       projectSelect.addClass('dropdown');
@@ -405,6 +416,31 @@ export class YouGileSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }));
     }, true);
+
+    // ===== Block 8: Презентации =====
+    this.renderCollapsibleBlock(containerEl, 'Презентации', true, true, (body) => {
+      new Setting(body)
+        .setName('Презентации')
+        .setDesc('Создание HTML-презентаций из анкеты через LLM, загрузка изображений, экспорт в PDF через печать Chromium.')
+        .addButton(btn => btn
+          .setButtonText('Открыть')
+          .onClick(() => {
+            this.plugin.activatePresentationsView();
+          }));
+
+      new Setting(body)
+        .setName('Шаблон по умолчанию')
+        .setDesc('Шаблон оформления, выбираемый по умолчанию в анкете')
+        .addDropdown(drop => {
+          const templates = this.plugin.presentationTemplates.getAllTemplates();
+          for (const t of templates) drop.addOption(t.id, t.name);
+          drop.setValue(this.plugin.settings.presentationDefaultTemplate || 'technonicol');
+          drop.onChange(async (value) => {
+            this.plugin.settings.presentationDefaultTemplate = value;
+            await this.plugin.saveSettings();
+          });
+        });
+    }, false);
   }
 
   private renderCollapsibleBlock(
@@ -508,6 +544,7 @@ export class YouGileSettingTab extends PluginSettingTab {
       'Управление контактами': 'moduleContactsEnabled',
       'Модуль дашборда': 'moduleDashboardEnabled',
       'Лаборатория пожарных испытаний': 'moduleLpiEnabled',
+      'Презентации': 'modulePresentationsEnabled',
     };
     return map[blockTitle] || '';
   }

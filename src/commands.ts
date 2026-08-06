@@ -8,6 +8,7 @@ import { DASHBOARD_VIEW_TYPE } from './ui/dashboard-view';
 import { SUGGESTIONS_VIEW_TYPE, SuggestionsView } from './ui/suggestions-view';
 import { CONTACTS_VIEW_TYPE } from './ui/contacts-view';
 import { LPI_VIEW_TYPE } from './ui/lpi-view';
+import { PRESENTATIONS_VIEW_TYPE } from './ui/presentations-view';
 import { SyncLogModal } from './services/sync-logger';
 
 export function registerCommands(plugin: YouGilePlugin): void {
@@ -116,6 +117,16 @@ export function registerCommands(plugin: YouGilePlugin): void {
       if (!plugin.settings.moduleLpiEnabled) return false;
       if (checking) return true;
       plugin.activateLpiView();
+    },
+  });
+
+  plugin.addCommand({
+    id: 'open-presentations',
+    name: 'Открыть презентации',
+    checkCallback: (checking: boolean) => {
+      if (!plugin.settings.modulePresentationsEnabled) return false;
+      if (checking) return true;
+      plugin.activatePresentationsView();
     },
   });
 

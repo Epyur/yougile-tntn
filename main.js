@@ -6636,17 +6636,587 @@ var require_sql_wasm_browser = __commonJS({
   }
 });
 
+// src/services/presentation-generator.ts
+var presentation_generator_exports = {};
+__export(presentation_generator_exports, {
+  PRESENTATION_PICS_DIR: () => PRESENTATION_PICS_DIR,
+  PRESENTATION_RENDER_VERSION: () => PRESENTATION_RENDER_VERSION,
+  getVaultResourceUrl: () => getVaultResourceUrl,
+  normalizeIllustrationPath: () => normalizeIllustrationPath,
+  renderPresentationHtml: () => renderPresentationHtml,
+  resizeImageToDataUri: () => resizeImageToDataUri,
+  resolveIllustration: () => resolveIllustration,
+  resolveImageDataUri: () => resolveImageDataUri,
+  saveImageToVault: () => saveImageToVault
+});
+function escapeHtml(s) {
+  return String(s != null ? s : "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function upper(s, uppercase) {
+  return uppercase ? String(s != null ? s : "").toUpperCase() : String(s != null ? s : "");
+}
+function posUnit(v, axis) {
+  return typeof v === "number" ? `${v}${axis === "x" ? "cqw" : "cqh"}` : v;
+}
+function posCss(pos, defaults) {
+  const map = new Map(defaults);
+  if (pos == null ? void 0 : pos.align) {
+    const a = pos.align;
+    map.delete("left");
+    map.delete("top");
+    map.delete("right");
+    map.delete("bottom");
+    map.delete("transform");
+    const vertical = a.includes("top") ? "top" : a.includes("bottom") ? "bottom" : "mid";
+    const horizontal = a.includes("left") ? "left" : a.includes("right") ? "right" : "mid";
+    if (vertical === "top") map.set("top", "3.9cqh");
+    else if (vertical === "bottom") map.set("bottom", "3.9cqh");
+    else {
+      map.set("top", "50%");
+      map.set("transform", "translateY(-50%)");
+    }
+    if (horizontal === "left") map.set("left", "4.45cqw");
+    else if (horizontal === "right") map.set("right", "4.45cqw");
+    else {
+      map.set("left", "4.45cqw");
+      map.set("right", "4.45cqw");
+      map.set("text-align", "center");
+    }
+  }
+  if (pos) {
+    if (pos.left !== void 0) map.set("left", posUnit(pos.left, "x"));
+    if (pos.right !== void 0) map.set("right", posUnit(pos.right, "x"));
+    if (pos.top !== void 0) {
+      map.set("top", posUnit(pos.top, "y"));
+      map.delete("transform");
+    }
+    if (pos.bottom !== void 0) {
+      map.set("bottom", posUnit(pos.bottom, "y"));
+      map.delete("transform");
+    }
+  }
+  const parts = [];
+  for (const [k, v] of map) parts.push(`${k}:${v}`);
+  return parts.join(";");
+}
+function bgImageStyle(uri) {
+  return uri ? `background-image:url('${uri}');` : "";
+}
+function normalizeIllustrationPath(p) {
+  return String(p != null ? p : "").trim().toLowerCase().replace(/\\/g, "/").replace(/\s+/g, " ").replace(/^\.?\//, "");
+}
+function resolveIllustration(imagePath, illustrations) {
+  if (!imagePath) return void 0;
+  if (illustrations[imagePath]) return illustrations[imagePath];
+  const norm = normalizeIllustrationPath(imagePath);
+  if (!norm) return void 0;
+  for (const [key, uri] of Object.entries(illustrations)) {
+    if (normalizeIllustrationPath(key) === norm) return uri;
+  }
+  const base = norm.split("/").pop() || norm;
+  const stem = base.replace(/\.[a-z0-9]+$/, "");
+  if (stem && stem !== base) {
+    for (const [key, uri] of Object.entries(illustrations)) {
+      const kBase = normalizeIllustrationPath(key).split("/").pop() || "";
+      if (kBase === base || kBase.replace(/\.[a-z0-9]+$/, "") === stem) return uri;
+    }
+  }
+  return void 0;
+}
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 32768;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+function resizeImageToBlob(file, maxDim = 1920, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+          else reject(new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u0436\u0430\u0442\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435"));
+        }, "image/jpeg", quality);
+      };
+      img.onerror = () => reject(new Error("\u041D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E\u0435 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435"));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u044C \u0444\u0430\u0439\u043B"));
+    reader.readAsDataURL(file);
+  });
+}
+async function resizeImageToDataUri(file, maxDim = 1920, quality = 0.82) {
+  const blob = await resizeImageToBlob(file, maxDim, quality);
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435"));
+    reader.readAsDataURL(blob);
+  });
+}
+async function saveImageToVault(app, file, dirPath = PRESENTATION_PICS_DIR, maxDim = 1920, quality = 0.82) {
+  const blob = await resizeImageToBlob(file, maxDim, quality);
+  const arrayBuffer = await blob.arrayBuffer();
+  const base = file.name.replace(/[^A-Za-z0-9а-яА-ЯёЁ.\-_ ]/g, "_").trim().replace(/\s+/g, "_") || "image";
+  const stem = base.lastIndexOf(".") > 0 ? base.slice(0, base.lastIndexOf(".")) : base;
+  const adapter = app.vault.adapter;
+  if (!await adapter.exists(dirPath)) {
+    await adapter.mkdir(dirPath);
+  }
+  let candidate = `${dirPath}/${stem}.jpg`;
+  let n = 2;
+  while (await adapter.exists(candidate)) {
+    candidate = `${dirPath}/${stem}-${n}.jpg`;
+    n++;
+  }
+  await app.vault.createBinary(candidate, arrayBuffer);
+  return candidate;
+}
+function getVaultResourceUrl(app, ref) {
+  if (!ref || ref.startsWith("data:")) return ref;
+  try {
+    const file = app.vault.getAbstractFileByPath(ref);
+    if (file instanceof import_obsidian17.TFile) {
+      return app.vault.getResourcePath(file);
+    }
+  } catch (e) {
+  }
+  return ref;
+}
+async function resolveImageDataUri(app, ref) {
+  if (!ref) return "";
+  if (ref.startsWith("data:")) return ref;
+  try {
+    const file = app.vault.getAbstractFileByPath(ref);
+    if (!(file instanceof import_obsidian17.TFile)) return "";
+    const data = await app.vault.readBinary(file);
+    const ext = file.extension.toLowerCase();
+    const mime = ext === "jpg" ? "image/jpeg" : ext === "svg" ? "image/svg+xml" : `image/${ext}`;
+    return `data:${mime};base64,${arrayBufferToBase64(data)}`;
+  } catch (e) {
+    return "";
+  }
+}
+function buildCss(tpl) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa;
+  const c = tpl.colors;
+  const f = tpl.fonts;
+  const l = tpl.layouts;
+  const title = (_a = l.title) != null ? _a : {};
+  const titleSize = (_c = (_b = title.titleSize) != null ? _b : f.titleSize) != null ? _c : 3.4;
+  const headerSize = (_d = f.titleSize) != null ? _d : 2.7;
+  const bodySize = (_e = f.bodySize) != null ? _e : 1.05;
+  const cqw = (px) => `${(px / 12.8).toFixed(3)}cqw`;
+  const cqh = (px) => `${(px / 7.2).toFixed(3)}cqh`;
+  const up = f.uppercase ? "text-transform:uppercase;" : "";
+  const cards = (_f = l.cards) != null ? _f : {};
+  const table = (_g = l.table) != null ? _g : {};
+  const photo = (_h = l.photo) != null ? _h : {};
+  const section = (_i = l.section) != null ? _i : {};
+  const content = (_j = l.content) != null ? _j : {};
+  const bullets = (_k = l.bullets) != null ? _k : {};
+  const final = (_l = l.final) != null ? _l : {};
+  return `
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:#fff; }
+  body { font-family:"${f.body}", Arial, sans-serif; color:${c.dark}; }
+  .toolbar { position:fixed; top:10px; right:12px; z-index:1000; display:flex; gap:8px; align-items:center; }
+  .toolbar button {
+    font-family:Arial, sans-serif; font-size:12px; cursor:pointer; border:1px solid ${c.border};
+    background:${c.white}; color:${c.dark}; border-radius:4px; padding:4px 10px;
+  }
+  .toolbar button:hover { background:${c.light}; }
+  .deck { max-width:1280px; margin:0 auto; padding:16px 0; }
+  .slide {
+    width:100%; aspect-ratio:16/9; container-type:size; position:relative; overflow:hidden;
+    background:${(_m = c.bg) != null ? _m : "#fff"}; margin-bottom:16px;
+  }
+  .slide:last-child { margin-bottom:0; }
+  .deck.mode-slides { position:fixed; inset:0; max-width:none; margin:0; padding:0; z-index:999;
+    background:#000; display:flex; align-items:center; justify-content:center; }
+  .deck.mode-slides .slide {
+    display:none; margin:0; aspect-ratio:auto;
+    width:min(100vw, calc(100vh * 16 / 9));
+    height:min(100vh, calc(100vw * 9 / 16));
+  }
+  .deck.mode-slides .slide.current { display:block; }
+  .foot {
+    position:absolute; right:4.45cqw; bottom:3.9cqh; font-size:${cqw(13)};
+    font-family:"${f.body}", Arial, sans-serif; color:${c.gray}; white-space:nowrap;
+  }
+  .foot .mark { display:none; }
+  .s-final .foot { color:rgba(255,255,255,.75); }
+  .s-photo .foot, .s-title .foot { color:rgba(255,255,255,.8); }
+
+  /* ---------- Title ---------- */
+  .s-title { background-color:${(_n = title.bg) != null ? _n : c.dark}; }
+  .s-title .t-img { position:absolute; inset:0; background-size:cover; background-position:center; }
+  .s-title .t-overlay { position:absolute; inset:0; }
+  .s-title .t-brand {
+    position:absolute; ${posCss((_o = title.pos) == null ? void 0 : _o.brand, [["right", "4.45cqw"], ["top", "3.9cqh"]])}; font-family:"${f.title}", Arial Black, sans-serif;
+    color:${(_p = title.brandColor) != null ? _p : c.white}; letter-spacing:.18em; font-size:${cqw(16)}; ${up}
+  }
+  .s-title .t-slogan {
+    position:absolute; ${posCss((_q = title.pos) == null ? void 0 : _q.slogan, [["left", "4.45cqw"], ["top", "3.9cqh"]])}; color:${(_r = title.sloganColor) != null ? _r : c.white};
+    font-size:${cqw(15)}; letter-spacing:.06em; ${up}
+  }
+  .s-title .t-kicker {
+    position:absolute; ${posCss((_s = title.pos) == null ? void 0 : _s.kicker, [["left", "4.45cqw"], ["top", "17cqh"]])}; color:${(_t = title.kickerColor) != null ? _t : c.accent};
+    font-size:1.172cqw; font-weight:bold; letter-spacing:.08em; ${up}
+  }
+  .s-title .t-title {
+    position:absolute; ${posCss((_u = title.pos) == null ? void 0 : _u.title, [["left", "4.45cqw"], ["top", "30cqh"], ["right", "4.45cqw"]])}; font-family:"${f.title}", Arial Black, sans-serif;
+    color:${(_v = title.titleColor) != null ? _v : c.white}; font-size:${titleSize}cqw; line-height:1.16; ${up}
+  }
+  .s-title .t-line { position:absolute; ${posCss((_w = title.pos) == null ? void 0 : _w.line, [["left", "4.55cqw"], ["top", "66cqh"]])}; width:7cqw; height:0.4cqh; background:${c.accent}; }
+  .s-title .t-speaker {
+    position:absolute; ${posCss((_x = title.pos) == null ? void 0 : _x.speaker, [["left", "4.45cqw"], ["top", "70cqh"], ["right", "4.45cqw"]])}; color:${(_y = title.speakerColor) != null ? _y : c.white};
+    font-size:${cqw(14)}; line-height:1.3;
+  }
+
+  /* ---------- Section / \u0448\u043C\u0443\u0446\u0442\u0438\u0442\u0443\u043B ---------- */
+  .s-section { background:${(_A = (_z = section.bg) != null ? _z : c.bg) != null ? _A : "#fff"}; }
+  .s-section .sec-body { position:absolute; inset:0; display:grid; grid-template-columns:1fr 1fr; }
+  .s-section .sec-img {
+    background-size:cover; background-position:center; background-color:${c.light};
+    border-right:1px solid ${c.border};
+  }
+  .s-section .sec-txt { display:flex; flex-direction:column; justify-content:center; padding:0 4.45cqw; }
+  .s-section .h1 {
+    font-family:"${f.title}", Arial Black, sans-serif; color:${(_B = section.accentColor) != null ? _B : c.accent};
+    font-size:${headerSize}cqw; line-height:1.15; ${up} margin-bottom:2cqh;
+  }
+  .s-section .sub { color:${(_C = section.textColor) != null ? _C : c.dark}; font-size:${cqw(14)}; line-height:1.35; }
+
+  /* ---------- Content (bullets / cards / table) ---------- */
+  .s-content { background:${(_E = (_D = content.bg) != null ? _D : c.bg) != null ? _E : "#fff"}; }
+  .s-content .hd {
+    position:absolute; left:4.45cqw; top:4.45cqw; right:4.45cqw;
+    font-family:"${f.title}", Arial Black, sans-serif; font-size:${headerSize}cqw; line-height:1.2; ${up}
+  }
+  .s-content .hd .l1 { color:${(_F = content.accentColor) != null ? _F : c.accent}; }
+  .s-content .hd .l2 { color:${(_G = content.textColor) != null ? _G : c.dark}; }
+  .s-content .body-bullets { position:absolute; left:4.45cqw; top:24cqh; right:4.45cqw; }
+  .s-content .bullet { display:flex; gap:1.2cqw; margin-bottom:2.2cqh; align-items:flex-start; }
+  .s-content .bullet .mark {
+    width:1.4cqw; height:1.4cqw; flex:0 0 auto; background:${(_H = bullets.marker) != null ? _H : c.accent};
+    margin-top:0.45cqh; border-radius:50%;
+  }
+  .s-content .bullet .bt { color:${(_I = bullets.textColor) != null ? _I : c.dark}; font-size:${cqw(bodySize * 15)}; line-height:1.25; }
+  .s-content .cards-grid { position:absolute; left:4.45cqw; top:24cqh; right:4.45cqw; bottom:10cqh;
+    display:grid; grid-template-columns:repeat(${(_J = cards.columns) != null ? _J : 2},1fr);
+    grid-template-rows:repeat(${(_K = cards.rows) != null ? _K : 2},1fr); gap:${((_L = cards.gap) != null ? _L : 0.35) * 12.8}cqw; }  .s-content .card {
+    background:${(_M = cards.cardBg) != null ? _M : c.light}; border:1px solid ${c.border}; padding:1.8cqw;
+    border-top:0.45cqh solid ${(_N = cards.cardAccent) != null ? _N : c.accent}; overflow:hidden;
+  }
+  .s-content .card .card-t {
+    font-family:"${f.title}", Arial Black, sans-serif; color:${(_O = cards.cardAccent) != null ? _O : c.accent};
+    font-size:${cqw(16)}; margin-bottom:1cqh; ${up}
+  }
+  .s-content .card .card-b { color:${(_P = cards.textColor) != null ? _P : c.dark}; font-size:${cqw(12)}; line-height:1.3; }
+  .s-content table { border-collapse:collapse; width:100%; }
+  .s-content .tbl-wrap { position:absolute; left:4.45cqw; top:24cqh; right:4.45cqw; }
+  .s-content th {
+    background:${(_Q = table.headerFill) != null ? _Q : c.dark}; color:${(_R = table.headerText) != null ? _R : c.white};
+    font-family:"${f.title}", Arial Black, sans-serif; font-size:${cqw(12)}; text-align:left;
+    padding:0.8cqw 0.9cqw;
+  }
+  .s-content td { padding:0.8cqw 0.9cqw; font-size:${cqw(12)}; color:${(_S = table.textColor) != null ? _S : c.dark}; }
+  .s-content tr:nth-child(odd) td { background:${(_T = table.altRowFill) != null ? _T : c.light}; }
+  .s-content td.hl {
+    color:${c.accent}; font-family:"${f.title}", Arial Black, sans-serif; font-weight:bold;
+  }
+
+  /* ---------- \u0418\u043B\u043B\u044E\u0441\u0442\u0440\u0430\u0446\u0438\u044F \u0441\u043F\u0440\u0430\u0432\u0430 \u043E\u0442 \u0442\u0435\u043A\u0441\u0442\u0430 ---------- */
+  .s-content .ill {
+    position:absolute; right:4.45cqw; top:24cqh; bottom:10cqh; width:42cqw;
+    border-radius:4px; overflow:hidden; border:1px solid ${c.border};
+  }
+  .s-content .ill img { width:100%; height:100%; object-fit:cover; display:block; }
+  .s-content.has-ill .body-bullets { right:48.5cqw; }
+  .s-content.has-ill .tbl-wrap { right:48.5cqw; }
+  .s-content.has-ill .cards-grid { right:48.5cqw; }
+
+  /* ---------- Photo ---------- */
+  .s-photo { background-color:${(_U = photo.bg) != null ? _U : c.dark}; background-size:cover; background-position:center; }
+  .s-photo .p-overlay { position:absolute; inset:0; background:${(_V = photo.overlay) != null ? _V : "rgba(16,20,30,.6)"}; }
+  .s-photo .p-content { position:absolute; inset:0; z-index:1; }
+  .s-photo .p-hd {
+    position:absolute; left:4.45cqw; top:4.45cqw; right:4.45cqw;
+    font-family:"${f.title}", Arial Black, sans-serif; font-size:${headerSize}cqw; line-height:1.2; ${up}
+  }
+  .s-photo .p-hd .l1 { color:${(_X = (_W = photo.accentColor) != null ? _W : c.accentLight) != null ? _X : "#ff4b55"}; }
+  .s-photo .p-hd .l2 { color:${(_Y = photo.textColor) != null ? _Y : c.white}; }
+  .s-photo .p-body { position:absolute; left:4.45cqw; top:26cqh; right:4.45cqw; }
+  .s-photo .bullet { display:flex; gap:1.2cqw; margin-bottom:2.2cqh; align-items:flex-start; }
+  .s-photo .bullet .mark { width:1.4cqw; height:1.4cqw; flex:0 0 auto; background:${c.accent};
+    margin-top:0.45cqh; border-radius:50%; }
+  .s-photo .bullet .bt { color:${(_Z = photo.textColor) != null ? _Z : c.white}; font-size:${cqw(bodySize * 15)}; line-height:1.25; }
+
+  /* ---------- Final ---------- */
+  .s-final { background:${(__ = final.bg) != null ? __ : c.dark}; position:relative; text-align:center; }
+  ${(() => {
+    var _a2;
+    const blockPos = (_a2 = final.pos) == null ? void 0 : _a2.block;
+    const blockCss = blockPos ? posCss(blockPos, [["left", "4.45cqw"], ["right", "4.45cqw"], ["top", "50%"]]) : "left:4.45cqw;right:4.45cqw;top:50%;transform:translateY(-50%);";
+    return `.fin-block { position:absolute; display:flex; flex-direction:column; align-items:center; ${blockCss} }`;
+  })()}
+  .s-final .fin-center {
+    font-family:"${f.title}", Arial Black, sans-serif; color:${(_$ = final.centerText) != null ? _$ : c.white};
+    font-size:${headerSize + 1}cqw; ${up} letter-spacing:.04em;
+  }
+  .s-final .fin-line { width:7cqw; height:0.4cqh; background:${c.accent}; margin:3cqh auto; }
+  .s-final .fin-speaker { color:rgba(255,255,255,.85); font-size:${cqw(14)}; }
+  .s-final .fin-qr { margin-top:2.5cqh; }
+  .s-final .fin-qr img { width:${cqw(150)}; height:${cqw(150)}; border-radius:4px; display:block; margin:0 auto; }
+  .s-final .fin-slogan { position:absolute; ${posCss((_aa = final.pos) == null ? void 0 : _aa.slogan, [["left", "4.45cqw"], ["bottom", "3.9cqh"]])}; color:rgba(255,255,255,.6);
+    font-size:${cqw(13)}; letter-spacing:.06em; ${up} }
+
+  @media print {
+    @page { size:13.333in 7.5in !important; margin:0 !important; }
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+    html, body { margin:0 !important; padding:0 !important; background:#fff !important; }
+    .toolbar { display:none !important; }
+    .deck { max-width:none !important; padding:0 !important; margin:0 !important; }
+    .deck.mode-slides { position:static !important; display:block !important; background:#fff !important; }
+    .deck.mode-slides .slide, .slide {
+      display:block !important; margin:0 !important; padding:0 !important;
+      width:100% !important; height:100vh !important; aspect-ratio:auto !important;
+    }
+    .slide { break-after:page; page-break-after:always; }
+    .slide:last-child { break-after:auto; page-break-after:auto; }
+  }
+  `;
+}
+function renderSlide(slide, index, total, tpl, images, meta) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+  const c = tpl.colors;
+  const f = tpl.fonts;
+  const up = f.uppercase ? "uppercase" : "none";
+  const presTitle = (meta == null ? void 0 : meta.title) || "";
+  const presDate = (meta == null ? void 0 : meta.date) || "";
+  const footer = (slide.footer || tpl.footerText || "").replace(/дата/g, presDate || "\u0434\u0430\u0442\u0430").replace(/название доклада/g, presTitle || "\u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0434\u043E\u043A\u043B\u0430\u0434\u0430").replace(/название/g, presTitle || "\u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435");
+  const footHtml = footer ? `<div class="foot"><span class="mark"></span>${escapeHtml(footer).replace("\u2116", `${index + 1}`)}</div>` : "";
+  const hd = slide.heading1 || slide.heading2 ? `<div class="hd"><span class="l1">${escapeHtml(upper(slide.heading1, (_a = f.uppercase) != null ? _a : true))}</span>${slide.heading2 ? `<br><span class="l2">${escapeHtml(upper(slide.heading2, (_b = f.uppercase) != null ? _b : true))}</span>` : ""}</div>` : "";
+  const illUri = resolveIllustration(slide.imagePath, (meta == null ? void 0 : meta.illustrations) || {});
+  const illHtml = illUri ? `<div class="ill"><img src="${illUri}" alt=""></div>` : "";
+  const illCls = illUri ? " has-ill" : "";
+  switch (slide.layout) {
+    case "title": {
+      const title = (_c = tpl.layouts.title) != null ? _c : {};
+      const bgUri = images["bg:title"];
+      const gradient = title.bgStyle === "gradient" && title.gradient ? title.gradient : "";
+      const overlay = bgUri && gradient ? gradient.replace(/rgba\(16,20,30,(\.\d+|0)\)/g, "rgba(16,20,30,.25)") : gradient;
+      const titleDarken = (_e = (_d = meta == null ? void 0 : meta.bgDarken) == null ? void 0 : _d["bg:title"]) != null ? _e : title.overlayOpacity;
+      return `<div class="slide s-title">
+        ${bgUri ? `<div class="t-img" style="${bgImageStyle(bgUri)}"></div>` : ""}
+        ${overlay ? `<div class="t-overlay" style="background:${overlay};"></div>` : ""}
+        ${titleDarken !== void 0 ? `<div class="t-overlay" style="background:rgba(0,0,0,${titleDarken});"></div>` : ""}
+        ${title.brand ? `<div class="t-brand">${escapeHtml(title.brand)}</div>` : ""}
+        ${title.slogan ? `<div class="t-slogan">${escapeHtml(title.slogan)}</div>` : ""}
+        ${title.kicker || slide.subtitle ? `<div class="t-kicker">${escapeHtml(title.kicker || slide.subtitle)}</div>` : ""}
+        <div class="t-title">${escapeHtml(upper(slide.heading1 || slide.heading2 || slide.subtitle || "", true))}</div>
+        <div class="t-line"></div>
+        ${slide.speaker ? `<div class="t-speaker">${escapeHtml(slide.speaker)}</div>` : ""}
+        ${footHtml}
+      </div>`;
+    }
+    case "section": {
+      const bgUri = images[`bg:${index}`] || images[`img:${index}`];
+      const heading = upper(slide.heading1 || slide.subtitle || "", (_f = f.uppercase) != null ? _f : true);
+      const secDarken = (_g = meta == null ? void 0 : meta.bgDarken) == null ? void 0 : _g[`bg:${index}`];
+      const secImgStyle = bgUri ? secDarken !== void 0 ? `background-image:linear-gradient(rgba(0,0,0,${secDarken}),rgba(0,0,0,${secDarken})),url('${bgUri}');` : bgImageStyle(bgUri) : "";
+      return `<div class="slide s-section">
+        ${secImgStyle ? `<div class="sec-img" style="${secImgStyle}"></div>` : `<div class="sec-img"></div>`}
+        <div class="sec-txt">
+          <div class="h1">${escapeHtml(heading)}</div>
+          ${slide.heading2 ? `<div class="sub">${escapeHtml(slide.heading2)}</div>` : ""}
+        </div>
+        ${footHtml}
+      </div>`;
+    }
+    case "bullets": {
+      const bullets = (slide.bullets || []).map((b) => `<div class="bullet"><span class="mark"></span><span class="bt">${escapeHtml(b)}</span></div>`).join("");
+      return `<div class="slide s-content${illCls}">
+        ${hd}
+        <div class="body-bullets">${bullets}</div>
+        ${illHtml}
+        ${footHtml}
+      </div>`;
+    }
+    case "cards": {
+      const cards = (slide.cards || []).map((card) => {
+        var _a2;
+        return `<div class="card"><div class="card-t">${escapeHtml(upper(card.title, (_a2 = f.uppercase) != null ? _a2 : true))}</div><div class="card-b">${escapeHtml(card.body)}</div></div>`;
+      }).join("");
+      const n = (_i = (_h = slide.cards) == null ? void 0 : _h.length) != null ? _i : 0;
+      const gridCols = n <= 3 ? Math.max(1, n) : n <= 4 ? 2 : 3;
+      const gridRows = Math.max(1, Math.ceil(n / gridCols));
+      const gridStyle = `grid-template-columns:repeat(${gridCols},1fr);grid-template-rows:repeat(${gridRows},1fr);`;
+      return `<div class="slide s-content${illCls}">
+        ${hd}
+        <div class="cards-grid" style="${gridStyle}">${cards}</div>
+        ${illHtml}
+        ${footHtml}
+      </div>`;
+    }
+    case "table": {
+      const t = slide.table;
+      if (!t) return "";
+      const highlightIdx = (_k = (_j = tpl.layouts.table) == null ? void 0 : _j.highlightColumn) != null ? _k : 1;
+      const head = t.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
+      const rows = t.rows.map((row) => `<tr>${row.map((cell, ci) => `<td${ci === highlightIdx ? ' class="hl"' : ""}>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("");
+      return `<div class="slide s-content${illCls}">
+        ${hd}
+        <div class="tbl-wrap"><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+        ${illHtml}
+        ${footHtml}
+      </div>`;
+    }
+    case "photo": {
+      const bgUri = images[`bg:${index}`];
+      const photo = (_l = tpl.layouts.photo) != null ? _l : {};
+      const bullets = (slide.bullets || []).map((b) => `<div class="bullet"><span class="mark"></span><span class="bt">${escapeHtml(b)}</span></div>`).join("");
+      const phead = slide.heading1 || slide.heading2 ? `<div class="p-hd"><span class="l1">${escapeHtml(upper(slide.heading1, (_m = f.uppercase) != null ? _m : true))}</span>${slide.heading2 ? `<br><span class="l2">${escapeHtml(upper(slide.heading2, (_n = f.uppercase) != null ? _n : true))}</span>` : ""}</div>` : "";
+      const photoDarken = (_o = meta == null ? void 0 : meta.bgDarken) == null ? void 0 : _o[`bg:${index}`];
+      const overlayBg = photoDarken !== void 0 ? `rgba(0,0,0,${photoDarken})` : (_p = photo.overlay) != null ? _p : "rgba(16,20,30,.6)";
+      const overlayHtml = bgUri ? `<div class="p-overlay" style="background:${overlayBg};"></div>` : "";
+      return `<div class="slide s-photo" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ""}>
+        ${overlayHtml}
+        <div class="p-content">
+          ${phead}
+          ${bullets ? `<div class="p-body">${bullets}</div>` : ""}
+          ${footHtml}
+        </div>
+      </div>`;
+    }
+    case "final": {
+      const final = (_q = tpl.layouts.final) != null ? _q : {};
+      const slogan = (_r = tpl.layouts.title) == null ? void 0 : _r.slogan;
+      const speakerName = slide.speaker || (meta == null ? void 0 : meta.presenter) || "";
+      const qrHtml = (meta == null ? void 0 : meta.qrDataUri) ? `<div class="fin-qr"><img src="${meta.qrDataUri}" alt="QR-\u043A\u043E\u0434 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u0430"></div>` : "";
+      return `<div class="slide s-final">
+        <div class="fin-block">
+          <div class="fin-center">${escapeHtml(upper("\u0421\u043F\u0430\u0441\u0438\u0431\u043E \u0437\u0430 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435", true))}</div>
+          <div class="fin-line"></div>
+          ${speakerName ? `<div class="fin-speaker">${escapeHtml(speakerName)}</div>` : ""}
+          ${qrHtml}
+        </div>
+        ${slogan ? `<div class="fin-slogan">${escapeHtml(slogan)}</div>` : ""}
+        ${footHtml}
+      </div>`;
+    }
+    default:
+      return "";
+  }
+}
+function renderPresentationHtml(generation, tpl, images, meta) {
+  const total = generation.slides.length;
+  const slidesHtml = generation.slides.map((s, i) => renderSlide(s, i, total, tpl, images, meta)).join("\n");
+  const title = escapeHtml(generation.title || "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F");
+  const css = buildCss(tpl);
+  const printBtn = `<button onclick="window.print()">\u{1F5A8} \u041F\u0435\u0447\u0430\u0442\u044C / PDF</button>`;
+  const landingBtn = `<button onclick="window.__setMode('landing')">\u041B\u0435\u043D\u0434\u0438\u043D\u0433</button>`;
+  const slidesBtn = `<button onclick="window.__setMode('slides')">\u0421\u043B\u0430\u0439\u0434\u044B</button>`;
+  const fullBtn = `<button onclick="window.__toggleFullscreen()">\u26F6 \u042D\u043A\u0440\u0430\u043D</button>`;
+  const prevBtn = `<button onclick="window.__nav.prev()">\u25C0</button>`;
+  const nextBtn = `<button onclick="window.__nav.next()">\u25B6</button>`;
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<style>${css}</style>
+</head>
+<body>
+<div class="toolbar">${landingBtn}${slidesBtn}${prevBtn}${nextBtn}${fullBtn}${printBtn}</div>
+<div class="deck mode-landing">
+${slidesHtml}
+</div>
+<script>
+${DECK_SCRIPT}
+<\/script>
+</body>
+</html>`;
+}
+var import_obsidian17, PRESENTATION_PICS_DIR, PRESENTATION_RENDER_VERSION, DECK_SCRIPT;
+var init_presentation_generator = __esm({
+  "src/services/presentation-generator.ts"() {
+    "use strict";
+    import_obsidian17 = require("obsidian");
+    PRESENTATION_PICS_DIR = "presentation_pics";
+    PRESENTATION_RENDER_VERSION = 8;
+    DECK_SCRIPT = `
+(function(){
+  var deck=document.querySelector('.deck');
+  var slides=[].slice.call(deck.querySelectorAll('.slide'));
+  var cur=0;
+  function show(i){
+    cur=Math.max(0,Math.min(slides.length-1,i));
+    slides.forEach(function(s,idx){s.classList.toggle('current',idx===cur);});
+  }
+  function setMode(m){
+    deck.classList.toggle('mode-slides', m==='slides');
+    if(m==='slides' && !deck.querySelector('.slide.current')) show(cur);
+  }
+  function toggleFullscreen(){
+    if(document.fullscreenElement){ (document.exitFullscreen||function(){}).call(document); }
+    else {
+      var el=document.documentElement;
+      (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el);
+    }
+  }
+  window.__setMode=setMode;
+  window.__toggleFullscreen=toggleFullscreen;
+  window.__nav={next:function(){show(cur+1);},prev:function(){show(cur-1);}};
+  window.addEventListener('keydown',function(e){
+    if(e.key==='f'||e.key==='F'||e.key==='\u0430'||e.key==='\u0410'){ toggleFullscreen(); return; }
+    if(!deck.classList.contains('mode-slides')) return;
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(cur+1);}
+    else if(e.key==='ArrowLeft'||e.key==='ArrowUp'||e.key==='PageUp'){e.preventDefault();show(cur-1);}
+    else if(e.key==='Home'){show(0);}
+    else if(e.key==='End'){show(slides.length-1);}
+  });
+  window.addEventListener('touchstart',function(e){window.__tx=e.touches[0].clientX;},{passive:true});
+  window.addEventListener('touchend',function(e){
+    if(!deck.classList.contains('mode-slides')) return;
+    var dx=e.changedTouches[0].clientX-(window.__tx||0);
+    if(Math.abs(dx)>40) show(cur+(dx<0?1:-1));
+  });
+})();
+`;
+  }
+});
+
 // src/services/sync-logger.ts
 var sync_logger_exports = {};
 __export(sync_logger_exports, {
   SyncLogModal: () => SyncLogModal,
   SyncLogger: () => SyncLogger
 });
-var import_obsidian17, LOG_PATH, MAX_ENTRIES, SyncLogger, SyncLogModal;
+var import_obsidian20, LOG_PATH, MAX_ENTRIES, SyncLogger, SyncLogModal;
 var init_sync_logger = __esm({
   "src/services/sync-logger.ts"() {
     "use strict";
-    import_obsidian17 = require("obsidian");
+    import_obsidian20 = require("obsidian");
     LOG_PATH = "yourbase/sync_log.json";
     MAX_ENTRIES = 2e3;
     SyncLogger = class {
@@ -6698,7 +7268,7 @@ var init_sync_logger = __esm({
         }
       }
     };
-    SyncLogModal = class extends import_obsidian17.Modal {
+    SyncLogModal = class extends import_obsidian20.Modal {
       constructor(app, logger) {
         super(app);
         this.filterModule = "";
@@ -6819,7 +7389,7 @@ __export(main_exports, {
   default: () => YouGilePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian20 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // src/types/settings.ts
 var DEFAULT_SETTINGS = {
@@ -6854,6 +7424,8 @@ var DEFAULT_SETTINGS = {
   contactSelectedColumnIds: "",
   shownVersion: "",
   moduleLpiEnabled: false,
+  modulePresentationsEnabled: true,
+  presentationDefaultTemplate: "technonicol",
   lpiDbPath: "C:/Users/adm/Downloads/\u041D\u043E\u0432\u0430\u044F \u043F\u0430\u043F\u043A\u0430/lims/lims.db",
   lpiProjectId: "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439",
   lpiBoardId: "\u0417\u0430\u044F\u0432\u043A\u0438",
@@ -7132,9 +7704,13 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.tryAutoAuth();
       }));
       const passwordSetting = new import_obsidian2.Setting(body).setName("\u041F\u0430\u0440\u043E\u043B\u044C").setDesc("\u041F\u0430\u0440\u043E\u043B\u044C \u043E\u0442 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0430 YouGile (\u0445\u0440\u0430\u043D\u0438\u0442\u0441\u044F \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E)");
-      new import_obsidian2.SecretComponent(this.app, passwordSetting.controlEl).onChange((value) => {
-        this.plugin.savePassword(value);
-        this.tryAutoAuth();
+      passwordSetting.addText((text) => {
+        text.inputEl.type = "password";
+        text.setPlaceholder("\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022").onChange((value) => {
+          this.plugin.savePassword(value);
+          this.tryAutoAuth();
+        });
+        return text;
       });
       new import_obsidian2.Setting(body).setName("\u041F\u043E\u043B\u0443\u0447\u0438\u0442\u044C API Key").setDesc(this.plugin.settings.apiKeySecret ? "\u041A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E" : "\u041A\u043B\u044E\u0447 \u043D\u0435 \u043F\u043E\u043B\u0443\u0447\u0435\u043D").addButton((btn) => btn.setButtonText("\u041F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043A\u043B\u044E\u0447").onClick(async () => {
         btn.setDisabled(true).setButtonText("\u041F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u0435...");
@@ -7216,11 +7792,18 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       }));
       this.renderSubheading(body, "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 AI \u043F\u043E\u043C\u043E\u0449\u043D\u0438\u043A\u0430");
       const llmKeySetting = new import_obsidian2.Setting(body).setName("API \u043A\u043B\u044E\u0447").setDesc("API \u043A\u043B\u044E\u0447 \u0434\u043B\u044F OpenAI-\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u043E\u0433\u043E API");
-      new import_obsidian2.SecretComponent(this.app, llmKeySetting.controlEl).onChange((value) => {
-        const secretName = `yougile-llm-${Date.now()}`;
-        this.plugin.saveSecret(secretName, value);
-        this.plugin.settings.llmApiKeySecret = secretName;
-        this.plugin.saveSettings();
+      llmKeySetting.addText((text) => {
+        var _a;
+        text.inputEl.type = "password";
+        text.setPlaceholder("sk-...");
+        text.setValue((_a = this.plugin.getSecretValue(this.plugin.settings.llmApiKeySecret)) != null ? _a : "").onChange((value) => {
+          const secretName = "yougile-llm";
+          this.plugin.saveSecret(secretName, value);
+          this.plugin.settings.llmApiKeySecret = secretName;
+          this.plugin.saveSettings();
+          console.log("[YouGile LLM] \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u043A\u043B\u044E\u0447 (\u0434\u043B\u0438\u043D\u0430 " + value.length + ").");
+        });
+        return text;
       });
       new import_obsidian2.Setting(body).setName("URL API").setDesc("URL \u044D\u043D\u0434\u043F\u043E\u0438\u043D\u0442\u0430 LLM (OpenAI-\u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u044B\u0439)").addText((text) => text.setPlaceholder("https://ask.chadgpt.ru/api/v1/chat/completions").setValue(this.plugin.settings.llmApiUrl).onChange(async (value) => {
         this.plugin.settings.llmApiUrl = value;
@@ -7352,6 +7935,20 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         await this.plugin.saveSettings();
       }));
     }, true);
+    this.renderCollapsibleBlock(containerEl, "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438", true, true, (body) => {
+      new import_obsidian2.Setting(body).setName("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438").setDesc("\u0421\u043E\u0437\u0434\u0430\u043D\u0438\u0435 HTML-\u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439 \u0438\u0437 \u0430\u043D\u043A\u0435\u0442\u044B \u0447\u0435\u0440\u0435\u0437 LLM, \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439, \u044D\u043A\u0441\u043F\u043E\u0440\u0442 \u0432 PDF \u0447\u0435\u0440\u0435\u0437 \u043F\u0435\u0447\u0430\u0442\u044C Chromium.").addButton((btn) => btn.setButtonText("\u041E\u0442\u043A\u0440\u044B\u0442\u044C").onClick(() => {
+        this.plugin.activatePresentationsView();
+      }));
+      new import_obsidian2.Setting(body).setName("\u0428\u0430\u0431\u043B\u043E\u043D \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E").setDesc("\u0428\u0430\u0431\u043B\u043E\u043D \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u044F, \u0432\u044B\u0431\u0438\u0440\u0430\u0435\u043C\u044B\u0439 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E \u0432 \u0430\u043D\u043A\u0435\u0442\u0435").addDropdown((drop) => {
+        const templates = this.plugin.presentationTemplates.getAllTemplates();
+        for (const t of templates) drop.addOption(t.id, t.name);
+        drop.setValue(this.plugin.settings.presentationDefaultTemplate || "technonicol");
+        drop.onChange(async (value) => {
+          this.plugin.settings.presentationDefaultTemplate = value;
+          await this.plugin.saveSettings();
+        });
+      });
+    }, false);
   }
   renderCollapsibleBlock(container, title, collapsible, hasToggle, renderBody, startCollapsed = false) {
     const block = container.createDiv();
@@ -7435,7 +8032,8 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       "\u0423\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u043F\u0438\u0441\u044C\u043C\u0430\u043C\u0438": "moduleEmailsEnabled",
       "\u0423\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u0430\u043C\u0438": "moduleContactsEnabled",
       "\u041C\u043E\u0434\u0443\u043B\u044C \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430": "moduleDashboardEnabled",
-      "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439": "moduleLpiEnabled"
+      "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439": "moduleLpiEnabled",
+      "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438": "modulePresentationsEnabled"
     };
     return map[blockTitle] || "";
   }
@@ -71842,8 +72440,891 @@ var LpiView = class extends import_obsidian16.ItemView {
   }
 };
 
-// src/commands.ts
+// src/ui/presentations-view.ts
+var import_obsidian19 = require("obsidian");
+init_presentation_generator();
+
+// src/ui/presentation-modals.ts
 var import_obsidian18 = require("obsidian");
+init_presentation_generator();
+var AUDIENCE_OPTIONS = ["\u0420\u0443\u043A\u043E\u0432\u043E\u0434\u0438\u0442\u0435\u043B\u0438", "\u042D\u043A\u0441\u043F\u0435\u0440\u0442\u044B", "\u0418\u043D\u0436\u0435\u043D\u0435\u0440\u044B", "\u0421\u043C\u0435\u0448\u0430\u043D\u043D\u0430\u044F", "\u0414\u0440\u0443\u0433\u043E\u0435"];
+var PURPOSE_OPTIONS = [
+  "\u0418\u043D\u0444\u043E\u0440\u043C\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0438 \u0441\u043E\u0433\u043B\u0430\u0441\u043E\u0432\u0430\u0442\u044C",
+  "\u041F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043E\u0431\u0440\u0430\u0442\u043D\u0443\u044E \u0441\u0432\u044F\u0437\u044C",
+  "\u041F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438 \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043E\u0434\u043E\u0431\u0440\u0435\u043D\u0438\u0435",
+  "\u041F\u0440\u043E\u0434\u0435\u043C\u043E\u043D\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043E\u043F\u044B\u0442",
+  "\u0414\u0440\u0443\u0433\u043E\u0435"
+];
+var STRUCTURE_OPTIONS = [
+  "\u0410\u0432\u0442\u043E \u043F\u043E \u0441\u043A\u0438\u043B\u0443",
+  "Stakeholder Update",
+  "Design Review",
+  "Final Showcase",
+  "Portfolio / Case Study",
+  "\u0421\u0432\u043E\u0431\u043E\u0434\u043D\u0430\u044F \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0430"
+];
+var QuestionnaireModal = class extends import_obsidian18.Modal {
+  constructor(plugin, onDone, initial) {
+    super(plugin.app);
+    this.plugin = plugin;
+    this.onDone = onDone;
+    this.initial = initial;
+    this.templates = plugin.presentationTemplates.getAllTemplates();
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    const q = this.initial || {
+      topic: "",
+      audience: "\u0421\u043C\u0435\u0448\u0430\u043D\u043D\u0430\u044F",
+      purpose: "\u0418\u043D\u0444\u043E\u0440\u043C\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0438 \u0441\u043E\u0433\u043B\u0430\u0441\u043E\u0432\u0430\u0442\u044C",
+      keyMessages: "",
+      tone: "",
+      structure: "\u0410\u0432\u0442\u043E \u043F\u043E \u0441\u043A\u0438\u043B\u0443",
+      templateId: this.plugin.settings.presentationDefaultTemplate || "technonicol",
+      presenter: "",
+      date: (/* @__PURE__ */ new Date()).toLocaleDateString("ru-RU"),
+      slideCountHint: "",
+      kicker: "",
+      brainstorm: true
+    };
+    contentEl.createEl("h3", { text: this.initial ? "\u{1F504} \u041F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438" : "\u{1F195} \u041D\u043E\u0432\u0430\u044F \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F" });
+    new import_obsidian18.Setting(contentEl).setName("\u0422\u0435\u043C\u0430 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438").setDesc("\u041E \u0447\u0451\u043C \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F").addText((t) => t.setValue(q.topic).setPlaceholder("\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: \u041E\u0431\u0435\u0441\u043F\u0435\u0447\u0435\u043D\u0438\u0435 \u043E\u0433\u043D\u0435\u0441\u0442\u043E\u0439\u043A\u043E\u0441\u0442\u0438 \u0443\u0437\u043B\u043E\u0432 \u043A\u0440\u043E\u0432\u043B\u0438").onChange((v) => {
+      q.topic = v;
+    }));
+    new import_obsidian18.Setting(contentEl).setName("\u041F\u043E\u0432\u043E\u0434 (\u043A\u0438\u043A\u0435\u0440)").setDesc("\u041D\u0430\u0434\u043F\u0438\u0441\u044C \u043D\u0430\u0434 \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u043E\u043C \u0442\u0438\u0442\u0443\u043B\u044C\u043D\u043E\u0433\u043E \u0441\u043B\u0430\u0439\u0434\u0430, \u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440 \xAB\u042D\u043A\u0441\u043F\u0435\u0440\u0442\u043D\u043E-\u0442\u0435\u0445\u043D\u0438\u0447\u0435\u0441\u043A\u0438\u0439 \u0441\u043E\u0432\u0435\u0442 \xB7 13.08.2026\xBB (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)").addText((t) => t.setValue(q.kicker || "").setPlaceholder("\u041F\u043E\u0432\u043E\u0434 \xB7 \u0434\u0430\u0442\u0430").onChange((v) => {
+      q.kicker = v;
+    }));
+    new import_obsidian18.Setting(contentEl).setName("\u0410\u0443\u0434\u0438\u0442\u043E\u0440\u0438\u044F").addDropdown((d) => {
+      for (const o of AUDIENCE_OPTIONS) d.addOption(o, o);
+      d.setValue(q.audience).onChange((v) => {
+        q.audience = v;
+      });
+    });
+    new import_obsidian18.Setting(contentEl).setName("\u0426\u0435\u043B\u044C").addDropdown((d) => {
+      for (const o of PURPOSE_OPTIONS) d.addOption(o, o);
+      d.setValue(q.purpose).onChange((v) => {
+        q.purpose = v;
+      });
+    });
+    new import_obsidian18.Setting(contentEl).setName("\u0421\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0430").addDropdown((d) => {
+      for (const o of STRUCTURE_OPTIONS) d.addOption(o, o);
+      d.setValue(q.structure).onChange((v) => {
+        q.structure = v;
+      });
+    });
+    new import_obsidian18.Setting(contentEl).setName("\u041A\u043B\u044E\u0447\u0435\u0432\u044B\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F").setDesc("\u0427\u0442\u043E \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E \u0434\u043E\u043D\u0435\u0441\u0442\u0438 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)").addTextArea((ta) => {
+      ta.setValue(q.keyMessages).setPlaceholder("\u041E\u0434\u043D\u0430 \u043C\u044B\u0441\u043B\u044C \u043D\u0430 \u0441\u0442\u0440\u043E\u043A\u0443...");
+      ta.inputEl.rows = 4;
+      ta.onChange((v) => {
+        q.keyMessages = v;
+      });
+    });
+    new import_obsidian18.Setting(contentEl).setName("\u0422\u043E\u043D").setDesc("\u041D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E").addText((t) => t.setValue(q.tone).setPlaceholder("\u0414\u0435\u043B\u043E\u0432\u043E\u0439, \u043E\u0441\u0442\u043E\u0440\u043E\u0436\u043D\u044B\u0439...").onChange((v) => {
+      q.tone = v;
+    }));
+    new import_obsidian18.Setting(contentEl).setName("\u0414\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A").addText((t) => t.setValue(q.presenter).setPlaceholder("\u0424\u0418\u041E \u2014 \u0434\u043E\u043B\u0436\u043D\u043E\u0441\u0442\u044C").onChange((v) => {
+      q.presenter = v;
+    }));
+    new import_obsidian18.Setting(contentEl).setName("\u0422\u0435\u043B\u0435\u0444\u043E\u043D \u0434\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A\u0430").setDesc("\u0414\u043B\u044F QR-\u043A\u043E\u0434\u0430 \u043D\u0430 \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u043E\u043C \u0441\u043B\u0430\u0439\u0434\u0435 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)").addText((t) => t.setValue(q.presenterPhone || "").setPlaceholder("+7 900 000-00-00").onChange((v) => {
+      q.presenterPhone = v;
+    }));
+    new import_obsidian18.Setting(contentEl).setName("Email \u0434\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A\u0430").setDesc("\u0414\u043B\u044F QR-\u043A\u043E\u0434\u0430 \u043D\u0430 \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u043E\u043C \u0441\u043B\u0430\u0439\u0434\u0435 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)").addText((t) => t.setValue(q.presenterEmail || "").setPlaceholder("name@company.ru").onChange((v) => {
+      q.presenterEmail = v;
+    }));
+    const illContainer = contentEl.createDiv();
+    illContainer.style.cssText = "margin:10px 0;border:1px solid var(--background-modifier-border);border-radius:6px;padding:10px;";
+    illContainer.createEl("div", { text: "\u{1F5BC} \u0418\u043B\u043B\u044E\u0441\u0442\u0440\u0430\u0446\u0438\u0438 (\u043D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E)", cls: "setting-item-name" }).style.cssText = "font-weight:600;margin-bottom:4px;";
+    const illDesc = illContainer.createDiv();
+    illDesc.style.cssText = "font-size:11px;color:var(--text-muted);margin-bottom:8px;";
+    illDesc.setText("\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u0435 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u0441 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435\u043C \u2014 LLM \u0440\u0430\u0441\u0441\u0442\u0430\u0432\u0438\u0442 \u0438\u0445 \u043F\u043E \u0441\u043B\u0430\u0439\u0434\u0430\u043C \u043A\u0430\u043A \u0438\u043B\u043B\u044E\u0441\u0442\u0440\u0430\u0446\u0438\u0438 (\u043F\u043E 1 \u043D\u0430 \u0441\u043B\u0430\u0439\u0434 \u0440\u044F\u0434\u043E\u043C \u0441 \u0442\u0435\u043A\u0441\u0442\u043E\u043C). \u041A\u0430\u0436\u0434\u043E\u0439 \u043A\u0430\u0440\u0442\u0438\u043D\u043A\u0435 \u043F\u043E\u0441\u0442\u0430\u0440\u0430\u0439\u0442\u0435\u0441\u044C \u0434\u0430\u0442\u044C \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435.");
+    const illRows = (q.illustrations || []).slice();
+    const illPreview = illContainer.createDiv();
+    illPreview.style.cssText = "display:flex;flex-wrap:wrap;gap:10px;";
+    const saveIllToQ = () => {
+      q.illustrations = illRows.map((r) => ({ path: r.path, description: r.description, uri: r.uri }));
+    };
+    const renderIll = () => {
+      illPreview.empty();
+      for (const row of illRows) {
+        const card = illPreview.createDiv();
+        card.style.cssText = "width:200px;border:1px solid var(--background-modifier-border);border-radius:4px;padding:6px;background:var(--background-secondary);";
+        const img = card.createEl("img", { attr: { src: getVaultResourceUrl(this.plugin.app, row.uri) } });
+        img.style.cssText = "width:100%;height:110px;object-fit:cover;border-radius:3px;";
+        const cap = card.createDiv();
+        cap.style.cssText = "text-transform:uppercase;font-size:10px;color:var(--text-muted);margin:4px 0 2px;";
+        cap.setText(row.path);
+        const desc = card.createEl("input", { attr: { placeholder: "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 (\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: \u0434\u0438\u0430\u0433\u0440\u0430\u043C\u043C\u0430 \u0440\u043E\u0441\u0442\u0430)" } });
+        desc.style.cssText = "width:100%;font-size:11px;padding:2px 4px;";
+        desc.value = row.description;
+        desc.addEventListener("change", () => {
+          row.description = desc.value;
+          saveIllToQ();
+        });
+        const del = card.createEl("button", { text: "\u{1F5D1} \u0423\u0434\u0430\u043B\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+        del.style.cssText = "width:100%;margin-top:4px;font-size:10px;";
+        del.addEventListener("click", () => {
+          illRows.splice(illRows.findIndex((r) => r.id === row.id), 1);
+          saveIllToQ();
+          renderIll();
+        });
+      }
+    };
+    const illFile = illContainer.createEl("input", { attr: { type: "file", multiple: "true", accept: "image/*" } });
+    illFile.style.display = "none";
+    const illBtn = illContainer.createEl("button", { text: "\u2B06\uFE0F \u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435", cls: "mailer-yougile-refresh-btn" });
+    illBtn.addEventListener("click", () => illFile.click());
+    illFile.addEventListener("change", async (e) => {
+      const files = e.target.files;
+      if (!files) return;
+      for (const file of Array.from(files)) {
+        try {
+          const uri = await Promise.resolve().then(() => (init_presentation_generator(), presentation_generator_exports)).then((m) => m.saveImageToVault(this.plugin.app, file, m.PRESENTATION_PICS_DIR, 1400, 0.8));
+          let path3 = file.name.replace(/[^A-Za-z0-9а-яА-ЯёЁ.\-_ ]/g, "_") || `img-${Date.now()}`;
+          let n = 2;
+          const base = path3.split(".");
+          const ext = base.length > 1 ? `.${base.pop()}` : "";
+          const stem = base.join(".");
+          while (illRows.some((r) => r.path === path3)) path3 = `${stem}-${n++}${ext}`;
+          illRows.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, path: path3, description: "", uri });
+          saveIllToQ();
+          renderIll();
+        } catch (err) {
+          new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      illFile.value = "";
+    });
+    saveIllToQ();
+    renderIll();
+    new import_obsidian18.Setting(contentEl).setName("\u0414\u0430\u0442\u0430").addText((t) => t.setValue(q.date).onChange((v) => {
+      q.date = v;
+    }));
+    new import_obsidian18.Setting(contentEl).setName("\u041E\u0440\u0438\u0435\u043D\u0442\u0438\u0440\u043E\u0432\u043E\u0447\u043D\u043E\u0435 \u0447\u0438\u0441\u043B\u043E \u0441\u043B\u0430\u0439\u0434\u043E\u0432").setDesc("\u041D\u0435\u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E; \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E \u2014 \u043F\u043E \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442\u0443").addText((t) => t.setValue(q.slideCountHint).setPlaceholder("\u043D\u0430\u043F\u0440\u0438\u043C\u0435\u0440, 10").onChange((v) => {
+      q.slideCountHint = v;
+    }));
+    new import_obsidian18.Setting(contentEl).setName("\u0428\u0430\u0431\u043B\u043E\u043D \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u044F").addDropdown((d) => {
+      for (const tpl of this.templates) d.addOption(tpl.id, tpl.name);
+      d.setValue(q.templateId).onChange((v) => {
+        q.templateId = v;
+      });
+    });
+    new import_obsidian18.Setting(contentEl).setName("\u041C\u043E\u0437\u0433\u043E\u0432\u043E\u0439 \u0448\u0442\u0443\u0440\u043C").setDesc("LLM \u0441\u043D\u0430\u0447\u0430\u043B\u0430 \u0437\u0430\u0434\u0430\u0441\u0442 \u0443\u0442\u043E\u0447\u043D\u044F\u044E\u0449\u0438\u0435 \u0432\u043E\u043F\u0440\u043E\u0441\u044B \u0438 \u0441\u043E\u0431\u0435\u0440\u0451\u0442 \u0434\u0435\u0442\u0430\u043B\u0438, \u0437\u0430\u0442\u0435\u043C \u0441\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u0443\u0435\u0442 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044E").addToggle((t) => t.setValue(q.brainstorm !== false).onChange((v) => {
+      q.brainstorm = v;
+    }));
+    new import_obsidian18.Setting(contentEl).addButton((b) => b.setButtonText(this.initial ? "\u041F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C" : "\u0421\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C").setCta().onClick(() => {
+      if (!q.topic.trim()) {
+        new import_obsidian18.Notice("\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0442\u0435\u043C\u0443 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438");
+        return;
+      }
+      this.close();
+      this.onDone(q);
+    })).addButton((b) => b.setButtonText("\u041E\u0442\u043C\u0435\u043D\u0430").onClick(() => this.close()));
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var PresentationPreviewModal = class extends import_obsidian18.Modal {
+  constructor(app, html) {
+    super(app);
+    this.html = html;
+    this.modalEl.style.width = "min(1200px, 96vw)";
+    this.modalEl.style.height = "92vh";
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    const hint = contentEl.createDiv();
+    hint.style.cssText = "font-size:12px;color:var(--text-muted);margin-bottom:6px;";
+    hint.setText("\u0414\u043B\u044F PDF: \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u{1F5A8} \u041F\u0435\u0447\u0430\u0442\u044C / PDF\xBB \u0432 \u043F\u0440\u0430\u0432\u043E\u043C \u0432\u0435\u0440\u0445\u043D\u0435\u043C \u0443\u0433\u043B\u0443 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438 \u0438 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \xAB\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u0430\u043A PDF\xBB. \u0412 \u0434\u0438\u0430\u043B\u043E\u0433\u0435 \u043F\u0435\u0447\u0430\u0442\u0438 \u0432\u044B\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u0431\u0443\u043C\u0430\u0433\u0443 16:9 / \xAB\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F\xBB \u0438 \u043F\u043E\u043B\u044F \xAB\u041D\u0435\u0442\xBB \u2014 \u0442\u043E\u0433\u0434\u0430 \u0441\u043B\u0430\u0439\u0434\u044B \u0437\u0430\u0439\u043C\u0443\u0442 \u0432\u0435\u0441\u044C \u043B\u0438\u0441\u0442 \u0431\u0435\u0437 \u043E\u0442\u0441\u0442\u0443\u043F\u043E\u0432.");
+    const frame = contentEl.createEl("iframe", { attr: { sandbox: "allow-scripts allow-modals", allowfullscreen: "true", allow: "fullscreen", srcdoc: this.html } });
+    frame.style.cssText = "width:100%;height:calc(100% - 30px);border:1px solid var(--background-modifier-border);border-radius:6px;background:#fff;";
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var NewTemplateModal = class extends import_obsidian18.Modal {
+  constructor(plugin) {
+    super(plugin.app);
+    this.plugin = plugin;
+    this.modalEl.style.width = "min(900px, 94vw)";
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h3", { text: "\u{1F3A8} \u041D\u043E\u0432\u044B\u0439 \u0448\u0430\u0431\u043B\u043E\u043D \u0438\u0437 \u043F\u0440\u0438\u043C\u0435\u0440\u0430" });
+    let name2 = "";
+    new import_obsidian18.Setting(contentEl).setName("\u0418\u043C\u044F \u0448\u0430\u0431\u043B\u043E\u043D\u0430").addText((t) => t.setPlaceholder("\u041D\u0430\u043F\u0440\u0438\u043C\u0435\u0440: \u041C\u043E\u0439 \u043A\u043E\u0440\u043F\u043E\u0440\u0430\u0442\u0438\u0432\u043D\u044B\u0439").onChange((v) => {
+      name2 = v;
+    }));
+    let example = "";
+    new import_obsidian18.Setting(contentEl).setName("\u041F\u0440\u0438\u043C\u0435\u0440 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438").setDesc("\u0412\u0441\u0442\u0430\u0432\u044C\u0442\u0435 HTML \u0438\u043B\u0438 \u0442\u0435\u043A\u0441\u0442\u043E\u0432\u043E\u0435 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438, \u043F\u043E \u043A\u043E\u0442\u043E\u0440\u043E\u043C\u0443 LLM \u0438\u0437\u0432\u043B\u0435\u0447\u0451\u0442 \u0434\u0438\u0437\u0430\u0439\u043D-\u0441\u0438\u0441\u0442\u0435\u043C\u0443.").addTextArea((ta) => {
+      ta.setPlaceholder("<!DOCTYPE html>... \u0438\u043B\u0438 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0446\u0432\u0435\u0442\u043E\u0432/\u0448\u0440\u0438\u0444\u0442\u043E\u0432/\u043C\u0430\u043A\u0435\u0442\u043E\u0432...");
+      ta.inputEl.rows = 12;
+      ta.onChange((v) => {
+        example = v;
+      });
+    });
+    new import_obsidian18.Setting(contentEl).addButton((b) => b.setButtonText("\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0448\u0430\u0431\u043B\u043E\u043D").setCta().onClick(async () => {
+      if (!example.trim()) {
+        new import_obsidian18.Notice("\u0412\u0441\u0442\u0430\u0432\u044C\u0442\u0435 \u043F\u0440\u0438\u043C\u0435\u0440 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438");
+        return;
+      }
+      b.setDisabled(true).setButtonText("\u0418\u0437\u0432\u043B\u0435\u0447\u0435\u043D\u0438\u0435...");
+      try {
+        await this.plugin.presentationTemplates.createTemplateFromExample(example, name2);
+        this.close();
+      } catch (e) {
+        new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
+        b.setDisabled(false).setButtonText("\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0448\u0430\u0431\u043B\u043E\u043D");
+      }
+    })).addButton((b) => b.setButtonText("\u041E\u0442\u043C\u0435\u043D\u0430").onClick(() => this.close()));
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var BrainstormModal = class extends import_obsidian18.Modal {
+  constructor(plugin, q, designRules, onDone, onProgress) {
+    super(plugin.app);
+    this.log = [];
+    this.maxRounds = 5;
+    this.round = 0;
+    this.busy = false;
+    this.plugin = plugin;
+    this.q = { ...q };
+    this.designRules = designRules;
+    this.onDone = onDone;
+    this.onProgress = onProgress;
+    this.modalEl.style.width = "min(900px, 96vw)";
+    this.modalEl.style.height = "80vh";
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h3", { text: "\u{1F9E0} \u041C\u043E\u0437\u0433\u043E\u0432\u043E\u0439 \u0448\u0442\u0443\u0440\u043C" });
+    const sub = contentEl.createDiv();
+    sub.style.cssText = "font-size:12px;color:var(--text-muted);margin-bottom:8px;";
+    sub.setText(`\u0422\u0435\u043C\u0430: ${this.q.topic}. LLM \u0437\u0430\u0434\u0430\u0441\u0442 \u0443\u0442\u043E\u0447\u043D\u044F\u044E\u0449\u0438\u0435 \u0432\u043E\u043F\u0440\u043E\u0441\u044B, \u0447\u0442\u043E\u0431\u044B \u0441\u043E\u0431\u0440\u0430\u0442\u044C \u0434\u0435\u0442\u0430\u043B\u0438. \u041E\u0442\u0432\u0435\u0447\u0430\u0439\u0442\u0435 \u0441\u0432\u043E\u0438\u043C\u0438 \u0441\u043B\u043E\u0432\u0430\u043C\u0438.`);
+    this.bodyEl = contentEl.createDiv();
+    this.bodyEl.style.cssText = "border:1px solid var(--background-modifier-border);border-radius:6px;height:calc(100% - 180px);min-height:260px;overflow-y:auto;padding:10px;background:var(--background-primary);";
+    this.inputEl = contentEl.createEl("textarea", { attr: { placeholder: "\u0412\u0430\u0448 \u043E\u0442\u0432\u0435\u0442...", rows: "3" } });
+    this.inputEl.style.cssText = "width:100%;margin-top:8px;";
+    const row = contentEl.createDiv();
+    row.style.cssText = "display:flex;gap:8px;margin-top:8px;justify-content:flex-end;";
+    this.skipBtnEl = row.createEl("button", { text: "\u23ED \u041F\u0440\u043E\u043F\u0443\u0441\u0442\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn" });
+    this.skipBtnEl.addEventListener("click", () => this.finish());
+    this.btnEl = row.createEl("button", { text: "\u27A4 \u041E\u0442\u0432\u0435\u0442\u0438\u0442\u044C", cls: "mod-cta" });
+    this.btnEl.addEventListener("click", () => this.submit());
+    this.inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        this.submit();
+      }
+    });
+    void this.askNext();
+  }
+  appendMessage(role, text) {
+    const wrap = this.bodyEl.createDiv();
+    wrap.style.cssText = "margin-bottom:8px;display:flex;" + (role === "assistant" ? "" : "justify-content:flex-end;");
+    const bubble = wrap.createDiv();
+    bubble.style.cssText = "max-width:85%;padding:8px 12px;border-radius:8px;white-space:pre-wrap;font-size:13px;line-height:1.4;" + (role === "assistant" ? "background:var(--background-secondary);border:1px solid var(--background-modifier-border);" : "background:var(--interactive-accent);color:var(--text-on-accent);");
+    bubble.setText(text);
+    this.bodyEl.scrollTop = this.bodyEl.scrollHeight;
+  }
+  setBusy(busy) {
+    this.busy = busy;
+    this.btnEl.disabled = busy;
+    this.skipBtnEl.disabled = busy;
+    this.inputEl.disabled = busy;
+    this.btnEl.setText(busy ? "\u0414\u0443\u043C\u0430\u044E..." : "\u27A4 \u041E\u0442\u0432\u0435\u0442\u0438\u0442\u044C");
+  }
+  async askNext() {
+    var _a;
+    this.setBusy(true);
+    this.round++;
+    try {
+      const reply = await this.plugin.llmService.brainstormNext(this.q, this.log, this.designRules, this.round, this.maxRounds);
+      if (reply.done) {
+        if (reply.summary) {
+          this.appendMessage("assistant", "\u2705 \u0414\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u0434\u0435\u0442\u0430\u043B\u0435\u0439. \u0418\u0442\u043E\u0433\u043E\u0432\u044B\u0439 \u0431\u0440\u0438\u0444:\n\n" + reply.summary);
+          this.q.keyMessages = [this.q.keyMessages, reply.summary].filter(Boolean).join("\n\n");
+        }
+        this.finish();
+        return;
+      }
+      const question = reply.question || "\u0420\u0430\u0441\u0441\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u043E\u0434\u0440\u043E\u0431\u043D\u0435\u0435?";
+      this.log.push({ role: "assistant", text: question });
+      this.appendMessage("assistant", "\u{1F916} " + question);
+      (_a = this.onProgress) == null ? void 0 : _a.call(this, this.log);
+      this.inputEl.value = "";
+      this.inputEl.focus();
+      if (this.round >= this.maxRounds) {
+        this.skipBtnEl.setText("\u23ED \u0421\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0441\u0435\u0439\u0447\u0430\u0441");
+      }
+    } catch (e) {
+      this.appendMessage("assistant", "\u26A0\uFE0F \u041E\u0448\u0438\u0431\u043A\u0430: " + (e instanceof Error ? e.message : String(e)));
+      new import_obsidian18.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043C\u043E\u0437\u0433\u043E\u0432\u043E\u0433\u043E \u0448\u0442\u0443\u0440\u043C\u0430: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      this.setBusy(false);
+    }
+  }
+  submit() {
+    var _a;
+    if (this.busy) return;
+    const answer = this.inputEl.value.trim();
+    if (!answer) {
+      new import_obsidian18.Notice("\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043E\u0442\u0432\u0435\u0442");
+      return;
+    }
+    this.log.push({ role: "user", text: answer });
+    this.appendMessage("user", answer);
+    (_a = this.onProgress) == null ? void 0 : _a.call(this, this.log);
+    void this.askNext();
+  }
+  finish() {
+    var _a;
+    (_a = this.onProgress) == null ? void 0 : _a.call(this, this.log);
+    this.close();
+    this.onDone(this.q);
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+var TaskPickModal = class extends import_obsidian18.SuggestModal {
+  constructor(plugin, tasks, onPick) {
+    super(plugin.app);
+    this.plugin = plugin;
+    this.tasks = tasks;
+    this.onPick = onPick;
+    this.setPlaceholder("\u041D\u0430\u0447\u043D\u0438\u0442\u0435 \u0432\u0432\u043E\u0434\u0438\u0442\u044C \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438...");
+    this.limit = 20;
+  }
+  getSuggestions(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return this.tasks.slice(0, 50);
+    return this.tasks.filter((t) => t.title.toLowerCase().includes(q) || (t.projectTitle || "").toLowerCase().includes(q) || (t.columnTitle || "").toLowerCase().includes(q)).slice(0, 50);
+  }
+  renderSuggestion(task, el) {
+    el.createEl("div", { text: task.title });
+    const meta = el.createEl("div");
+    meta.style.cssText = "font-size:11px;color:var(--text-muted);";
+    meta.setText([task.projectTitle, task.columnTitle].filter(Boolean).join(" \xB7 "));
+  }
+  onChooseSuggestion(task) {
+    this.onPick(task);
+  }
+};
+var ImageUploadModal = class extends import_obsidian18.Modal {
+  constructor(plugin, slideCount, initialImages, initialBgDarken = {}, onDone) {
+    super(plugin.app);
+    this.images = {};
+    this.bgDarken = {};
+    this.plugin = plugin;
+    this.slideCount = slideCount;
+    this.images = { ...initialImages };
+    this.bgDarken = { ...initialBgDarken };
+    this.onDone = onDone;
+    this.modalEl.style.width = "min(900px, 96vw)";
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h3", { text: "\u{1F4F7} \u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F" });
+    const pool = [];
+    const seenUris = /* @__PURE__ */ new Set();
+    let savedCount = 0;
+    for (const uri of Object.values(this.images)) {
+      if (!uri || seenUris.has(uri)) continue;
+      seenUris.add(uri);
+      savedCount++;
+      pool.push({ name: `\u0421\u043E\u0445\u0440\u0430\u043D\u0451\u043D\u043D\u043E\u0435 ${savedCount}`, uri });
+    }
+    const fileInput = contentEl.createEl("input", { attr: { type: "file", multiple: "true", accept: "image/*" } });
+    fileInput.style.display = "none";
+    const uploadBtn = contentEl.createEl("button", { text: "\u2B06\uFE0F \u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F", cls: "mailer-yougile-refresh-btn" });
+    uploadBtn.addEventListener("click", () => fileInput.click());
+    const poolDiv = contentEl.createDiv();
+    poolDiv.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;";
+    const renderPoolBoxes = () => {
+      poolDiv.empty();
+      for (const p of pool) {
+        const box = poolDiv.createDiv();
+        box.style.cssText = "position:relative;width:110px;height:70px;border:1px solid var(--background-modifier-border);border-radius:4px;overflow:hidden;";
+        const img = box.createEl("img", { attr: { src: getVaultResourceUrl(this.plugin.app, p.uri) } });
+        img.style.cssText = "width:100%;height:100%;object-fit:cover;";
+        box.setAttr("title", p.name);
+        box.createEl("div", { text: "\u2713", attr: { title: p.name } }).style.cssText = "position:absolute;bottom:0;right:0;background:var(--interactive-accent);color:#fff;font-size:11px;padding:0 3px;";
+      }
+    };
+    const addToPool = (name2, uri) => {
+      pool.push({ name: name2, uri });
+      renderPoolBoxes();
+      renderSlides();
+    };
+    fileInput.addEventListener("change", async (e) => {
+      const files = e.target.files;
+      if (!files) return;
+      for (const file of Array.from(files)) {
+        try {
+          const uri = await Promise.resolve().then(() => (init_presentation_generator(), presentation_generator_exports)).then((m) => m.saveImageToVault(this.plugin.app, file, m.PRESENTATION_PICS_DIR));
+          addToPool(file.name, uri);
+        } catch (err) {
+          new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      fileInput.value = "";
+    });
+    const slidesDiv = contentEl.createDiv();
+    slidesDiv.style.cssText = "margin:8px 0;max-height:340px;overflow-y:auto;";
+    const renderSlides = () => {
+      slidesDiv.empty();
+      const options2 = ["\u2014 \u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D\u043E \u2014", ...pool.map((p, i) => `${i + 1}. ${p.name}`)];
+      const makeSelect = (label, key) => {
+        var _a;
+        const row = slidesDiv.createDiv();
+        row.style.cssText = "display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px;";
+        row.createSpan({ text: label });
+        const sel = row.createEl("select");
+        for (let i = 0; i < options2.length; i++) {
+          sel.createEl("option", { value: String(i), text: options2[i] });
+        }
+        const current = this.images[key];
+        const currentIdx = current ? pool.findIndex((p) => p.uri === current) + 1 : 0;
+        sel.value = String(Math.max(0, currentIdx));
+        sel.addEventListener("change", () => {
+          const idx = parseInt(sel.value, 10);
+          if (idx === 0) delete this.images[key];
+          else this.images[key] = pool[idx - 1].uri;
+        });
+        const darkLabel = row.createSpan({ text: "\u0417\u0430\u0442\u0435\u043C\u043D\u0435\u043D\u0438\u0435" });
+        darkLabel.style.cssText = "margin-left:10px;color:var(--text-muted);";
+        const darkInput = row.createEl("input", { attr: { type: "number", min: "0", max: "100", step: "5", title: "\u0417\u0430\u0442\u0435\u043C\u043D\u0435\u043D\u0438\u0435 \u0444\u043E\u043D\u0430, %" } });
+        darkInput.style.cssText = "width:56px;font-size:12px;";
+        darkInput.value = String(Math.round(((_a = this.bgDarken[key]) != null ? _a : 0) * 100));
+        darkInput.addEventListener("change", () => {
+          const v = parseFloat(darkInput.value);
+          if (isNaN(v) || v <= 0) {
+            delete this.bgDarken[key];
+            darkInput.value = "0";
+          } else {
+            this.bgDarken[key] = Math.min(1, Math.max(0, v / 100));
+          }
+        });
+        return sel;
+      };
+      makeSelect("\u{1F3AC} \u0422\u0438\u0442\u0443\u043B (\u0444\u043E\u043D):", "bg:title");
+      for (let i = 0; i < this.slideCount; i++) {
+        makeSelect(`\u0421\u043B\u0430\u0439\u0434 ${i + 1} (\u0444\u043E\u043D):`, `bg:${i}`);
+      }
+      const clearBtn = slidesDiv.createEl("button", { text: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
+      clearBtn.style.marginTop = "8px";
+      clearBtn.addEventListener("click", () => {
+        this.images = {};
+        this.bgDarken = {};
+        renderSlides();
+      });
+    };
+    renderPoolBoxes();
+    renderSlides();
+    new import_obsidian18.Setting(contentEl).addButton((b) => b.setButtonText("\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C").setCta().onClick(() => {
+      this.close();
+      this.onDone({ ...this.images }, { ...this.bgDarken });
+    })).addButton((b) => b.setButtonText("\u041E\u0442\u043C\u0435\u043D\u0430").onClick(() => this.close()));
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/ui/presentations-view.ts
+var PRESENTATIONS_VIEW_TYPE = "yougile-presentations";
+var EXPORT_DIR = "\u042D\u043A\u0441\u043F\u043E\u0440\u0442/\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438";
+function sanitize(name2) {
+  return name2.replace(/[\\/:*?"<>|]/g, "_").trim() || "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F";
+}
+function escapeHtmlAttr(s) {
+  return String(s != null ? s : "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+var PresentationsView = class extends import_obsidian19.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+  }
+  getViewType() {
+    return PRESENTATIONS_VIEW_TYPE;
+  }
+  getDisplayText() {
+    return "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438";
+  }
+  getIcon() {
+    return "presentation";
+  }
+  async onOpen() {
+    await this.plugin.presentationTemplates.init();
+    this.render();
+  }
+  onClose() {
+    this.containerEl.empty();
+    return Promise.resolve();
+  }
+  render() {
+    const root = this.contentEl;
+    root.empty();
+    root.addClass("mailer-yougile-container");
+    const header = root.createDiv({ cls: "mailer-yougile-header" });
+    header.createEl("h3", { text: "\u{1F4FD} \u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438" });
+    const toolbar = root.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
+    toolbar.createEl("button", { text: "\u{1F195} \u041D\u043E\u0432\u0430\u044F \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F", cls: "mailer-yougile-refresh-btn" }).addEventListener("click", () => this.newPresentation());
+    toolbar.createEl("button", { text: "\u{1F3A8} \u041D\u043E\u0432\u044B\u0439 \u0448\u0430\u0431\u043B\u043E\u043D", cls: "mailer-yougile-refresh-btn" }).addEventListener("click", () => new NewTemplateModal(this.plugin).open());
+    const list = root.createDiv();
+    const drafts = this.plugin.presentationsDb.getDrafts();
+    if (drafts.length > 0) {
+      const dHead = list.createDiv();
+      dHead.style.cssText = "font-weight:600;font-size:13px;margin:8px 0 4px;color:var(--text-muted);";
+      dHead.setText("\u{1F553} \u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A\u0438 (\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F \u043F\u0440\u0435\u0440\u0432\u0430\u043B\u0430\u0441\u044C)");
+      for (const d of [...drafts].reverse()) {
+        this.renderDraft(list, d);
+      }
+    }
+    const items = this.plugin.presentationsDb.getAll();
+    if (items.length === 0 && drafts.length === 0) {
+      list.createDiv({ text: "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u{1F195} \u041D\u043E\u0432\u0430\u044F \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F\xBB." }).style.cssText = "color:var(--text-muted);padding:12px;";
+      return;
+    }
+    for (const item of [...items].reverse()) {
+      this.renderItem(list, item);
+    }
+  }
+  renderDraft(container, draft) {
+    const row = container.createDiv();
+    row.style.cssText = "border:1px dashed var(--background-modifier-border);border-radius:6px;padding:8px 10px;margin-bottom:8px;background:var(--background-secondary);";
+    const title = row.createSpan();
+    title.style.cssText = "font-weight:600;font-size:13px;";
+    title.setText(draft.questionaire.topic || "\u0411\u0435\u0437 \u0442\u0435\u043C\u044B");
+    const meta = row.createDiv();
+    meta.style.cssText = "font-size:11px;color:var(--text-muted);margin:4px 0;";
+    const answers = draft.brainstormLog.filter((m) => m.role === "user").length;
+    meta.setText(`\u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \xB7 \u041E\u0442\u0432\u0435\u0442\u043E\u0432 \u0448\u0442\u0443\u0440\u043C\u0430: ${answers}${draft.error ? ` \xB7 \u041E\u0448\u0438\u0431\u043A\u0430: ${draft.error}` : ""}`);
+    const actions = row.createDiv();
+    actions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+    const btn = (text, fn) => {
+      const b = actions.createEl("button", { text, cls: "mailer-yougile-refresh-btn" });
+      b.style.cssText = "font-size:11px;padding:2px 8px;";
+      b.addEventListener("click", fn);
+      return b;
+    };
+    btn("\u{1F501} \u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C (\u043F\u043E\u0432\u0442\u043E\u0440 LLM)", () => void this.retryDraft(draft));
+    btn("\u270F\uFE0F \u0418\u0437\u043C\u0435\u043D\u0438\u0442\u044C", () => {
+      this.plugin.presentationsDb.deleteDraft(draft.id).then(() => this.render());
+      void this.reopenQuestionnaire(draft);
+    });
+    btn("\u{1F5D1} \u0423\u0434\u0430\u043B\u0438\u0442\u044C", () => {
+      void this.plugin.presentationsDb.deleteDraft(draft.id).then(() => this.render());
+    });
+  }
+  async retryDraft(draft) {
+    try {
+      new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u0430\u044F \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
+      const designRules = await this.plugin.presentationTemplates.readDesignRules();
+      await this.doGenerate(draft.questionaire, designRules, draft.id);
+    } catch (e) {
+      new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  reopenQuestionnaire(draft) {
+    new QuestionnaireModal(this.plugin, async (q) => {
+      const newDraft = {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        questionaire: q,
+        brainstormLog: [],
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      await this.plugin.presentationsDb.saveDraft(newDraft);
+      const designRules = await this.plugin.presentationTemplates.readDesignRules();
+      if (q.brainstorm !== false) {
+        new BrainstormModal(this.plugin, q, designRules, (brainstormed) => {
+          void this.doGenerate(brainstormed, designRules, newDraft.id);
+        }, (log) => {
+          void this.plugin.presentationsDb.saveDraft({
+            ...newDraft,
+            questionaire: q,
+            brainstormLog: log,
+            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }).open();
+      } else {
+        void this.doGenerate(q, designRules, newDraft.id);
+      }
+    }, draft.questionaire).open();
+  }
+  renderItem(container, item) {
+    var _a;
+    const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId);
+    const row = container.createDiv();
+    row.style.cssText = "border:1px solid var(--background-modifier-border);border-radius:6px;padding:8px 10px;margin-bottom:8px;";
+    const titleRow = row.createDiv();
+    titleRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;";
+    const title = titleRow.createSpan();
+    title.style.cssText = "font-weight:600;font-size:13px;";
+    title.setText(item.title || item.generation.title || "\u0411\u0435\u0437 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F");
+    const meta = row.createDiv();
+    meta.style.cssText = "font-size:11px;color:var(--text-muted);margin:4px 0;";
+    const created = new Date(item.createdAt).toLocaleDateString("ru-RU");
+    meta.setText(`\u0421\u043E\u0437\u0434\u0430\u043D\u043E: ${created} \xB7 \u0421\u043B\u0430\u0439\u0434\u043E\u0432: ${item.generation.slides.length} \xB7 \u0428\u0430\u0431\u043B\u043E\u043D: ${(_a = tpl == null ? void 0 : tpl.name) != null ? _a : item.templateId} \xB7 \u041A\u0430\u0440\u0442\u0438\u043D\u043E\u043A: ${Object.keys(item.images).length}`);
+    const actions = row.createDiv();
+    actions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+    const btn = (text, fn) => {
+      const b = actions.createEl("button", { text, cls: "mailer-yougile-refresh-btn" });
+      b.style.cssText = "font-size:11px;padding:2px 8px;";
+      b.addEventListener("click", fn);
+      return b;
+    };
+    btn("\u{1F441} \u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440", () => this.preview(item));
+    btn("\u{1F5A8} PDF", () => this.preview(item, true));
+    btn("\u{1F4F7} \u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F", () => this.openImages(item));
+    btn("\u{1F501} \u041F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C", () => this.regenerate(item));
+    btn("\u{1F4BE} \u042D\u043A\u0441\u043F\u043E\u0440\u0442 HTML", () => this.exportHtml(item));
+    btn("\u{1F4E4} \u0412 \u0447\u0430\u0442 YouGile", () => void this.sendToYougileChat(item));
+    btn("\u{1F5D1} \u0423\u0434\u0430\u043B\u0438\u0442\u044C", () => this.deleteItem(item));
+  }
+  async generateHtml(item) {
+    const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
+    const q = item.questionaire;
+    const illustrations = {};
+    for (const ill of (q == null ? void 0 : q.illustrations) || []) {
+      if (ill.uri) {
+        const resolved = await resolveImageDataUri(this.plugin.app, ill.uri);
+        if (resolved) illustrations[ill.path] = resolved;
+      }
+    }
+    const images = {};
+    for (const [key, ref] of Object.entries(item.images)) {
+      const resolved = await resolveImageDataUri(this.plugin.app, ref);
+      if (resolved) images[key] = resolved;
+    }
+    let qrDataUri;
+    const vcard = this.buildVCard(q);
+    if (vcard) {
+      try {
+        const QRCode2 = (await Promise.resolve().then(() => __toESM(require_browser2()))).default;
+        qrDataUri = await QRCode2.toDataURL(vcard, { width: 250, margin: 2, color: { dark: "#FF0000", light: "#FFFFFF" } });
+      } catch (e) {
+      }
+    }
+    return renderPresentationHtml(item.generation, tpl, images, {
+      title: item.title,
+      date: q == null ? void 0 : q.date,
+      presenter: q == null ? void 0 : q.presenter,
+      phone: q == null ? void 0 : q.presenterPhone,
+      email: q == null ? void 0 : q.presenterEmail,
+      qrDataUri,
+      illustrations,
+      bgDarken: item.bgDarken
+    });
+  }
+  buildVCard(q) {
+    if (!(q == null ? void 0 : q.presenterPhone) && !(q == null ? void 0 : q.presenterEmail)) return null;
+    return [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      `FN:${q.presenter || ""}`,
+      `TEL:${q.presenterPhone || ""}`,
+      `EMAIL:${q.presenterEmail || ""}`,
+      "END:VCARD"
+    ].join("\n");
+  }
+  newPresentation() {
+    new QuestionnaireModal(this.plugin, async (q) => {
+      const draft = {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        questionaire: q,
+        brainstormLog: [],
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      await this.plugin.presentationsDb.saveDraft(draft);
+      const designRules = await this.plugin.presentationTemplates.readDesignRules();
+      if (q.brainstorm !== false) {
+        new BrainstormModal(this.plugin, q, designRules, (brainstormed) => {
+          void this.doGenerate(brainstormed, designRules, draft.id);
+        }, (log) => {
+          void this.plugin.presentationsDb.saveDraft({
+            ...draft,
+            questionaire: q,
+            brainstormLog: log,
+            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }).open();
+      } else {
+        await this.doGenerate(q, designRules, draft.id);
+      }
+    }).open();
+  }
+  async doGenerate(q, designRules, draftId) {
+    try {
+      new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
+      const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
+      const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
+      const item = {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        title: q.topic,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        templateId: q.templateId,
+        questionaire: q,
+        generation,
+        images: {},
+        renderVersion: PRESENTATION_RENDER_VERSION,
+        templateVersion: this.plugin.presentationTemplates.getTemplateVersion(q.templateId)
+      };
+      item.html = await this.generateHtml(item);
+      await this.plugin.presentationsDb.add(item);
+      if (draftId) await this.plugin.presentationsDb.deleteDraft(draftId);
+      new import_obsidian19.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \xAB${item.title}\xBB \u0441\u043E\u0437\u0434\u0430\u043D\u0430 (${generation.slides.length} \u0441\u043B\u0430\u0439\u0434\u043E\u0432)`);
+      this.render();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438: ${msg}. \u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u2014 \u043C\u043E\u0436\u043D\u043E \u043F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C \u0431\u0435\u0437 \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0433\u043E \u0432\u0432\u043E\u0434\u0430.`);
+      if (draftId) {
+        const draft = this.plugin.presentationsDb.getDraftById(draftId);
+        if (draft) {
+          draft.questionaire = q;
+          draft.error = msg;
+          await this.plugin.presentationsDb.saveDraft(draft);
+        }
+      }
+      this.render();
+    }
+  }
+  regenerate(item) {
+    new QuestionnaireModal(this.plugin, async (q) => {
+      try {
+        new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
+        const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
+        const designRules = await this.plugin.presentationTemplates.readDesignRules();
+        const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
+        item.title = q.topic;
+        item.templateId = q.templateId;
+        item.questionaire = q;
+        item.generation = generation;
+        item.renderVersion = PRESENTATION_RENDER_VERSION;
+        item.templateVersion = this.plugin.presentationTemplates.getTemplateVersion(q.templateId);
+        item.html = await this.generateHtml(item);
+        await this.plugin.presentationsDb.update(item.id, {
+          title: item.title,
+          templateId: item.templateId,
+          questionaire: q,
+          generation,
+          html: item.html,
+          renderVersion: item.renderVersion,
+          templateVersion: item.templateVersion
+        });
+        new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E");
+        this.render();
+      } catch (e) {
+        new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }, item.questionaire).open();
+  }
+  async ensureHtml(item) {
+    await this.plugin.presentationTemplates.reload();
+    const tplVersion = this.plugin.presentationTemplates.getTemplateVersion(item.templateId);
+    if (!item.html || item.renderVersion !== PRESENTATION_RENDER_VERSION || item.templateVersion !== tplVersion) {
+      item.html = await this.generateHtml(item);
+      item.renderVersion = PRESENTATION_RENDER_VERSION;
+      item.templateVersion = tplVersion;
+      await this.plugin.presentationsDb.update(item.id, {
+        html: item.html,
+        renderVersion: item.renderVersion,
+        templateVersion: item.templateVersion
+      });
+    }
+    return item.html;
+  }
+  async preview(item, focusPdf = false) {
+    const html = await this.ensureHtml(item);
+    const modal = new PresentationPreviewModal(this.plugin.app, html);
+    modal.open();
+    if (focusPdf) {
+      new import_obsidian19.Notice("\u0412 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u{1F5A8} \u041F\u0435\u0447\u0430\u0442\u044C / PDF\xBB \u0438 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \xAB\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u0430\u043A PDF\xBB");
+    }
+  }
+  openImages(item) {
+    new ImageUploadModal(
+      this.plugin,
+      item.generation.slides.length,
+      item.images,
+      item.bgDarken || {},
+      async (images, bgDarken) => {
+        item.images = images;
+        item.bgDarken = bgDarken;
+        item.renderVersion = PRESENTATION_RENDER_VERSION;
+        item.templateVersion = this.plugin.presentationTemplates.getTemplateVersion(item.templateId);
+        item.html = await this.generateHtml(item);
+        await this.plugin.presentationsDb.update(item.id, {
+          images,
+          bgDarken,
+          html: item.html,
+          renderVersion: item.renderVersion,
+          templateVersion: item.templateVersion
+        });
+        new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u044B");
+        this.render();
+      }
+    ).open();
+  }
+  async exportHtml(item) {
+    try {
+      const html = await this.ensureHtml(item);
+      const adapter = this.plugin.app.vault.adapter;
+      if (!await adapter.exists(EXPORT_DIR)) {
+        await adapter.mkdir(EXPORT_DIR);
+      }
+      const path3 = `${EXPORT_DIR}/${sanitize(item.title)}.html`;
+      await adapter.write(path3, html);
+      new import_obsidian19.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E ${path3}`);
+    } catch (e) {
+      new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0430: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  /** Отправка презентации в чат задачи YouGile: загрузка HTML-файла → ссылка → сообщение <a>Название слайдов</a>. */
+  async sendToYougileChat(item) {
+    const tasks = this.plugin.db.getTasks().sort((a, b) => a.title.localeCompare(b.title));
+    if (tasks.length === 0) {
+      new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043A\u044D\u0448 \u0437\u0430\u0434\u0430\u0447 \u043F\u0443\u0441\u0442. \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0439\u0442\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 YouGile.");
+      return;
+    }
+    new TaskPickModal(this.plugin, tasks, async (task) => {
+      try {
+        const html = await this.ensureHtml(item);
+        const buffer = new TextEncoder().encode(html).buffer;
+        const result = await this.plugin.client.uploadFile(buffer, `${sanitize(item.title)}.html`);
+        const link = `<a href="${result.fullUrl}">${escapeHtmlAttr(item.title)}</a>`;
+        await this.plugin.client.sendMessage(task.id, link);
+        new import_obsidian19.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \xAB${item.title}\xBB \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 \u0447\u0430\u0442 \u0437\u0430\u0434\u0430\u0447\u0438`);
+      } catch (e) {
+        new import_obsidian19.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u2014 ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }).open();
+  }
+  async deleteItem(item) {
+    await this.plugin.presentationsDb.delete(item.id);
+    new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0443\u0434\u0430\u043B\u0435\u043D\u043E");
+    this.render();
+  }
+};
+
+// src/commands.ts
+var import_obsidian21 = require("obsidian");
 init_sync_logger();
 function registerCommands(plugin) {
   plugin.addCommand({
@@ -71851,7 +73332,7 @@ function registerCommands(plugin) {
     name: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443",
     callback: () => {
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian18.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian21.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return;
       }
       plugin.activateView();
@@ -71875,7 +73356,7 @@ function registerCommands(plugin) {
       const view = leaf == null ? void 0 : leaf.view;
       if (view instanceof TasksView) {
         view.syncAndRender();
-        new import_obsidian18.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
+        new import_obsidian21.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
       }
     }
   });
@@ -71894,7 +73375,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleDocumentsEnabled) return false;
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian18.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian21.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return false;
       }
       if (checking) return true;
@@ -71943,6 +73424,15 @@ function registerCommands(plugin) {
       if (!plugin.settings.moduleLpiEnabled) return false;
       if (checking) return true;
       plugin.activateLpiView();
+    }
+  });
+  plugin.addCommand({
+    id: "open-presentations",
+    name: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438",
+    checkCallback: (checking) => {
+      if (!plugin.settings.modulePresentationsEnabled) return false;
+      if (checking) return true;
+      plugin.activatePresentationsView();
     }
   });
   plugin.addCommand({
@@ -72571,8 +74061,90 @@ var ContactDatabase = class {
   }
 };
 
+// src/database/presentations-db.ts
+var DB_PATH4 = "yourbase/presentations_data.json";
+var PresentationsDatabase = class {
+  constructor(app) {
+    this.data = { presentations: [], drafts: [] };
+    this.app = app;
+  }
+  async init() {
+    const adapter = this.app.vault.adapter;
+    try {
+      const exists = await adapter.exists(DB_PATH4);
+      if (exists) {
+        const content = await adapter.read(DB_PATH4);
+        const parsed = JSON.parse(content);
+        this.data = {
+          presentations: Array.isArray(parsed.presentations) ? parsed.presentations : [],
+          drafts: Array.isArray(parsed.drafts) ? parsed.drafts : []
+        };
+      }
+    } catch (e) {
+    }
+  }
+  async save() {
+    try {
+      await this.app.vault.adapter.write(DB_PATH4, JSON.stringify(this.data, null, 2));
+    } catch (e) {
+      console.error("YouGile: failed to save presentations db");
+    }
+  }
+  getAll() {
+    return this.data.presentations;
+  }
+  getById(id) {
+    return this.data.presentations.find((p) => p.id === id);
+  }
+  async add(item) {
+    const idx = this.data.presentations.findIndex((p) => p.id === item.id);
+    if (idx !== -1) {
+      this.data.presentations[idx] = item;
+    } else {
+      this.data.presentations.push(item);
+    }
+    await this.save();
+  }
+  async update(id, updates) {
+    const idx = this.data.presentations.findIndex((p) => p.id === id);
+    if (idx !== -1) {
+      this.data.presentations[idx] = { ...this.data.presentations[idx], ...updates, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+      await this.save();
+    }
+  }
+  async delete(id) {
+    this.data.presentations = this.data.presentations.filter((p) => p.id !== id);
+    await this.save();
+  }
+  async replaceHtml(id, html) {
+    await this.update(id, { html });
+  }
+  getDrafts() {
+    return this.data.drafts || [];
+  }
+  getDraftById(id) {
+    return (this.data.drafts || []).find((d) => d.id === id);
+  }
+  async saveDraft(draft) {
+    const drafts = this.data.drafts || [];
+    const idx = drafts.findIndex((d) => d.id === draft.id);
+    if (idx !== -1) {
+      drafts[idx] = { ...drafts[idx], ...draft, updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
+    } else {
+      drafts.push({ ...draft, createdAt: draft.createdAt || (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    }
+    this.data.drafts = drafts;
+    await this.save();
+  }
+  async deleteDraft(id) {
+    this.data.drafts = (this.data.drafts || []).filter((d) => d.id !== id);
+    await this.save();
+  }
+};
+
 // src/services/llm-service.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian22 = require("obsidian");
+init_presentation_generator();
 var LLMService = class {
   constructor(plugin) {
     this.lastRequestTime = 0;
@@ -72619,7 +74191,6 @@ var LLMService = class {
     return context;
   }
   async retryWithBackoff(fn, maxRetries = 3, baseDelay = 3e3) {
-    var _a;
     let lastError = null;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
@@ -72633,8 +74204,10 @@ var LLMService = class {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         const err = error;
-        if (((_a = err.message) == null ? void 0 : _a.includes("429")) || err.status === 429) {
+        const retryable = err.status === 429 || err.status === 504 || typeof err.message === "string" && (/(^|\s)(429|504)(\s|:|$)/.test(err.message) || err.message.startsWith("Timeout:"));
+        if (retryable) {
           const delay = baseDelay * Math.pow(2, attempt);
+          console.warn(`[YouGile LLM] \u043F\u043E\u043F\u044B\u0442\u043A\u0430 ${attempt + 1} \u0432\u0435\u0440\u043D\u0443\u043B\u0430 ${err.message}, \u043F\u043E\u0432\u0442\u043E\u0440 \u0447\u0435\u0440\u0435\u0437 ${delay}ms...`);
           await new Promise((resolve) => window.setTimeout(resolve, delay));
           continue;
         }
@@ -72642,6 +74215,239 @@ var LLMService = class {
       }
     }
     throw lastError || new Error("\u041F\u0440\u0435\u0432\u044B\u0448\u0435\u043D\u043E \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u043F\u043E\u043F\u044B\u0442\u043E\u043A");
+  }
+  async complete(system, user) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) throw new Error("API \u043A\u043B\u044E\u0447 \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D");
+    const { llmModel, llmApiUrl } = this.plugin.settings;
+    return this.retryWithBackoff(async () => {
+      var _a, _b, _c;
+      const response = await this.requestWithTimeout({
+        url: llmApiUrl || "https://ask.chadgpt.ru/api/v1/chat/completions",
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: llmModel || "deepseek-v4-pro",
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user }
+          ],
+          temperature: 0.4
+        })
+      });
+      if (response.status === 429) throw new Error("429: Too Many Requests");
+      if (response.status !== 200) throw new Error(`HTTP ${response.status}: ${response.text}`);
+      const data = JSON.parse(response.text);
+      return ((_c = (_b = (_a = data.choices) == null ? void 0 : _a[0]) == null ? void 0 : _b.message) == null ? void 0 : _c.content) || "";
+    });
+  }
+  /** Выполняет HTTP-запрос с клиентским таймаутом.
+   *  requestUrl в Obsidian не имеет таймаута — без этой обёртки при зависшем
+   *  сервере (даже без 504) промис не завершается никогда. */
+  async requestWithTimeout(param, timeoutMs = 18e4) {
+    let timer;
+    try {
+      const response = await Promise.race([
+        (0, import_obsidian22.requestUrl)({ ...param, throw: false }),
+        new Promise((_, reject) => {
+          timer = window.setTimeout(
+            () => reject(new Error(`Timeout: LLM \u043D\u0435 \u043E\u0442\u0432\u0435\u0442\u0438\u043B \u0437\u0430 ${Math.round(timeoutMs / 1e3)} \u0441\u0435\u043A`)),
+            timeoutMs
+          );
+        })
+      ]);
+      return { status: response.status, text: response.text };
+    } finally {
+      if (timer !== void 0) window.clearTimeout(timer);
+    }
+  }
+  extractJsonBlock(text) {
+    let cleaned = text.trim();
+    const fence = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fence) cleaned = fence[1].trim();
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start === -1 || end === -1 || end < start) throw new Error("JSON \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D \u0432 \u043E\u0442\u0432\u0435\u0442\u0435 LLM");
+    return JSON.parse(cleaned.substring(start, end + 1));
+  }
+  /** Генерация структуры презентации из анкеты по дизайн-скилу. */
+  async generateSlides(q, designRules, templateName) {
+    const system = `${designRules}
+
+## \u0412\u044B\u0445\u043E\u0434\u043D\u043E\u0439 \u0444\u043E\u0440\u043C\u0430\u0442
+\u041E\u0442\u0432\u0435\u0442\u044C \u0422\u041E\u041B\u042C\u041A\u041E JSON-\u043E\u0431\u044A\u0435\u043A\u0442\u043E\u043C \u0431\u0435\u0437 markdown-\u043E\u0431\u0451\u0440\u0442\u043A\u0438 \u0438 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u0435\u0432:
+{
+  "title": "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438",
+  "slides": [
+    {
+      "layout": "title|section|bullets|cards|table|photo|final",
+      "heading1": "\u0441\u0442\u0440\u043E\u043A\u0430 \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0430 (\u0430\u043A\u0446\u0435\u043D\u0442\u043D\u0430\u044F)",
+      "heading2": "\u0441\u0442\u0440\u043E\u043A\u0430 \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0430 (\u0442\u0451\u043C\u043D\u0430\u044F, \u043E\u043F\u0446\u0438\u043E\u043D\u0430\u043B\u044C\u043D\u043E)",
+      "subtitle": "\u043F\u043E\u0432\u043E\u0434/\u043F\u043E\u0434\u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A (\u0434\u043B\u044F title \u0438 section)",
+      "bullets": ["\u043F\u0443\u043D\u043A\u0442 1", "\u043F\u0443\u043D\u043A\u0442 2"],
+      "cards": [{"title":"\u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438","body":"\u0422\u0435\u043A\u0441\u0442 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438"}],
+      "table": {"headers":["\u041A\u043E\u043B\u043E\u043D\u043A\u0430 1","\u041A\u043E\u043B\u043E\u043D\u043A\u0430 2"],"rows":[["\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435","\u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435"]]},
+      "speaker": "\u0434\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A (\u0434\u043B\u044F title \u0438 final)",
+      "footer": "\u0434\u0430\u0442\u0430 \xB7 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \xB7 \u2116",
+      "imageHint": "\u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u0438\u043B\u043B\u044E\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u0434\u043B\u044F \u0441\u043B\u0430\u0439\u0434\u0430 (\u0435\u0441\u043B\u0438 \u043D\u0443\u0436\u043D\u0430)",
+      "imagePath": "\u0442\u043E\u0447\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u043E\u0434\u043D\u043E\u0439 \u0438\u0437 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B\u0445 \u0438\u043B\u043B\u044E\u0441\u0442\u0440\u0430\u0446\u0438\u0439 (\u0435\u0441\u043B\u0438 \u043E\u043D\u0430 \u043F\u043E\u0434\u0445\u043E\u0434\u0438\u0442 \u0434\u043B\u044F \u0441\u043B\u0430\u0439\u0434\u0430)"
+    }
+  ]
+}
+
+## \u041F\u0440\u0430\u0432\u0438\u043B\u0430
+- \u041F\u0435\u0440\u0432\u044B\u0439 \u0441\u043B\u0430\u0439\u0434 \u2014 layout "title", \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0439 \u2014 "final".
+- \u0424\u0438\u043D\u0430\u043B\u044C\u043D\u044B\u0439 \u0441\u043B\u0430\u0439\u0434 (final) \u2014 \u0446\u0435\u043D\u0442\u0440\u0430\u043B\u044C\u043D\u044B\u0439 \u0442\u0435\u043A\u0441\u0442 \u0412\u0421\u0415\u0413\u0414\u0410 \u0440\u043E\u0432\u043D\u043E \xAB\u0421\u043F\u0430\u0441\u0438\u0431\u043E \u0437\u0430 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435\xBB,
+  \u0431\u0435\u0437 \u0432\u0430\u0440\u0438\u0430\u0446\u0438\u0439, \u0441\u043E\u043A\u0440\u0430\u0449\u0435\u043D\u0438\u0439 \u0438 \u043F\u0440\u043E\u0438\u0437\u0432\u043E\u043B\u044C\u043D\u044B\u0445 \u0437\u0430\u043C\u0435\u043D. \u041F\u043E\u043B\u0435 heading1 \u0434\u043B\u044F final \u043D\u0435 \u0437\u0430\u043F\u043E\u043B\u043D\u044F\u0439
+  (\u0438\u043B\u0438 \u0441\u0442\u0430\u0432\u044C \xAB\u0421\u043F\u0430\u0441\u0438\u0431\u043E \u0437\u0430 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435\xBB), speaker \u2014 \u0434\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A.
+- \u041F\u0440\u043E\u043C\u0435\u0436\u0443\u0442\u043E\u0447\u043D\u044B\u0435 \u0441\u043B\u0430\u0439\u0434\u044B \u0432\u044B\u0431\u0438\u0440\u0430\u0439 \u0438\u0437: section (\u0440\u0430\u0437\u0434\u0435\u043B\u0438\u0442\u0435\u043B\u044C \u043A\u0440\u0443\u043F\u043D\u043E\u0433\u043E \u0440\u0430\u0437\u0434\u0435\u043B\u0430), bullets (\u043F\u0443\u043D\u043A\u0442\u044B),
+  cards (\u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438), table (\u0442\u0430\u0431\u043B\u0438\u0446\u0430), photo (\u0444\u043E\u0442\u043E \u043A\u0430\u043A \u0444\u043E\u043D \u0441 \u043A\u043E\u0440\u043E\u0442\u043A\u0438\u043C\u0438 \u043F\u0443\u043D\u043A\u0442\u0430\u043C\u0438).
+- \u041E\u0434\u043D\u0430 \u0438\u0434\u0435\u044F \u043D\u0430 \u0441\u043B\u0430\u0439\u0434, \u043C\u0430\u043A\u0441\u0438\u043C\u0443\u043C 5-6 \u043F\u0443\u043D\u043A\u0442\u043E\u0432 \u043F\u043E \u043E\u0434\u043D\u043E\u0439 \u0441\u0442\u0440\u043E\u043A\u0435.
+- \u041A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u0441\u043B\u0430\u0439\u0434\u043E\u0432 \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0438 \u0441\u0430\u043C \u043F\u043E \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442\u0443 \u0430\u043D\u043A\u0435\u0442\u044B (6-16), \u0435\u0441\u043B\u0438 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C \u043D\u0435 \u0443\u043A\u0430\u0437\u0430\u043B \u0438\u043D\u0430\u0447\u0435.
+- footer \u0434\u043B\u044F \u0432\u0441\u0435\u0445 \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u043D\u044B\u0445 \u0441\u043B\u0430\u0439\u0434\u043E\u0432: "\u0434\u0430\u0442\u0430 \xB7 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \xB7 \u2116" (\u2116 \u0437\u0430\u043C\u0435\u043D\u0438\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438).
+- speaker \u2014 \u043D\u0430 title \u0438 final.
+- \u041D\u0435 \u0432\u044B\u0434\u0443\u043C\u044B\u0432\u0430\u0439 \u0444\u0430\u043A\u0442\u044B \u0441\u0432\u0435\u0440\u0445 \u0430\u043D\u043A\u0435\u0442\u044B, \u0444\u043E\u0440\u043C\u0443\u043B\u0438\u0440\u0443\u0439 \u043E\u0441\u0442\u043E\u0440\u043E\u0436\u043D\u043E.
+- \u0414\u043B\u044F \u0441\u043B\u0430\u0439\u0434\u043E\u0432, \u0433\u0434\u0435 \u0443\u043C\u0435\u0441\u0442\u043D\u0430 \u0438\u043B\u043B\u044E\u0441\u0442\u0440\u0430\u0446\u0438\u044F \u0438\u0437 \u0441\u043F\u0438\u0441\u043A\u0430 \u043D\u0438\u0436\u0435, \u0443\u043A\u0430\u0436\u0438 \u0435\u0451 \u0442\u043E\u0447\u043D\u044B\u0439 \u043F\u0443\u0442\u044C \u0432 "imagePath".
+  \u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0443\u0442\u0438 \u0438\u0437 \u0441\u043F\u0438\u0441\u043A\u0430, \u043D\u0435 \u0432\u044B\u0434\u0443\u043C\u044B\u0432\u0430\u0439. \u041D\u0430 \u043E\u0434\u0438\u043D \u0441\u043B\u0430\u0439\u0434 \u2014 \u043C\u0430\u043A\u0441\u0438\u043C\u0443\u043C \u043E\u0434\u043D\u0430 \u0438\u043B\u043B\u044E\u0441\u0442\u0440\u0430\u0446\u0438\u044F.
+  \u0422\u0438\u0442\u0443\u043B (title) \u0438 \u0444\u0438\u043D\u0430\u043B (final) \u0438\u043B\u043B\u044E\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u043D\u0435 \u0442\u0440\u0435\u0431\u0443\u044E\u0442.`;
+    const illList = (q.illustrations || []).map((ill) => `- ${ill.path}: ${ill.description || "\u0431\u0435\u0437 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u044F"}`).join("\n");
+    const user = `## \u0410\u041D\u041A\u0415\u0422\u0410
+\u0422\u0435\u043C\u0430: ${q.topic}
+\u0410\u0443\u0434\u0438\u0442\u043E\u0440\u0438\u044F: ${q.audience}
+\u0426\u0435\u043B\u044C: ${q.purpose}
+\u0421\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0430: ${q.structure}
+\u041A\u043B\u044E\u0447\u0435\u0432\u044B\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F: ${q.keyMessages || "\u2014"}
+\u0422\u043E\u043D: ${q.tone || "\u2014"}
+\u0414\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A: ${q.presenter || "\u2014"}
+\u0422\u0435\u043B\u0435\u0444\u043E\u043D \u0434\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A\u0430: ${q.presenterPhone || "\u2014"}
+Email \u0434\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A\u0430: ${q.presenterEmail || "\u2014"}
+\u0414\u0430\u0442\u0430: ${q.date || "\u2014"}
+\u041F\u043E\u0432\u043E\u0434 (\u043A\u0438\u043A\u0435\u0440): ${q.kicker || "\u2014"}
+\u041E\u0440\u0438\u0435\u043D\u0442\u0438\u0440\u043E\u0432\u043E\u0447\u043D\u043E\u0435 \u0447\u0438\u0441\u043B\u043E \u0441\u043B\u0430\u0439\u0434\u043E\u0432: ${q.slideCountHint || "\u043F\u043E \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442\u0443"}
+\u0428\u0430\u0431\u043B\u043E\u043D \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u044F: ${templateName}
+${illList ? `
+## \u0414\u041E\u0421\u0422\u0423\u041F\u041D\u042B\u0415 \u0418\u041B\u041B\u042E\u0421\u0422\u0420\u0410\u0426\u0418\u0418 (\u043F\u0443\u0442\u044C \u2014 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435)
+${illList}
+
+\u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439 \u0438\u0445 \u043F\u0443\u0442\u0438 \u0432 \u043F\u043E\u043B\u0435 imagePath \u0441\u043B\u0430\u0439\u0434\u043E\u0432, \u0433\u0434\u0435 \u043E\u043D\u0438 \u0443\u043C\u0435\u0441\u0442\u043D\u044B.` : ""}
+
+\u0421\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u0443\u0439 JSON \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438. \u041F\u043E\u043B\u0435 subtitle \u0442\u0438\u0442\u0443\u043B\u044C\u043D\u043E\u0433\u043E \u0441\u043B\u0430\u0439\u0434\u0430 \u0437\u0430\u043F\u043E\u043B\u043D\u0438 \u043F\u043E\u0432\u043E\u0434\u043E\u043C (\u043A\u0438\u043A\u0435\u0440\u043E\u043C), \u0435\u0441\u043B\u0438 \u043E\u043D \u0443\u043A\u0430\u0437\u0430\u043D; \u0438\u043D\u0430\u0447\u0435 \u043F\u0443\u0441\u0442\u043E.`;
+    const text = await this.complete(system, user);
+    let parsed;
+    try {
+      parsed = this.extractJsonBlock(text);
+    } catch (firstErr) {
+      const retry = await this.complete(system, "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0435 \u0431\u044B\u043B \u0432\u0430\u043B\u0438\u0434\u043D\u044B\u043C JSON. \u0412\u0435\u0440\u043D\u0438 \u0422\u041E\u041B\u042C\u041A\u041E JSON \u043F\u043E \u0442\u043E\u0439 \u0436\u0435 \u0441\u0445\u0435\u043C\u0435.");
+      parsed = this.extractJsonBlock(retry);
+    }
+    const obj = parsed;
+    if (!obj || !Array.isArray(obj.slides)) throw new Error("LLM \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u0443\u044E \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0443 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438");
+    const illPaths = (q.illustrations || []).map((ill) => ill.path);
+    const contentLayouts = ["bullets", "cards", "table"];
+    const slides = obj.slides.map((s) => {
+      if (s.imagePath && illPaths.length > 0) {
+        const norm = normalizeIllustrationPath(s.imagePath);
+        const targetBase = norm.split("/").pop() || norm;
+        const targetStem = targetBase.replace(/\.[a-z0-9]+$/, "");
+        const matched = illPaths.find((p) => normalizeIllustrationPath(p) === norm) || illPaths.find((p) => {
+          const base = normalizeIllustrationPath(p).split("/").pop() || "";
+          return base === targetBase || base.replace(/\.[a-z0-9]+$/, "") === targetStem;
+        });
+        if (matched) s.imagePath = matched;
+      }
+      return s;
+    });
+    const used = new Set(
+      slides.filter((s) => contentLayouts.includes(s.layout) && s.imagePath).map((s) => s.imagePath)
+    );
+    for (const s of slides) {
+      if (s.imagePath && !contentLayouts.includes(s.layout)) s.imagePath = void 0;
+    }
+    const freeIlls = illPaths.filter((p) => !used.has(p));
+    if (freeIlls.length > 0) {
+      let i = 0;
+      for (const s of slides) {
+        if (i >= freeIlls.length) break;
+        if (contentLayouts.includes(s.layout) && !s.imagePath) {
+          s.imagePath = freeIlls[i++];
+        }
+      }
+    }
+    return {
+      title: obj.title || q.topic,
+      slides
+    };
+  }
+  /** Мозговой штурм: LLM задаёт по одному уточняющему вопросу, пока не соберёт
+   *  детали. Возвращает { done:false, question } или { done:true, summary }. */
+  async brainstormNext(q, log, designRules, round, maxRounds) {
+    const system = `\u0422\u044B \u2014 \u043C\u0430\u0441\u0442\u0435\u0440 \u043C\u043E\u0437\u0433\u043E\u0432\u043E\u0433\u043E \u0448\u0442\u0443\u0440\u043C\u0430 \u043F\u043E \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0435 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439.
+\u0422\u0432\u043E\u044F \u0446\u0435\u043B\u044C \u2014 \u041D\u0415 \u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044E, \u0430 \u0441\u043E\u0431\u0440\u0430\u0442\u044C \u043E\u0442 \u0430\u0432\u0442\u043E\u0440\u0430 \u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u0434\u0435\u0442\u0430\u043B\u0435\u0439, \u0447\u0442\u043E\u0431\u044B \u043F\u043E\u0442\u043E\u043C \u0438\u0437 \u043D\u0438\u0445 \u0441\u0434\u0435\u043B\u0430\u0442\u044C \u0443\u0431\u0435\u0434\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0435 \u0441\u043B\u0430\u0439\u0434\u044B.
+
+\u0417\u0430\u0434\u0430\u0432\u0430\u0439 \u043F\u043E \u043E\u0434\u043D\u043E\u043C\u0443 \u0446\u0435\u043B\u0435\u0432\u043E\u043C\u0443 \u0432\u043E\u043F\u0440\u043E\u0441\u0443 \u0437\u0430 \u0440\u0430\u0437 \u043D\u0430 \u0440\u0443\u0441\u0441\u043A\u043E\u043C \u044F\u0437\u044B\u043A\u0435. \u0412\u043E\u043F\u0440\u043E\u0441 \u0434\u043E\u043B\u0436\u0435\u043D \u0443\u0442\u043E\u0447\u043D\u044F\u0442\u044C \u0421\u041E\u0414\u0415\u0420\u0416\u0410\u041D\u0418\u0415 (\u0444\u0430\u043A\u0442\u044B, \u0446\u0438\u0444\u0440\u044B, \u0431\u043E\u043B\u0438, \u0430\u0443\u0434\u0438\u0442\u043E\u0440\u0438\u044E, \u0446\u0435\u043B\u044C, \u043E\u0431\u044A\u0451\u043C, \u043A\u043B\u044E\u0447\u0435\u0432\u044B\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F, \u0436\u0435\u043B\u0430\u0435\u043C\u0443\u044E \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0443), \u0430 \u043D\u0435 \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u0435.
+
+\u041F\u0440\u0430\u0432\u0438\u043B\u0430:
+- \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0441\u043F\u0440\u043E\u0441\u0438 \u043F\u0440\u043E \u0446\u0435\u043B\u044C \u0438 \u0430\u0443\u0434\u0438\u0442\u043E\u0440\u0438\u044E, \u0435\u0441\u043B\u0438 \u0438\u0445 \u043D\u0435\u0442 \u0432 \u0430\u043D\u043A\u0435\u0442\u0435.
+- \u0417\u0430\u0442\u0435\u043C \u043F\u0440\u043E \u043A\u043B\u044E\u0447\u0435\u0432\u044B\u0435 \u0442\u0435\u0437\u0438\u0441\u044B, \u043A\u043E\u0442\u043E\u0440\u044B\u0435 \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E \u0434\u043E\u043B\u0436\u043D\u044B \u043F\u043E\u043F\u0430\u0441\u0442\u044C \u043D\u0430 \u0441\u043B\u0430\u0439\u0434\u044B.
+- \u041F\u043E\u0442\u043E\u043C \u043F\u0440\u043E \u0444\u0430\u043A\u0442\u044B/\u0446\u0438\u0444\u0440\u044B/\u0441\u0440\u043E\u043A\u0438 \u0438 \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u0435 \u0432\u043E\u043F\u0440\u043E\u0441\u044B.
+- \u041D\u0435 \u0437\u0430\u0434\u0430\u0432\u0430\u0439 \u0431\u043E\u043B\u044C\u0448\u0435 1 \u0432\u043E\u043F\u0440\u043E\u0441\u0430 \u0437\u0430 \u0440\u0430\u0437.
+- \u041A\u043E\u0433\u0434\u0430 \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u0438 \u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E (\u0438\u043B\u0438 \u0434\u043E\u0441\u0442\u0438\u0433\u043D\u0443\u0442 \u043B\u0438\u043C\u0438\u0442 \u0440\u0430\u0443\u043D\u0434\u043E\u0432 ${maxRounds}) \u2014 \u0432\u0435\u0440\u043D\u0438 done:true \u0438 summary \u2014 \u0441\u0436\u0430\u0442\u044B\u0439 \u0431\u0440\u0438\u0444 (3-6 \u0441\u0442\u0440\u043E\u043A) \u0441\u043E \u0432\u0441\u0435\u043C\u0438 \u0443\u0442\u043E\u0447\u043D\u0451\u043D\u043D\u044B\u043C\u0438 \u0434\u0435\u0442\u0430\u043B\u044F\u043C\u0438.
+
+## \u0414\u0438\u0437\u0430\u0439\u043D-\u0441\u043A\u0438\u043B (\u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0430, \u043F\u043E \u043A\u043E\u0442\u043E\u0440\u043E\u0439 \u0431\u0443\u0434\u0435\u0442 \u0441\u0442\u0440\u043E\u0438\u0442\u044C\u0441\u044F \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F)
+${designRules}
+
+## \u0424\u043E\u0440\u043C\u0430\u0442 \u043E\u0442\u0432\u0435\u0442\u0430 \u2014 \u0442\u043E\u043B\u044C\u043A\u043E JSON \u0431\u0435\u0437 \u043F\u043E\u044F\u0441\u043D\u0435\u043D\u0438\u0439:
+{"done": false, "question": "\u0432\u043E\u043F\u0440\u043E\u0441 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044E"}
+\u0438\u043B\u0438
+{"done": true, "summary": "\u043A\u0440\u0430\u0442\u043A\u0438\u0439 \u0431\u0440\u0438\u0444 \u0441 \u0434\u0435\u0442\u0430\u043B\u044F\u043C\u0438"}`;
+    const transcript = log.map((m) => `${m.role === "assistant" ? "\u0412\u043E\u043F\u0440\u043E\u0441" : "\u041E\u0442\u0432\u0435\u0442"}: ${m.text}`).join("\n");
+    const user = `## \u0410\u041D\u041A\u0415\u0422\u0410
+\u0422\u0435\u043C\u0430: ${q.topic || "\u2014"}
+\u0410\u0443\u0434\u0438\u0442\u043E\u0440\u0438\u044F: ${q.audience || "\u2014"}
+\u0426\u0435\u043B\u044C: ${q.purpose || "\u2014"}
+\u041A\u043B\u044E\u0447\u0435\u0432\u044B\u0435 \u0441\u043E\u043E\u0431\u0449\u0435\u043D\u0438\u044F: ${q.keyMessages || "\u2014"}
+\u0422\u043E\u043D: ${q.tone || "\u2014"}
+\u0421\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0430: ${q.structure || "\u2014"}
+\u0414\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A: ${q.presenter || "\u2014"}
+\u0414\u0430\u0442\u0430: ${q.date || "\u2014"}
+\u041E\u0440\u0438\u0435\u043D\u0442\u0438\u0440\u043E\u0432\u043E\u0447\u043D\u043E\u0435 \u0447\u0438\u0441\u043B\u043E \u0441\u043B\u0430\u0439\u0434\u043E\u0432: ${q.slideCountHint || "\u2014"}
+\u041F\u043E\u0432\u043E\u0434 (\u043A\u0438\u043A\u0435\u0440): ${q.kicker || "\u2014"}
+
+## \u0425\u043E\u0434 \u0431\u0435\u0441\u0435\u0434\u044B
+${transcript || "\u2014"}
+
+\u0420\u0430\u0443\u043D\u0434 ${round} \u0438\u0437 ${maxRounds}. \u041E\u0442\u0432\u0435\u0442\u044C JSON \u043F\u043E \u0441\u0445\u0435\u043C\u0435.`;
+    const text = await this.complete(system, user);
+    let parsed;
+    try {
+      parsed = this.extractJsonBlock(text);
+    } catch (e) {
+      return { done: round >= maxRounds, question: "\u0420\u0430\u0441\u0441\u043A\u0430\u0436\u0438\u0442\u0435 \u043F\u043E\u0434\u0440\u043E\u0431\u043D\u0435\u0435 \u043E \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0438 \u0434\u043E\u043A\u043B\u0430\u0434\u0430?" };
+    }
+    const obj = parsed;
+    return { done: !!obj.done, question: obj.question, summary: obj.summary };
+  }
+  /** Извлечение шаблона (TemplateSpec) из примера презентации. */
+  async extractTemplate(example, templateRules) {
+    const user = `## \u041F\u0420\u0418\u041C\u0415\u0420 \u041F\u0420\u0415\u0417\u0415\u041D\u0422\u0410\u0426\u0418\u0418
+
+${example.substring(0, 2e4)}
+
+\u0418\u0437\u0432\u043B\u0435\u043A\u0438 \u0448\u0430\u0431\u043B\u043E\u043D \u0438 \u0432\u0435\u0440\u043D\u0438 JSON TemplateSpec.`;
+    const text = await this.complete(templateRules, user);
+    let parsed;
+    try {
+      parsed = this.extractJsonBlock(text);
+    } catch (firstErr) {
+      const retry = await this.complete(templateRules, "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0435 \u0431\u044B\u043B \u0432\u0430\u043B\u0438\u0434\u043D\u044B\u043C JSON. \u0412\u0435\u0440\u043D\u0438 \u0422\u041E\u041B\u042C\u041A\u041E JSON TemplateSpec \u0431\u0435\u0437 \u043F\u043E\u044F\u0441\u043D\u0435\u043D\u0438\u0439.");
+      parsed = this.extractJsonBlock(retry);
+    }
+    const obj = parsed;
+    if (!obj || !obj.id || !obj.name) throw new Error("LLM \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 TemplateSpec");
+    return obj;
   }
   async ask(question, fileContext = "", historyContext = "") {
     const apiKey = this.getApiKey();
@@ -72674,7 +74480,7 @@ ${question}
 ## \u041E\u0422\u0412\u0415\u0422\u042C:`;
     return this.retryWithBackoff(async () => {
       var _a, _b, _c;
-      const response = await (0, import_obsidian19.requestUrl)({
+      const response = await (0, import_obsidian22.requestUrl)({
         url: llmApiUrl || "https://ask.chadgpt.ru/api/v1/chat/completions",
         method: "POST",
         headers: {
@@ -72687,8 +74493,7 @@ ${question}
             { role: "system", content: llmSystemPrompt || "\u0422\u044B \u2014 \u044D\u043A\u0441\u043F\u0435\u0440\u0442. \u041E\u0442\u0432\u0435\u0447\u0430\u0439 \u043D\u0430 \u0440\u0443\u0441\u0441\u043A\u043E\u043C \u044F\u0437\u044B\u043A\u0435." },
             { role: "user", content: userPrompt }
           ],
-          temperature: 0.3,
-          max_completion_tokens: 4e3
+          temperature: 0.3
         })
       });
       if (response.status === 429) throw new Error("429: Too Many Requests");
@@ -72699,10 +74504,300 @@ ${question}
   }
 };
 
+// src/services/presentation-templates.ts
+var import_obsidian23 = require("obsidian");
+var TEMPLATES_DIR = "yourbase/presentation_templates";
+var RULES_DIR = "yourbase/presentation_rules";
+var DESIGN_RULES_FILE = `${RULES_DIR}/design_rules.md`;
+var TEMPLATE_RULES_FILE = `${RULES_DIR}/template_rules.md`;
+var DEFAULT_DESIGN_RULES = `# \u0414\u0438\u0437\u0430\u0439\u043D-\u0441\u043A\u0438\u043B \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439
+
+\u0422\u044B \u2014 \u044D\u043A\u0441\u043F\u0435\u0440\u0442 \u043F\u043E \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u044E \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439, \u043A\u043E\u0442\u043E\u0440\u044B\u0435 \u044F\u0441\u043D\u043E \u043A\u043E\u043C\u043C\u0443\u043D\u0438\u0446\u0438\u0440\u0443\u044E\u0442 \u0438 \u0443\u0431\u0435\u0436\u0434\u0430\u044E\u0442.
+
+## \u0422\u0438\u043F\u044B \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439
+- **Stakeholder Update** (\u0438\u043D\u0444\u043E\u0440\u043C\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0438 \u0441\u043E\u0433\u043B\u0430\u0441\u043E\u0432\u0430\u0442\u044C): \u043A\u043E\u043D\u0442\u0435\u043A\u0441\u0442, \u043F\u0440\u043E\u0433\u0440\u0435\u0441\u0441, \u043A\u043B\u044E\u0447\u0435\u0432\u044B\u0435 \u0440\u0435\u0448\u0435\u043D\u0438\u044F, \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0438\u0435 \u0448\u0430\u0433\u0438, \u0437\u0430\u043F\u0440\u043E\u0441\u044B.
+- **Design Review** (\u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043E\u0431\u0440\u0430\u0442\u043D\u0443\u044E \u0441\u0432\u044F\u0437\u044C): \u0446\u0435\u043B\u0438, \u0440\u0430\u0437\u0431\u043E\u0440 \u0440\u0435\u0448\u0435\u043D\u0438\u044F, \u043E\u0431\u043E\u0441\u043D\u043E\u0432\u0430\u043D\u0438\u0435, \u043E\u0442\u043A\u0440\u044B\u0442\u044B\u0435 \u0432\u043E\u043F\u0440\u043E\u0441\u044B, \u0437\u0430\u043F\u0440\u043E\u0441 \u0444\u0438\u0434\u0431\u044D\u043A\u0430.
+- **Final Showcase** (\u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043E\u0434\u043E\u0431\u0440\u0435\u043D\u0438\u0435): \u043F\u0440\u043E\u0431\u043B\u0435\u043C\u0430, \u043F\u0440\u043E\u0446\u0435\u0441\u0441, \u0440\u0435\u0448\u0435\u043D\u0438\u0435, \u0434\u043E\u043A\u0430\u0437\u0430\u0442\u0435\u043B\u044C\u0441\u0442\u0432\u0430, \u0432\u043B\u0438\u044F\u043D\u0438\u0435, \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0438\u0435 \u0448\u0430\u0433\u0438.
+- **Portfolio/Case Study** (\u043F\u043E\u043A\u0430\u0437\u0430\u0442\u044C \u0441\u043F\u043E\u0441\u043E\u0431\u043D\u043E\u0441\u0442\u044C): \u0432\u044B\u0437\u043E\u0432, \u043F\u043E\u0434\u0445\u043E\u0434, \u043A\u043B\u044E\u0447\u0435\u0432\u044B\u0435 \u0440\u0435\u0448\u0435\u043D\u0438\u044F, \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442, \u0432\u044B\u0432\u043E\u0434\u044B.
+
+## \u0423\u043D\u0438\u0432\u0435\u0440\u0441\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0430
+1. **Hook** \u2014 \u043F\u043E\u0447\u0435\u043C\u0443 \u0430\u0443\u0434\u0438\u0442\u043E\u0440\u0438\u0438 \u0434\u043E\u043B\u0436\u043D\u043E \u0431\u044B\u0442\u044C \u0432\u0430\u0436\u043D\u043E? (\u043F\u0440\u043E\u0431\u043B\u0435\u043C\u0430, \u0434\u0430\u043D\u043D\u044B\u0435, \u0438\u0441\u0442\u043E\u0440\u0438\u044F)
+2. **Context** \u2014 \u0447\u0442\u043E \u0438\u043C \u043D\u0443\u0436\u043D\u043E \u0437\u043D\u0430\u0442\u044C? (\u0444\u043E\u043D, \u043E\u0433\u0440\u0430\u043D\u0438\u0447\u0435\u043D\u0438\u044F)
+3. **Journey** \u2014 \u043A\u0430\u043A \u0432\u044B \u043F\u0440\u0438\u0448\u043B\u0438 \u0441\u044E\u0434\u0430? (\u043F\u0440\u043E\u0446\u0435\u0441\u0441, \u043A\u043B\u044E\u0447\u0435\u0432\u044B\u0435 \u043C\u043E\u043C\u0435\u043D\u0442\u044B)
+4. **Solution** \u2014 \u0447\u0442\u043E \u0432\u044B \u043F\u0440\u0435\u0434\u043B\u0430\u0433\u0430\u0435\u0442\u0435? (\u0440\u0435\u0448\u0435\u043D\u0438\u0435, \u0441 \u043E\u0431\u043E\u0441\u043D\u043E\u0432\u0430\u043D\u0438\u0435\u043C)
+5. **Evidence** \u2014 \u043F\u043E\u0447\u0435\u043C\u0443 \u044D\u0442\u043E \u043F\u0440\u0430\u0432\u0438\u043B\u044C\u043D\u043E? (\u0438\u0441\u0441\u043B\u0435\u0434\u043E\u0432\u0430\u043D\u0438\u044F, \u0442\u0435\u0441\u0442\u044B, \u0434\u0430\u043D\u043D\u044B\u0435)
+6. **Ask** \u2014 \u0447\u0442\u043E \u0432\u0430\u043C \u043D\u0443\u0436\u043D\u043E \u043E\u0442 \u043D\u0438\u0445? (\u043E\u0434\u043E\u0431\u0440\u0435\u043D\u0438\u0435, \u0444\u0438\u0434\u0431\u044D\u043A, \u0440\u0435\u0441\u0443\u0440\u0441\u044B)
+
+## \u041F\u0440\u0438\u043D\u0446\u0438\u043F\u044B \u0441\u043B\u0430\u0439\u0434\u043E\u0432
+- \u041E\u0434\u043D\u0430 \u0438\u0434\u0435\u044F \u043D\u0430 \u0441\u043B\u0430\u0439\u0434.
+- \xAB\u041F\u043E\u043A\u0430\u0436\u0438, \u0430 \u043D\u0435 \u0440\u0430\u0441\u0441\u043A\u0430\u0437\u044B\u0432\u0430\u0439\xBB \u2014 \u0432\u0438\u0437\u0443\u0430\u043B \u0432\u043C\u0435\u0441\u0442\u043E \u0442\u0435\u043A\u0441\u0442\u0430.
+- \u041F\u0440\u043E\u0433\u0440\u0435\u0441\u0441\u0438\u0432\u043D\u043E\u0435 \u0440\u0430\u0441\u043A\u0440\u044B\u0442\u0438\u0435 \u0441\u043B\u043E\u0436\u043D\u043E\u0441\u0442\u0438.
+- \u0414\u0438\u0437\u0430\u0439\u043D \xAB\u0434\u043B\u044F \u0437\u0430\u0434\u043D\u0435\u0433\u043E \u0440\u044F\u0434\u0430\xBB: \u043A\u0440\u0443\u043F\u043D\u044B\u0439 \u0442\u0435\u043A\u0441\u0442, \u0432\u044B\u0441\u043E\u043A\u0430\u044F \u043A\u043E\u043D\u0442\u0440\u0430\u0441\u0442\u043D\u043E\u0441\u0442\u044C.
+- \u0423\u0447\u0438\u0442\u044B\u0432\u0430\u0439 \u0434\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A\u0430: \u043A\u0440\u0430\u0442\u043A\u0438\u0439 \u0442\u0435\u043A\u0441\u0442, \u043F\u043E\u043D\u044F\u0442\u043D\u044B\u0439 \u0441 \u0445\u043E\u0434\u0443.
+- \u041A\u0430\u0436\u0434\u0430\u044F \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F \u043E\u0431\u044F\u0437\u0430\u0442\u0435\u043B\u044C\u043D\u043E \u0437\u0430\u043A\u0430\u043D\u0447\u0438\u0432\u0430\u0435\u0442\u0441\u044F \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u044B\u043C \u0441\u043B\u0430\u0439\u0434\u043E\u043C \u0441 \u0444\u0440\u0430\u0437\u043E\u0439 \xAB\u0421\u043F\u0430\u0441\u0438\u0431\u043E \u0437\u0430 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435\xBB \u2014 \u0432\u0441\u0435\u0433\u0434\u0430 \u043E\u0434\u0438\u043D\u0430\u043A\u043E\u0432\u043E\u0439, \u0431\u0435\u0437 \u0432\u0430\u0440\u0438\u0430\u0446\u0438\u0439.
+
+## \u0410\u0434\u0430\u043F\u0442\u0430\u0446\u0438\u044F \u043F\u043E\u0434 \u0430\u0443\u0434\u0438\u0442\u043E\u0440\u0438\u044E
+- **\u0420\u0443\u043A\u043E\u0432\u043E\u0434\u0438\u0442\u0435\u043B\u0438**: \u0441 impact, \u043A\u0440\u0430\u0442\u043A\u043E, \u0430\u043A\u0446\u0435\u043D\u0442 \u043D\u0430 \u0431\u0438\u0437\u043D\u0435\u0441-\u0446\u0435\u043D\u043D\u043E\u0441\u0442\u0438.
+- **\u0418\u043D\u0436\u0435\u043D\u0435\u0440\u044B**: \u0442\u0435\u0445\u043D\u0438\u0447\u0435\u0441\u043A\u0438\u0435 \u0434\u0435\u0442\u0430\u043B\u0438, \u0441\u043F\u0435\u0446\u0438\u0444\u0438\u043A\u0430\u0446\u0438\u0438, \u043A\u0440\u0430\u0439\u043D\u0438\u0435 \u0441\u043B\u0443\u0447\u0430\u0438.
+- **\u0421\u043C\u0435\u0448\u0430\u043D\u043D\u0430\u044F**: \u0441\u043B\u043E\u0438 \u0434\u0435\u0442\u0430\u043B\u0435\u0439, \u043D\u0430\u0447\u0438\u043D\u0430\u0442\u044C \u0441 \u043E\u0431\u0449\u0435\u0439 \u043A\u0430\u0440\u0442\u0438\u043D\u044B.
+
+## Best practices
+- \u041D\u0430\u0447\u0438\u043D\u0430\u0439 \u0441 \u043F\u0440\u043E\u0431\u043B\u0435\u043C \u0430\u0443\u0434\u0438\u0442\u043E\u0440\u0438\u0438, \u0430 \u043D\u0435 \u0441\u0432\u043E\u0438\u0445.
+- \u0417\u0430\u043A\u0430\u043D\u0447\u0438\u0432\u0430\u0439 \u044F\u0441\u043D\u044B\u043C \u0437\u0430\u043F\u0440\u043E\u0441\u043E\u043C \u0438\u043B\u0438 \u0441\u043B\u0435\u0434\u0443\u044E\u0449\u0438\u043C \u0448\u0430\u0433\u043E\u043C.
+
+## \u041E\u0433\u0440\u0430\u043D\u0438\u0447\u0435\u043D\u0438\u044F \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u0430
+- \u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0438 \u0412\u0421\u0415 \u041F\u0420\u041E\u041F\u0418\u0421\u041D\u042B\u0415, \u043A\u043E\u0440\u043E\u0442\u043A\u0438\u0435 (\u0434\u043E ~8 \u0441\u043B\u043E\u0432 \u043D\u0430 \u0441\u0442\u0440\u043E\u043A\u0443).
+- \u041A\u0430\u0436\u0434\u044B\u0439 \u0441\u043B\u0430\u0439\u0434 \u043D\u0435 \u043F\u0435\u0440\u0435\u0433\u0440\u0443\u0436\u0430\u0439: \u043C\u0430\u043A\u0441\u0438\u043C\u0443\u043C 5-6 \u043F\u0443\u043D\u043A\u0442\u043E\u0432, \u043F\u043E 1 \u0441\u0442\u0440\u043E\u043A\u0435.
+- \u0422\u043E\u043D \u2014 \u0434\u0435\u043B\u043E\u0432\u043E\u0439, \u0431\u0435\u0437 \u043A\u0430\u043D\u0446\u0435\u043B\u044F\u0440\u0438\u0442\u0430, \u0431\u0435\u0437 \u0432\u044B\u0434\u0443\u043C\u0430\u043D\u043D\u044B\u0445 \u0444\u0430\u043A\u0442\u043E\u0432.
+- \u0415\u0441\u043B\u0438 \u0434\u0430\u043D\u043D\u044B\u0445 \u043C\u0430\u043B\u043E \u2014 \u0444\u043E\u0440\u043C\u0443\u043B\u0438\u0440\u0443\u0439 \u043E\u0441\u0442\u043E\u0440\u043E\u0436\u043D\u043E, \u0431\u0435\u0437 \u0434\u043E\u043C\u044B\u0441\u043B\u043E\u0432.`;
+var DEFAULT_TEMPLATE_RULES = `# \u041F\u0440\u0430\u0432\u0438\u043B\u0430 \u0438\u0437\u0432\u043B\u0435\u0447\u0435\u043D\u0438\u044F \u0448\u0430\u0431\u043B\u043E\u043D\u0430 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438
+
+\u0418\u0437 \u043F\u0440\u0438\u043C\u0435\u0440\u0430 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438 (HTML \u0438\u043B\u0438 \u0442\u0435\u043A\u0441\u0442\u043E\u0432\u043E\u0435 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435) \u0438\u0437\u0432\u043B\u0435\u043A\u0438 \u0434\u0438\u0437\u0430\u0439\u043D-\u0441\u0438\u0441\u0442\u0435\u043C\u0443
+\u0438 \u0432\u0435\u0440\u043D\u0438 \u041E\u0414\u0418\u041D \u0432\u0430\u043B\u0438\u0434\u043D\u044B\u0439 JSON-\u043E\u0431\u044A\u0435\u043A\u0442 \u0431\u0435\u0437 \u043F\u043E\u044F\u0441\u043D\u0435\u043D\u0438\u0439 \u0432 \u0444\u043E\u0440\u043C\u0430\u0442\u0435 TemplateSpec.
+
+## \u0421\u0445\u0435\u043C\u0430 TemplateSpec
+{
+  "id": "\u043B\u0430\u0442\u0438\u043D\u0441\u043A\u0438\u0435-\u0431\u0443\u043A\u0432\u044B-\u0446\u0438\u0444\u0440\u044B-\u0434\u0435\u0444\u0438\u0441\u044B",
+  "name": "\u0427\u0435\u043B\u043E\u0432\u0435\u0447\u0435\u0441\u043A\u043E\u0435 \u0438\u043C\u044F \u0448\u0430\u0431\u043B\u043E\u043D\u0430",
+  "canvas": { "w": 960, "h": 540 },
+  "colors": {
+    "accent": "#E30613", "accentLight": "#FF6B73",
+    "dark": "#242E40", "gray": "#59606D",
+    "light": "#ECEEF1", "border": "#BABFC7",
+    "white": "#FFFFFF", "onDark": "#FFFFFF", "bg": "#FFFFFF"
+  },
+  "fonts": { "title": "Arial Black", "body": "Arial", "uppercase": true,
+             "titleSize": 2.7, "bodySize": 1.05 },
+  "footerText": "\u0434\u0430\u0442\u0430 \xB7 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \xB7 \u2116",
+  "layouts": {
+    "title":   { "bgStyle": "gradient|solid|image|none", "bg": "#242E40",
+                 "gradient": "linear-gradient(...)", "brand": "\u041B\u041E\u0413\u041E\u0422\u0418\u041F",
+                 "brandColor": "#FFFFFF", "slogan": "\u0421\u043B\u043E\u0433\u0430\u043D", "sloganColor": "#FFFFFF",
+                 "kicker": "\u041F\u041E\u0412\u041E\u0414 \xB7 \u0414\u0410\u0422\u0410", "kickerColor": "#E30613",
+                 "titleColor": "#FFFFFF", "titleSize": 3.4, "speakerColor": "#FFFFFF",
+                 "overlayOpacity": 0.35,
+                 "pos": {
+                   "brand":   { "align": "top-right" },
+                   "slogan":  { "align": "top-left" },
+                   "kicker":  { "align": "top-left", "top": 17 },
+                   "title":   { "left": 4.45, "top": 30, "right": 4.45 },
+                   "line":    { "left": 4.55, "top": 66 },
+                   "speaker": { "left": 4.45, "top": 70, "right": 4.45 }
+                 } },
+    "section": { "bg": "#FFFFFF", "textColor": "#242E40", "accentColor": "#E30613" },
+    "content": { "bg": "#FFFFFF", "textColor": "#242E40", "accentColor": "#E30613" },
+    "bullets": { "marker": "#E30613", "textColor": "#242E40" },
+    "cards":   { "columns": 2, "rows": 2, "gap": 0.35, "cardBg": "#ECEEF1",
+                 "cardAccent": "#E30613", "textColor": "#242E40" },
+    "table":   { "headerFill": "#242E40", "headerText": "#FFFFFF",
+                 "altRowFill": "#ECEEF1", "highlightColumn": 1, "textColor": "#242E40" },
+    "photo":   { "overlay": "linear-gradient(100deg, rgba(16,20,30,.94) 0%, rgba(16,20,30,.18) 60%, rgba(16,20,30,0) 100%)",
+                 "overlayOpacity": 0.55,
+                 "textColor": "#FFFFFF" },
+    "final":   { "bg": "#242E40", "centerText": "#FFFFFF",
+                 "pos": { "block": { "align": "center" },
+                          "slogan": { "align": "bottom-left" } } }
+  }
+}
+
+## \u041A\u0430\u043A \u0438\u0437\u0432\u043B\u0435\u043A\u0430\u0442\u044C \u0438\u0437 \u043F\u0440\u0438\u043C\u0435\u0440\u0430
+1. **\u0425\u043E\u043B\u0441\u0442**: 16:9 \u2192 canvas {w:960, h:540} (\u0438\u043B\u0438 {w:1280,h:720}, \u0435\u0441\u043B\u0438 \u043E\u0447\u0435\u0432\u0438\u0434\u043D\u043E \u0438\u0437 CSS).
+2. **\u0426\u0432\u0435\u0442\u0430**: \u043D\u0430\u0439\u0434\u0438 HEX/RGB/HSL \u0432 CSS \u0438 \u0440\u0430\u0437\u043B\u043E\u0436\u0438 \u043F\u043E \u0440\u043E\u043B\u044F\u043C: accent \u2014 \u0430\u043A\u0446\u0435\u043D\u0442 (\u043A\u0440\u0430\u0441\u043D\u044B\u0439/\u0431\u0440\u0435\u043D\u0434),
+   dark \u2014 \u0442\u0451\u043C\u043D\u044B\u0439 (\u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0438/\u0448\u0430\u043F\u043A\u0438), gray \u2014 \u0441\u0435\u0440\u044B\u0439 (\u0442\u0435\u043A\u0441\u0442/\u0444\u0443\u0442\u0435\u0440), light \u2014 \u0441\u0432\u0435\u0442\u043B\u043E-\u0441\u0435\u0440\u044B\u0439 (\u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438),
+   border \u2014 \u0440\u0430\u043C\u043A\u0438, white/onDark \u2014 \u0442\u0435\u043A\u0441\u0442\u044B \u043D\u0430 \u0442\u0451\u043C\u043D\u043E\u043C, bg \u2014 \u0444\u043E\u043D \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u043D\u044B\u0445 \u0441\u043B\u0430\u0439\u0434\u043E\u0432.
+3. **\u0428\u0440\u0438\u0444\u0442\u044B**: \u0432\u043E\u0437\u044C\u043C\u0438 font-family \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u043E\u0432 \u0438 \u0442\u0435\u043B\u0430; \u0435\u0441\u043B\u0438 \u0432\u0441\u0451 \u043A\u0430\u043F\u0441\u043E\u043C \u2014 uppercase:true.
+   \u0420\u0430\u0437\u043C\u0435\u0440\u044B: \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0438 px \u0432 cqw = px/12.8 (\u0434\u043B\u044F \u0445\u043E\u043B\u0441\u0442\u0430 960 \u2192 /9.6; \u0434\u043B\u044F 1280 \u2192 /12.8).
+4. **Layouts**: \u0434\u043B\u044F \u043A\u0430\u0436\u0434\u043E\u0433\u043E \u0442\u0438\u043F\u0430 \u0441\u043B\u0430\u0439\u0434\u0430 \u043E\u043F\u0438\u0448\u0438 \u0444\u043E\u043D, \u0446\u0432\u0435\u0442 \u0442\u0435\u043A\u0441\u0442\u0430, \u0430\u043A\u0446\u0435\u043D\u0442. \u0423 title \u2014 bgStyle,
+   gradient, brand (\u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435/\u043B\u043E\u0433\u043E \u0432 \u043F\u0440\u0430\u0432\u043E\u043C \u0432\u0435\u0440\u0445\u043D\u0435\u043C \u0443\u0433\u043B\u0443), kicker (\u043F\u043E\u0432\u043E\u0434/\u0434\u0430\u0442\u0430), \u0446\u0432\u0435\u0442\u0430.
+5. **footerText**: \u0435\u0441\u043B\u0438 \u0432 \u043F\u0440\u0438\u043C\u0435\u0440\u0435 \u0435\u0441\u0442\u044C \u043F\u043E\u0434\u043F\u0438\u0441\u044C \xAB\u0434\u0430\u0442\u0430 \xB7 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \xB7 \u043D\u043E\u043C\u0435\u0440\xBB \u2014 \u0437\u0430\u043F\u0438\u0448\u0438 \u0441 \u043F\u043B\u0435\u0439\u0441\u0445\u043E\u043B\u0434\u0435\u0440\u043E\u043C \u2116.
+
+## \u0422\u0440\u0435\u0431\u043E\u0432\u0430\u043D\u0438\u044F
+- \u0412\u0441\u0435\u0433\u0434\u0430 \u0432\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u0439 \u0422\u041E\u041B\u042C\u041A\u041E JSON, \u0431\u0435\u0437 markdown-\u043E\u0431\u0451\u0440\u0442\u043A\u0438 \u0438 \u043A\u043E\u043C\u043C\u0435\u043D\u0442\u0430\u0440\u0438\u0435\u0432.
+- id \u2014 \u043B\u0430\u0442\u0438\u043D\u0438\u0446\u0435\u0439, \u0431\u0435\u0437 \u043F\u0440\u043E\u0431\u0435\u043B\u043E\u0432. name \u2014 \u043D\u0430 \u0440\u0443\u0441\u0441\u043A\u043E\u043C, \u0447\u0435\u043B\u043E\u0432\u0435\u0447\u0435\u0441\u043A\u0438\u043C.
+- \u041D\u0435 \u0432\u044B\u0434\u0443\u043C\u044B\u0432\u0430\u0439 \u043E\u0442\u0441\u0443\u0442\u0441\u0442\u0432\u0443\u044E\u0449\u0438\u0435 \u0446\u0432\u0435\u0442\u0430 \u2014 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439 \u043D\u0435\u0439\u0442\u0440\u0430\u043B\u044C\u043D\u044B\u0439 \u0434\u0435\u0444\u043E\u043B\u0442:
+  accent #C00000, dark #333333, gray #666666, light #F2F2F2, border #CCCCCC, white #FFFFFF, onDark #FFFFFF, bg #FFFFFF.
+- \u0424\u043E\u043D \u0441\u043B\u0430\u0439\u0434\u043E\u0432: \u0435\u0441\u043B\u0438 \u0432 \u043F\u0440\u0438\u043C\u0435\u0440\u0435 \u0441\u0432\u0435\u0442\u043B\u044B\u0439 \u2014 bg #FFFFFF, \u0442\u0451\u043C\u043D\u044B\u0439 \u2014 bg \u0442\u0451\u043C\u043D\u043E\u0433\u043E \u0446\u0432\u0435\u0442\u0430.`;
+var BUILTIN_TEMPLATES = [
+  {
+    id: "technonicol",
+    name: "\u0422\u0435\u0445\u043D\u043E\u043D\u0438\u043A\u043E\u043B\u044C",
+    canvas: { w: 960, h: 540 },
+    colors: {
+      accent: "#E30613",
+      accentLight: "#FF6B73",
+      dark: "#242E40",
+      gray: "#59606D",
+      light: "#ECEEF1",
+      border: "#BABFC7",
+      white: "#FFFFFF",
+      onDark: "#FFFFFF",
+      bg: "#FFFFFF"
+    },
+    fonts: {
+      title: "Arial Black",
+      body: "Arial",
+      uppercase: true,
+      titleSize: 2.7,
+      bodySize: 1.05
+    },
+    footerText: "\u0434\u0430\u0442\u0430 \xB7 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0434\u043E\u043A\u043B\u0430\u0434\u0430 \xB7 \u2116",
+    layouts: {
+      title: {
+        bgStyle: "gradient",
+        bg: "#242E40",
+        gradient: "linear-gradient(100deg, rgba(16,20,30,.94) 0%, rgba(16,20,30,.18) 60%, rgba(16,20,30,0) 100%)",
+        brand: "\u0422\u0415\u0425\u041D\u041E\u041D\u0418\u041A\u041E\u041B\u042C",
+        brandColor: "#FFFFFF",
+        slogan: "\u0417\u043D\u0430\u043D\u0438\u0435. \u041E\u043F\u044B\u0442. \u041C\u0430\u0441\u0442\u0435\u0440\u0441\u0442\u0432\u043E.",
+        sloganColor: "#FFFFFF",
+        kickerColor: "#E30613",
+        titleColor: "#FFFFFF",
+        titleSize: 3.4,
+        speakerColor: "#FFFFFF"
+      },
+      section: { bg: "#FFFFFF", textColor: "#242E40", accentColor: "#E30613" },
+      content: { bg: "#FFFFFF", textColor: "#242E40", accentColor: "#E30613" },
+      bullets: { marker: "#E30613", textColor: "#242E40" },
+      cards: { columns: 2, rows: 2, gap: 0.35, cardBg: "#ECEEF1", cardAccent: "#E30613", textColor: "#242E40" },
+      table: { headerFill: "#242E40", headerText: "#FFFFFF", altRowFill: "#ECEEF1", highlightColumn: 1, textColor: "#242E40" },
+      photo: {
+        overlay: "linear-gradient(100deg, rgba(16,20,30,.94) 0%, rgba(16,20,30,.18) 60%, rgba(16,20,30,0) 100%)",
+        textColor: "#FFFFFF"
+      },
+      final: { bg: "#242E40", centerText: "#FFFFFF" }
+    }
+  }
+];
+var PresentationTemplatesService = class {
+  constructor(plugin) {
+    this.customTemplates = [];
+    this.templateMtimes = /* @__PURE__ */ new Map();
+    this.plugin = plugin;
+    this.app = plugin.app;
+  }
+  /** Сеет дефолтные файлы (правила + встроенный шаблон), если их нет. */
+  async init() {
+    try {
+      const adapter = this.app.vault.adapter;
+      for (const dir of [TEMPLATES_DIR, RULES_DIR]) {
+        const existsDir = await adapter.exists(dir);
+        if (!existsDir) await adapter.mkdir(dir);
+      }
+      if (!await adapter.exists(DESIGN_RULES_FILE)) {
+        await adapter.write(DESIGN_RULES_FILE, DEFAULT_DESIGN_RULES);
+      }
+      if (!await adapter.exists(TEMPLATE_RULES_FILE)) {
+        await adapter.write(TEMPLATE_RULES_FILE, DEFAULT_TEMPLATE_RULES);
+      }
+      for (const t of BUILTIN_TEMPLATES) {
+        const path3 = `${TEMPLATES_DIR}/${t.id}.json`;
+        if (!await adapter.exists(path3)) {
+          await adapter.write(path3, JSON.stringify(t, null, 2));
+        }
+      }
+    } catch (e) {
+      console.error("YouGile: presentation templates seed error", e);
+    }
+    await this.loadCustomTemplates();
+  }
+  async loadCustomTemplates() {
+    const adapter = this.app.vault.adapter;
+    this.customTemplates = [];
+    this.templateMtimes.clear();
+    try {
+      const list = await adapter.list(TEMPLATES_DIR);
+      for (const file of list.files) {
+        if (!file.toLowerCase().endsWith(".json")) continue;
+        try {
+          const content = await adapter.read(file);
+          const tpl = JSON.parse(content);
+          if (tpl && tpl.id && tpl.name) {
+            this.customTemplates.push(tpl);
+            const tf = this.app.vault.getAbstractFileByPath(file);
+            if (tf && "stat" in tf) {
+              this.templateMtimes.set(tpl.id, tf.stat.mtime);
+            }
+          }
+        } catch (e) {
+        }
+      }
+    } catch (e) {
+    }
+  }
+  /** Перечитывает шаблоны из файлов (нужно вызывать перед рендером, чтобы
+   *  правки JSON-шаблонов учитывались сразу). */
+  async reload() {
+    await this.loadCustomTemplates();
+  }
+  /** Версия шаблона для инвалидации кэша HTML (mtime файла или builtin-метка). */
+  getTemplateVersion(id) {
+    const m = this.templateMtimes.get(id);
+    if (m !== void 0) return `file:${m}`;
+    return `builtin:${id}`;
+  }
+  getAllTemplates() {
+    const customIds = new Set(this.customTemplates.map((t) => t.id));
+    return [
+      ...this.customTemplates,
+      ...BUILTIN_TEMPLATES.filter((t) => !customIds.has(t.id))
+    ];
+  }
+  getTemplate(id) {
+    return this.getAllTemplates().find((t) => t.id === id);
+  }
+  async readDesignRules() {
+    try {
+      const exists = await this.app.vault.adapter.exists(DESIGN_RULES_FILE);
+      if (exists) return await this.app.vault.adapter.read(DESIGN_RULES_FILE);
+    } catch (e) {
+    }
+    return DEFAULT_DESIGN_RULES;
+  }
+  async readTemplateRules() {
+    try {
+      const exists = await this.app.vault.adapter.exists(TEMPLATE_RULES_FILE);
+      if (exists) return await this.app.vault.adapter.read(TEMPLATE_RULES_FILE);
+    } catch (e) {
+    }
+    return DEFAULT_TEMPLATE_RULES;
+  }
+  /** Генерация нового шаблона через LLM по примеру (HTML/текст) и сохранение в файл. */
+  async createTemplateFromExample(example, name2) {
+    const rules = await this.readTemplateRules();
+    const spec = await this.plugin.llmService.extractTemplate(example, rules);
+    const safeId = (spec.id || name2 || "template").toLowerCase().replace(/[^a-z0-9-_]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "template";
+    spec.id = safeId;
+    spec.name = name2 || spec.name || safeId;
+    try {
+      await this.app.vault.adapter.write(`${TEMPLATES_DIR}/${safeId}.json`, JSON.stringify(spec, null, 2));
+      await this.loadCustomTemplates();
+      new import_obsidian23.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0448\u0430\u0431\u043B\u043E\u043D \xAB${spec.name}\xBB \u0441\u043E\u0437\u0434\u0430\u043D`);
+    } catch (e) {
+      new import_obsidian23.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u0448\u0430\u0431\u043B\u043E\u043D\u0430: ${e instanceof Error ? e.message : String(e)}`);
+      throw e;
+    }
+    return spec;
+  }
+};
+
 // src/main.ts
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.8.0": [
+    "\u041D\u043E\u0432\u044B\u0439 \u043C\u043E\u0434\u0443\u043B\u044C \xAB\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438\xBB: \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435 HTML-\u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439 \u0438\u0437 \u0430\u043D\u043A\u0435\u0442\u044B \u0447\u0435\u0440\u0435\u0437 LLM (\u043C\u043E\u0437\u0433\u043E\u0432\u043E\u0439 \u0448\u0442\u0443\u0440\u043C, \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A\u0438 \u0441 \u043F\u043E\u0432\u0442\u043E\u0440\u043E\u043C \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0448\u0430\u0431\u043B\u043E\u043D\u044B \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u044F TemplateSpec (JSON) \u2014 \u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u0439 \xAB\u0422\u0435\u0445\u043D\u043E\u043D\u0438\u043A\u043E\u043B\u044C\xBB + \u0438\u0437\u0432\u043B\u0435\u0447\u0435\u043D\u0438\u0435 \u0448\u0430\u0431\u043B\u043E\u043D\u0430 \u0438\u0437 \u043F\u0440\u0438\u043C\u0435\u0440\u0430 \u0447\u0435\u0440\u0435\u0437 LLM",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0438\u043B\u043B\u044E\u0441\u0442\u0440\u0430\u0446\u0438\u0439 (\u0432 \u0430\u043D\u043A\u0435\u0442\u0435) \u0438 \u0444\u043E\u043D\u043E\u0432 \u0441\u043B\u0430\u0439\u0434\u043E\u0432; \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u043A\u043E\u043F\u0438\u0440\u0443\u044E\u0442\u0441\u044F \u0432 \u043F\u0430\u043F\u043A\u0443 presentation_pics \u0441 \u043F\u0440\u0435\u0434\u0441\u043A\u0430\u0437\u0443\u0435\u043C\u044B\u043C\u0438 \u043F\u0443\u0442\u044F\u043C\u0438, \u0432 HTML \u0432\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u044E\u0442\u0441\u044F \u043A\u0430\u043A base64",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u043E\u0437\u0438\u0446\u0438\u043E\u043D\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435 \u044D\u043B\u0435\u043C\u0435\u043D\u0442\u043E\u0432 \u0442\u0438\u0442\u0443\u043B\u044C\u043D\u043E\u0433\u043E \u0438 \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0441\u043B\u0430\u0439\u0434\u043E\u0432 \u0432 \u0448\u0430\u0431\u043B\u043E\u043D\u0435 (\u043F\u0440\u0435\u0441\u0435\u0442\u044B \u0432\u044B\u0440\u0430\u0432\u043D\u0438\u0432\u0430\u043D\u0438\u044F + \u043A\u043E\u043E\u0440\u0434\u0438\u043D\u0430\u0442\u044B \u0432 cqw/cqh)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u0435 \u0437\u0430\u0442\u0435\u043C\u043D\u0435\u043D\u0438\u0435\u043C \u0444\u043E\u043D\u043E\u0432\u044B\u0445 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439 (\u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439 + overlayOpacity \u0432 \u0448\u0430\u0431\u043B\u043E\u043D\u0435)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u043E\u043B\u043D\u043E\u044D\u043A\u0440\u0430\u043D\u043D\u044B\u0439 \u0440\u0435\u0436\u0438\u043C \u0441 \u043C\u0430\u0441\u0448\u0442\u0430\u0431\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435\u043C \u0441\u043B\u0430\u0439\u0434\u043E\u0432 \u043F\u043E\u0434 \u043F\u043B\u043E\u0449\u0430\u0434\u044C \u044D\u043A\u0440\u0430\u043D\u0430 (\u043A\u043D\u043E\u043F\u043A\u0430 \u26F6 / \u043A\u043B\u0430\u0432\u0438\u0448\u0430 F)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0447\u0430\u0442\u044C PDF \u0431\u0435\u0437 \u043F\u043E\u043B\u0435\u0439 \u2014 \u0441\u043B\u0430\u0439\u0434\u044B \u0437\u0430\u043D\u0438\u043C\u0430\u044E\u0442 \u0432\u0435\u0441\u044C \u043B\u0438\u0441\u0442",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u044B\u0439 \u0441\u043B\u0430\u0439\u0434 \u0432\u0441\u0435\u0433\u0434\u0430 \xAB\u0421\u043F\u0430\u0441\u0438\u0431\u043E \u0437\u0430 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435\xBB (\u0432 \u043F\u0440\u043E\u043C\u043F\u0442\u0435 \u0438 \u0440\u0435\u043D\u0434\u0435\u0440\u0435)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0430 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438 \u0432 \u0447\u0430\u0442 \u0437\u0430\u0434\u0430\u0447\u0438 YouGile (\u0444\u0430\u0439\u043B \u2192 \u0441\u0441\u044B\u043B\u043A\u0430 \u2192 \u0442\u0435\u0433 <a>)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043A\u044D\u0448 HTML \u043F\u0440\u0438\u0432\u044F\u0437\u0430\u043D \u043A \u0432\u0435\u0440\u0441\u0438\u0438 \u0448\u0430\u0431\u043B\u043E\u043D\u0430 (mtime) \u2014 \u043F\u0440\u0430\u0432\u043A\u0438 \u0448\u0430\u0431\u043B\u043E\u043D\u0430 \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F \u0441\u0440\u0430\u0437\u0443",
+    "LLM: \u0440\u0435\u0442\u0440\u0430\u0438 \u0434\u043B\u044F 504/429 \u0441 \u044D\u043A\u0441\u043F\u043E\u043D\u0435\u043D\u0446\u0438\u0430\u043B\u044C\u043D\u043E\u0439 \u0437\u0430\u0434\u0435\u0440\u0436\u043A\u043E\u0439 \u0438 \u043A\u043B\u0438\u0435\u043D\u0442\u0441\u043A\u0438\u0439 \u0442\u0430\u0439\u043C\u0430\u0443\u0442 \u0437\u0430\u043F\u0440\u043E\u0441\u043E\u0432",
+    "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438: \u043F\u0430\u0440\u043E\u043B\u044C \u0438 API-\u043A\u043B\u044E\u0447 LLM \u0447\u0435\u0440\u0435\u0437 \u043F\u043E\u043B\u0435 \u0441 \u0442\u0438\u043F\u043E\u043C password (\u0441\u0442\u0430\u0431\u0438\u043B\u044C\u043D\u044B\u0439 ID \u0441\u0435\u043A\u0440\u0435\u0442\u0430)"
+  ],
   "0.7.6": [
     "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F YouGile \u2192 \u043B\u043E\u043A\u0430\u043B\u044C \u2014 null \u0438\u0437 YouGile \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442 \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E\u0435 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435",
     "LPI: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D \u043F\u0440\u043E\u043F\u0443\u0441\u043A \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0439 \u043F\u0440\u0438 \u043F\u0443\u0441\u0442\u044B\u0445 \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u044F\u0445 \u0432 YouGile (\u0443\u0431\u0440\u0430\u043D\u043E \u0443\u0441\u043B\u043E\u0432\u0438\u0435 && rv)"
@@ -72933,7 +75028,7 @@ var CHANGELOG = {
     'LPI: type \u0432 description \u0437\u0430\u0434\u0430\u0447 \u0438\u0437\u043C\u0435\u043D\u0451\u043D \u043D\u0430 "lpi_data" (\u0435\u0434\u0438\u043D\u044B\u0439 \u0442\u0438\u043F \u0434\u043B\u044F \u0432\u0441\u0435\u0445 LPI-\u0437\u0430\u0434\u0430\u0447)'
   ]
 };
-var ChangelogModal = class extends import_obsidian20.Modal {
+var ChangelogModal = class extends import_obsidian24.Modal {
   constructor(app, version, changes) {
     super(app);
     this.version = version;
@@ -72948,14 +75043,14 @@ var ChangelogModal = class extends import_obsidian20.Modal {
       list.createEl("li", { text: change });
     }
     contentEl.createEl("hr");
-    new import_obsidian20.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
+    new import_obsidian24.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
   }
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
   }
 };
-var YouGilePlugin = class extends import_obsidian20.Plugin {
+var YouGilePlugin = class extends import_obsidian24.Plugin {
   async onload() {
     await this.loadSettings();
     this.client = new YouGileClient();
@@ -72979,6 +75074,10 @@ var YouGilePlugin = class extends import_obsidian20.Plugin {
     await this.emailDb.init();
     this.contactDb = new ContactDatabase(this.app);
     await this.contactDb.init();
+    this.presentationsDb = new PresentationsDatabase(this.app);
+    await this.presentationsDb.init();
+    this.presentationTemplates = new PresentationTemplatesService(this);
+    await this.presentationTemplates.init();
     this.llmService = new LLMService(this);
     this.syncLogger = new SyncLogger(this.app);
     await this.syncLogger.init();
@@ -73002,6 +75101,9 @@ var YouGilePlugin = class extends import_obsidian20.Plugin {
     }
     if (this.settings.moduleLpiEnabled) {
       this.safeRegisterView(LPI_VIEW_TYPE, (leaf) => new LpiView(leaf, this));
+    }
+    if (this.settings.modulePresentationsEnabled) {
+      this.safeRegisterView(PRESENTATIONS_VIEW_TYPE, (leaf) => new PresentationsView(leaf, this));
     }
     this.addRibbonIcon("list-todo", "YouGile", () => {
       this.activateView();
@@ -73039,6 +75141,11 @@ var YouGilePlugin = class extends import_obsidian20.Plugin {
         this.activateLpiView();
       });
     }
+    if (this.settings.modulePresentationsEnabled) {
+      this.addRibbonIcon("presentation", "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438", () => {
+        this.activatePresentationsView();
+      });
+    }
     this.addRibbonIcon("history", "\u0416\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438", () => {
       new SyncLogModal(this.app, this.syncLogger).open();
     });
@@ -73056,6 +75163,7 @@ var YouGilePlugin = class extends import_obsidian20.Plugin {
     this.app.workspace.detachLeavesOfType(SUGGESTIONS_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(CONTACTS_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(LPI_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(PRESENTATIONS_VIEW_TYPE);
   }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -73129,7 +75237,7 @@ var YouGilePlugin = class extends import_obsidian20.Plugin {
     this.saveSecret(secretName, key);
     this.settings.apiKeySecret = secretName;
     await this.saveSettings();
-    new import_obsidian20.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
+    new import_obsidian24.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
   }
   async activateView() {
     var _a;
@@ -73237,6 +75345,20 @@ var YouGilePlugin = class extends import_obsidian20.Plugin {
       leaf = (_a = workspace.getRightLeaf(false)) != null ? _a : void 0;
       if (leaf) {
         await leaf.setViewState({ type: LPI_VIEW_TYPE, active: true });
+      }
+    }
+    if (leaf) {
+      workspace.revealLeaf(leaf);
+    }
+  }
+  async activatePresentationsView() {
+    var _a;
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(PRESENTATIONS_VIEW_TYPE).first();
+    if (!leaf) {
+      leaf = (_a = workspace.getRightLeaf(false)) != null ? _a : void 0;
+      if (leaf) {
+        await leaf.setViewState({ type: PRESENTATIONS_VIEW_TYPE, active: true });
       }
     }
     if (leaf) {

@@ -10,16 +10,33 @@ import { DASHBOARD_VIEW_TYPE, DashboardView } from './ui/dashboard-view';
 import { SUGGESTIONS_VIEW_TYPE, SuggestionsView } from './ui/suggestions-view';
 import { CONTACTS_VIEW_TYPE, ContactsView } from './ui/contacts-view';
 import { LPI_VIEW_TYPE, LpiView } from './ui/lpi-view';
+import { PRESENTATIONS_VIEW_TYPE, PresentationsView } from './ui/presentations-view';
 import { registerCommands } from './commands';
 import { LocalDatabase } from './database/db';
 import { EmailDatabase } from './database/email-db';
 import { ContactDatabase } from './database/contact-db';
+import { PresentationsDatabase } from './database/presentations-db';
 import { LLMService } from './services/llm-service';
+import { PresentationTemplatesService } from './services/presentation-templates';
 import { SyncLogger, SyncLogModal } from './services/sync-logger';
 
 const PASSWORD_SECRET_ID = 'yougile-password';
 
 const CHANGELOG: Record<string, string[]> = {
+  '0.8.0': [
+    'Новый модуль «Презентации»: создание HTML-презентаций из анкеты через LLM (мозговой штурм, черновики с повтором генерации)',
+    'Презентации: шаблоны оформления TemplateSpec (JSON) — встроенный «Технониколь» + извлечение шаблона из примера через LLM',
+    'Презентации: загрузка иллюстраций (в анкете) и фонов слайдов; изображения копируются в папку presentation_pics с предсказуемыми путями, в HTML встраиваются как base64',
+    'Презентации: позиционирование элементов титульного и финального слайдов в шаблоне (пресеты выравнивания + координаты в cqw/cqh)',
+    'Презентации: управление затемнением фоновых изображений (в настройках изображений + overlayOpacity в шаблоне)',
+    'Презентации: полноэкранный режим с масштабированием слайдов под площадь экрана (кнопка ⛶ / клавиша F)',
+    'Презентации: печать PDF без полей — слайды занимают весь лист',
+    'Презентации: финальный слайд всегда «Спасибо за внимание» (в промпте и рендере)',
+    'Презентации: отправка презентации в чат задачи YouGile (файл → ссылка → тег <a>)',
+    'Презентации: кэш HTML привязан к версии шаблона (mtime) — правки шаблона применяются сразу',
+    'LLM: ретраи для 504/429 с экспоненциальной задержкой и клиентский таймаут запросов',
+    'Настройки: пароль и API-ключ LLM через поле с типом password (стабильный ID секрета)',
+  ],
   '0.7.6': [
     'LPI: исправлена синхронизация YouGile → локаль — null из YouGile перезаписывает локальное значение',
     'LPI: исправлен пропуск изменений при пустых значениях в YouGile (убрано условие && rv)',
@@ -286,6 +303,8 @@ export default class YouGilePlugin extends Plugin {
   db!: LocalDatabase;
   emailDb!: EmailDatabase;
   contactDb!: ContactDatabase;
+  presentationsDb!: PresentationsDatabase;
+  presentationTemplates!: PresentationTemplatesService;
   llmService!: LLMService;
   syncLogger!: SyncLogger;
 
@@ -318,6 +337,12 @@ export default class YouGilePlugin extends Plugin {
     this.contactDb = new ContactDatabase(this.app);
     await this.contactDb.init();
 
+    this.presentationsDb = new PresentationsDatabase(this.app);
+    await this.presentationsDb.init();
+
+    this.presentationTemplates = new PresentationTemplatesService(this);
+    await this.presentationTemplates.init();
+
     this.llmService = new LLMService(this);
 
     this.syncLogger = new SyncLogger(this.app);
@@ -344,6 +369,9 @@ export default class YouGilePlugin extends Plugin {
     }
     if (this.settings.moduleLpiEnabled) {
       this.safeRegisterView(LPI_VIEW_TYPE, (leaf) => new LpiView(leaf, this));
+    }
+    if (this.settings.modulePresentationsEnabled) {
+      this.safeRegisterView(PRESENTATIONS_VIEW_TYPE, (leaf) => new PresentationsView(leaf, this));
     }
 
     this.addRibbonIcon('list-todo', 'YouGile', () => {
@@ -386,6 +414,11 @@ export default class YouGilePlugin extends Plugin {
         this.activateLpiView();
       });
     }
+    if (this.settings.modulePresentationsEnabled) {
+      this.addRibbonIcon('presentation', 'Презентации', () => {
+        this.activatePresentationsView();
+      });
+    }
 
     this.addRibbonIcon('history', 'Журнал синхронизации', () => {
       new SyncLogModal(this.app, this.syncLogger).open();
@@ -407,6 +440,7 @@ export default class YouGilePlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(SUGGESTIONS_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(CONTACTS_VIEW_TYPE);
     this.app.workspace.detachLeavesOfType(LPI_VIEW_TYPE);
+    this.app.workspace.detachLeavesOfType(PRESENTATIONS_VIEW_TYPE);
   }
 
   async loadSettings(): Promise<void> {
@@ -594,6 +628,20 @@ export default class YouGilePlugin extends Plugin {
       leaf = workspace.getRightLeaf(false) ?? undefined;
       if (leaf) {
         await leaf.setViewState({ type: LPI_VIEW_TYPE, active: true });
+      }
+    }
+    if (leaf) {
+      workspace.revealLeaf(leaf);
+    }
+  }
+
+  async activatePresentationsView(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(PRESENTATIONS_VIEW_TYPE).first();
+    if (!leaf) {
+      leaf = workspace.getRightLeaf(false) ?? undefined;
+      if (leaf) {
+        await leaf.setViewState({ type: PRESENTATIONS_VIEW_TYPE, active: true });
       }
     }
     if (leaf) {

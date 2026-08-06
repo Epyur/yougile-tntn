@@ -1,0 +1,407 @@
+import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
+import type YouGilePlugin from '../main';
+import type { PresentationDraft, PresentationItem, PresentationQuestionaire } from '../types/presentations';
+import { renderPresentationHtml, resolveImageDataUri, PRESENTATION_RENDER_VERSION } from '../services/presentation-generator';
+import { QuestionnaireModal, BrainstormModal, PresentationPreviewModal, NewTemplateModal, ImageUploadModal, TaskPickModal } from './presentation-modals';
+
+export const PRESENTATIONS_VIEW_TYPE = 'yougile-presentations';
+
+const EXPORT_DIR = 'Экспорт/Презентации';
+
+function sanitize(name: string): string {
+  return name.replace(/[\\/:*?"<>|]/g, '_').trim() || 'Презентация';
+}
+
+function escapeHtmlAttr(s: unknown): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+export class PresentationsView extends ItemView {
+  plugin: YouGilePlugin;
+
+  constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
+    super(leaf);
+    this.plugin = plugin;
+  }
+
+  getViewType(): string {
+    return PRESENTATIONS_VIEW_TYPE;
+  }
+
+  getDisplayText(): string {
+    return 'Презентации';
+  }
+
+  getIcon(): string {
+    return 'presentation';
+  }
+
+  async onOpen(): Promise<void> {
+    await this.plugin.presentationTemplates.init();
+    this.render();
+  }
+
+  onClose(): Promise<void> {
+    this.containerEl.empty();
+    return Promise.resolve();
+  }
+
+  private render(): void {
+    const root = this.contentEl;
+    root.empty();
+    root.addClass('mailer-yougile-container');
+
+    const header = root.createDiv({ cls: 'mailer-yougile-header' });
+    header.createEl('h3', { text: '📽 Презентации' });
+
+    const toolbar = root.createDiv({ cls: 'mailer-yougile-header mailer-mt-8' });
+    toolbar.createEl('button', { text: '🆕 Новая презентация', cls: 'mailer-yougile-refresh-btn' })
+      .addEventListener('click', () => this.newPresentation());
+    toolbar.createEl('button', { text: '🎨 Новый шаблон', cls: 'mailer-yougile-refresh-btn' })
+      .addEventListener('click', () => new NewTemplateModal(this.plugin).open());
+
+    const list = root.createDiv();
+    const drafts = this.plugin.presentationsDb.getDrafts();
+    if (drafts.length > 0) {
+      const dHead = list.createDiv();
+      dHead.style.cssText = 'font-weight:600;font-size:13px;margin:8px 0 4px;color:var(--text-muted);';
+      dHead.setText('🕓 Черновики (генерация прервалась)');
+      for (const d of [...drafts].reverse()) {
+        this.renderDraft(list, d);
+      }
+    }
+    const items = this.plugin.presentationsDb.getAll();
+    if (items.length === 0 && drafts.length === 0) {
+      list.createDiv({ text: 'Презентаций пока нет. Нажмите «🆕 Новая презентация».' })
+        .style.cssText = 'color:var(--text-muted);padding:12px;';
+      return;
+    }
+
+    for (const item of [...items].reverse()) {
+      this.renderItem(list, item);
+    }
+  }
+
+  private renderDraft(container: HTMLElement, draft: PresentationDraft): void {
+    const row = container.createDiv();
+    row.style.cssText = 'border:1px dashed var(--background-modifier-border);border-radius:6px;padding:8px 10px;margin-bottom:8px;background:var(--background-secondary);';
+    const title = row.createSpan();
+    title.style.cssText = 'font-weight:600;font-size:13px;';
+    title.setText(draft.questionaire.topic || 'Без темы');
+    const meta = row.createDiv();
+    meta.style.cssText = 'font-size:11px;color:var(--text-muted);margin:4px 0;';
+    const answers = draft.brainstormLog.filter(m => m.role === 'user').length;
+    meta.setText(`Черновик · Ответов штурма: ${answers}${draft.error ? ` · Ошибка: ${draft.error}` : ''}`);
+
+    const actions = row.createDiv();
+    actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
+    const btn = (text: string, fn: () => void) => {
+      const b = actions.createEl('button', { text, cls: 'mailer-yougile-refresh-btn' });
+      b.style.cssText = 'font-size:11px;padding:2px 8px;';
+      b.addEventListener('click', fn);
+      return b;
+    };
+    btn('🔁 Продолжить (повтор LLM)', () => void this.retryDraft(draft));
+    btn('✏️ Изменить', () => {
+      this.plugin.presentationsDb.deleteDraft(draft.id).then(() => this.render());
+      void this.reopenQuestionnaire(draft);
+    });
+    btn('🗑 Удалить', () => {
+      void this.plugin.presentationsDb.deleteDraft(draft.id).then(() => this.render());
+    });
+  }
+
+  private async retryDraft(draft: PresentationDraft): Promise<void> {
+    try {
+      new Notice('Презентации: повторная генерация...');
+      const designRules = await this.plugin.presentationTemplates.readDesignRules();
+      await this.doGenerate(draft.questionaire, designRules, draft.id);
+    } catch (e) {
+      new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  private reopenQuestionnaire(draft: PresentationDraft): void {
+    new QuestionnaireModal(this.plugin, async (q) => {
+      const newDraft: PresentationDraft = {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        questionaire: q,
+        brainstormLog: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await this.plugin.presentationsDb.saveDraft(newDraft);
+      const designRules = await this.plugin.presentationTemplates.readDesignRules();
+      if (q.brainstorm !== false) {
+        new BrainstormModal(this.plugin, q, designRules, (brainstormed) => {
+          void this.doGenerate(brainstormed, designRules, newDraft.id);
+        }, (log) => {
+          void this.plugin.presentationsDb.saveDraft({
+            ...newDraft, questionaire: q, brainstormLog: log, updatedAt: new Date().toISOString(),
+          });
+        }).open();
+      } else {
+        void this.doGenerate(q, designRules, newDraft.id);
+      }
+    }, draft.questionaire).open();
+  }
+
+  private renderItem(container: HTMLElement, item: PresentationItem): void {
+    const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId);
+    const row = container.createDiv();
+    row.style.cssText = 'border:1px solid var(--background-modifier-border);border-radius:6px;padding:8px 10px;margin-bottom:8px;';
+
+    const titleRow = row.createDiv();
+    titleRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
+    const title = titleRow.createSpan();
+    title.style.cssText = 'font-weight:600;font-size:13px;';
+    title.setText(item.title || item.generation.title || 'Без названия');
+    const meta = row.createDiv();
+    meta.style.cssText = 'font-size:11px;color:var(--text-muted);margin:4px 0;';
+    const created = new Date(item.createdAt).toLocaleDateString('ru-RU');
+    meta.setText(`Создано: ${created} · Слайдов: ${item.generation.slides.length} · Шаблон: ${tpl?.name ?? item.templateId} · Картинок: ${Object.keys(item.images).length}`);
+
+    const actions = row.createDiv();
+    actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
+    const btn = (text: string, fn: () => void) => {
+      const b = actions.createEl('button', { text, cls: 'mailer-yougile-refresh-btn' });
+      b.style.cssText = 'font-size:11px;padding:2px 8px;';
+      b.addEventListener('click', fn);
+      return b;
+    };
+    btn('👁 Предпросмотр', () => this.preview(item));
+    btn('🖨 PDF', () => this.preview(item, true));
+    btn('📷 Изображения', () => this.openImages(item));
+    btn('🔁 Перегенерировать', () => this.regenerate(item));
+    btn('💾 Экспорт HTML', () => this.exportHtml(item));
+    btn('📤 В чат YouGile', () => void this.sendToYougileChat(item));
+    btn('🗑 Удалить', () => this.deleteItem(item));
+  }
+
+  private async generateHtml(item: PresentationItem): Promise<string> {
+    const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId)
+      || this.plugin.presentationTemplates.getTemplate('technonicol')!;
+    const q = item.questionaire;
+    const illustrations: Record<string, string> = {};
+    for (const ill of q?.illustrations || []) {
+      if (ill.uri) {
+        const resolved = await resolveImageDataUri(this.plugin.app, ill.uri);
+        if (resolved) illustrations[ill.path] = resolved;
+      }
+    }
+    const images: Record<string, string> = {};
+    for (const [key, ref] of Object.entries(item.images)) {
+      const resolved = await resolveImageDataUri(this.plugin.app, ref);
+      if (resolved) images[key] = resolved;
+    }
+    let qrDataUri: string | undefined;
+    const vcard = this.buildVCard(q);
+    if (vcard) {
+      try {
+        const QRCode = (await import('qrcode')).default;
+        qrDataUri = await QRCode.toDataURL(vcard, { width: 250, margin: 2, color: { dark: '#FF0000', light: '#FFFFFF' } });
+      } catch {
+        // QR не обязателен — игнорируем ошибку
+      }
+    }
+    return renderPresentationHtml(item.generation, tpl, images, {
+      title: item.title,
+      date: q?.date,
+      presenter: q?.presenter,
+      phone: q?.presenterPhone,
+      email: q?.presenterEmail,
+      qrDataUri,
+      illustrations,
+      bgDarken: item.bgDarken,
+    });
+  }
+
+  private buildVCard(q?: PresentationQuestionaire): string | null {
+    if (!q?.presenterPhone && !q?.presenterEmail) return null;
+    return [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN:${q.presenter || ''}`,
+      `TEL:${q.presenterPhone || ''}`,
+      `EMAIL:${q.presenterEmail || ''}`,
+      'END:VCARD',
+    ].join('\n');
+  }
+
+  private newPresentation(): void {
+    new QuestionnaireModal(this.plugin, async (q) => {
+      const draft: PresentationDraft = {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        questionaire: q,
+        brainstormLog: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await this.plugin.presentationsDb.saveDraft(draft);
+      const designRules = await this.plugin.presentationTemplates.readDesignRules();
+      if (q.brainstorm !== false) {
+        new BrainstormModal(this.plugin, q, designRules, (brainstormed) => {
+          void this.doGenerate(brainstormed, designRules, draft.id);
+        }, (log) => {
+          void this.plugin.presentationsDb.saveDraft({
+            ...draft, questionaire: q, brainstormLog: log, updatedAt: new Date().toISOString(),
+          });
+        }).open();
+      } else {
+        await this.doGenerate(q, designRules, draft.id);
+      }
+    }).open();
+  }
+
+  private async doGenerate(q: PresentationQuestionaire, designRules: string, draftId?: string): Promise<void> {
+    try {
+      new Notice('Презентации: генерация...');
+      const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId)
+        || this.plugin.presentationTemplates.getTemplate('technonicol')!;
+      const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
+      const item: PresentationItem = {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        title: q.topic,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        templateId: q.templateId,
+        questionaire: q,
+        generation,
+        images: {},
+        renderVersion: PRESENTATION_RENDER_VERSION,
+        templateVersion: this.plugin.presentationTemplates.getTemplateVersion(q.templateId),
+      };
+      item.html = await this.generateHtml(item);
+      await this.plugin.presentationsDb.add(item);
+      if (draftId) await this.plugin.presentationsDb.deleteDraft(draftId);
+      new Notice(`Презентации: «${item.title}» создана (${generation.slides.length} слайдов)`);
+      this.render();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      new Notice(`Ошибка генерации: ${msg}. Черновик сохранён — можно повторить без повторного ввода.`);
+      if (draftId) {
+        const draft = this.plugin.presentationsDb.getDraftById(draftId);
+        if (draft) {
+          draft.questionaire = q;
+          draft.error = msg;
+          await this.plugin.presentationsDb.saveDraft(draft);
+        }
+      }
+      this.render();
+    }
+  }
+
+  private regenerate(item: PresentationItem): void {
+    new QuestionnaireModal(this.plugin, async (q) => {
+      try {
+        new Notice('Презентации: перегенерация...');
+        const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId)
+          || this.plugin.presentationTemplates.getTemplate('technonicol')!;
+        const designRules = await this.plugin.presentationTemplates.readDesignRules();
+        const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
+        item.title = q.topic;
+        item.templateId = q.templateId;
+        item.questionaire = q;
+        item.generation = generation;
+        item.renderVersion = PRESENTATION_RENDER_VERSION;
+        item.templateVersion = this.plugin.presentationTemplates.getTemplateVersion(q.templateId);
+        item.html = await this.generateHtml(item);
+        await this.plugin.presentationsDb.update(item.id, {
+          title: item.title, templateId: item.templateId, questionaire: q, generation,
+          html: item.html, renderVersion: item.renderVersion, templateVersion: item.templateVersion,
+        });
+        new Notice('Презентации: перегенерировано');
+        this.render();
+      } catch (e) {
+        new Notice(`Ошибка перегенерации: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }, item.questionaire).open();
+  }
+
+  private async ensureHtml(item: PresentationItem): Promise<string> {
+    await this.plugin.presentationTemplates.reload();
+    const tplVersion = this.plugin.presentationTemplates.getTemplateVersion(item.templateId);
+    if (!item.html || item.renderVersion !== PRESENTATION_RENDER_VERSION || item.templateVersion !== tplVersion) {
+      item.html = await this.generateHtml(item);
+      item.renderVersion = PRESENTATION_RENDER_VERSION;
+      item.templateVersion = tplVersion;
+      await this.plugin.presentationsDb.update(item.id, {
+        html: item.html, renderVersion: item.renderVersion, templateVersion: item.templateVersion,
+      });
+    }
+    return item.html;
+  }
+
+  private async preview(item: PresentationItem, focusPdf = false): Promise<void> {
+    const html = await this.ensureHtml(item);
+    const modal = new PresentationPreviewModal(this.plugin.app, html);
+    modal.open();
+    if (focusPdf) {
+      new Notice('В презентации нажмите «🖨 Печать / PDF» и выберите «Сохранить как PDF»');
+    }
+  }
+
+  private openImages(item: PresentationItem): void {
+    new ImageUploadModal(
+      this.plugin,
+      item.generation.slides.length,
+      item.images,
+      item.bgDarken || {},
+      async (images, bgDarken) => {
+        item.images = images;
+        item.bgDarken = bgDarken;
+        item.renderVersion = PRESENTATION_RENDER_VERSION;
+        item.templateVersion = this.plugin.presentationTemplates.getTemplateVersion(item.templateId);
+        item.html = await this.generateHtml(item);
+        await this.plugin.presentationsDb.update(item.id, {
+          images, bgDarken, html: item.html, renderVersion: item.renderVersion, templateVersion: item.templateVersion,
+        });
+        new Notice('Презентации: изображения обновлены');
+        this.render();
+      },
+    ).open();
+  }
+
+  private async exportHtml(item: PresentationItem): Promise<void> {
+    try {
+      const html = await this.ensureHtml(item);
+      const adapter = this.plugin.app.vault.adapter;
+      if (!(await adapter.exists(EXPORT_DIR))) {
+        await adapter.mkdir(EXPORT_DIR);
+      }
+      const path = `${EXPORT_DIR}/${sanitize(item.title)}.html`;
+      await adapter.write(path, html);
+      new Notice(`Презентации: сохранено ${path}`);
+    } catch (e) {
+      new Notice(`Ошибка экспорта: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** Отправка презентации в чат задачи YouGile: загрузка HTML-файла → ссылка → сообщение <a>Название слайдов</a>. */
+  private async sendToYougileChat(item: PresentationItem): Promise<void> {
+    const tasks = this.plugin.db.getTasks().sort((a, b) => a.title.localeCompare(b.title));
+    if (tasks.length === 0) {
+      new Notice('Презентации: кэш задач пуст. Синхронизируйте задачи YouGile.');
+      return;
+    }
+    new TaskPickModal(this.plugin, tasks, async (task) => {
+      try {
+        const html = await this.ensureHtml(item);
+        const buffer = new TextEncoder().encode(html).buffer as ArrayBuffer;
+        const result = await this.plugin.client.uploadFile(buffer, `${sanitize(item.title)}.html`);
+        const link = `<a href="${result.fullUrl}">${escapeHtmlAttr(item.title)}</a>`;
+        await this.plugin.client.sendMessage(task.id, link);
+        new Notice(`Презентации: «${item.title}» отправлена в чат задачи`);
+      } catch (e) {
+        new Notice(`Презентации: ошибка отправки — ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }).open();
+  }
+
+  private async deleteItem(item: PresentationItem): Promise<void> {
+    await this.plugin.presentationsDb.delete(item.id);
+    new Notice('Презентации: удалено');
+    this.render();
+  }
+}

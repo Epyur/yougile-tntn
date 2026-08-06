@@ -22,6 +22,7 @@
 | 14 | **Редактирование задачи**: в деталях задачи (задачи-вьюха) добавлена кнопка "Редактировать" — форма с title, description, project/board/column, assignees, deadline | ✅ | `ui/tasks-view.ts` |
 | 15 | **ScheduleView → TasksView**: вызов `openTaskDetail()` через публичный API вместо прямого доступа к private-членам | ✅ | `ui/tasks-view.ts`, `ui/schedule-view.ts` |
 | 16 | **SyncLogger**: журнал всех синхронизаций (LPI, Письма, Контакты, Задачи, офлайн-очередь), запись в `yourbase/sync_log.json`, модальное окно с фильтрацией, ribbon-иконка, команда | ✅ | `services/sync-logger.ts`, `main.ts`, `db.ts`, `email-db.ts`, `contact-db.ts`, `lpi-view.ts`, `tasks-view.ts` |
+| 17 | **Презентации**: анкета → мозговой штурм → LLM (JSON) → generic-рендер HTML по TemplateSpec, шаблоны JSON (встроенный «Технониколь» + извлечение из примера через LLM), загрузка иллюстраций и фонов (папка `presentation_pics`, base64 в HTML), позиционирование элементов титула/финала в шаблоне, затемнение фонов, полноэкранный режим, печать PDF без полей, финальный слайд «Спасибо за внимание», отправка в чат задачи YouGile, черновики с повтором генерации, дизайн-скил в `yourbase/presentation_rules/` | ✅ | `ui/presentations-view.ts`, `ui/presentation-modals.ts`, `services/presentation-generator.ts`, `services/presentation-templates.ts`, `database/presentations-db.ts`, `types/presentations.ts` |
 
 ## Структура файлов
 
@@ -32,17 +33,21 @@ src/
 ├── database/
 │   ├── db.ts                      # LocalDatabase (yougile_cache.json)
 │   ├── email-db.ts                # EmailDatabase (mailer_data.json)
-│   └── contact-db.ts              # ContactDatabase (contacts_data.json) (удалён lpi-db — всё в lpi_data.json)
+│   ├── contact-db.ts              # ContactDatabase (contacts_data.json) (удалён lpi-db — всё в lpi_data.json)
+│   └── presentations-db.ts        # PresentationsDatabase (presentations_data.json)
 ├── services/
 │   ├── document-service.ts        # DOCX генерация (jszip + docx)
-│   ├── llm-service.ts             # AI-чат с RAG
+│   ├── llm-service.ts             # AI-чат с RAG + генерация презентаций (слайды, штурм, шаблоны)
 │   ├── lpi-schema-service.ts      # Schema Service — чтение метаданных SQLite
+│   ├── presentation-generator.ts  # Презентации: рендер HTML (TemplateSpec, posCss, изображения, полноэкранный режим)
+│   ├── presentation-templates.ts  # Презентации: шаблоны TemplateSpec (JSON) + дизайн-скил
 │   └── sync-logger.ts             # Журнал синхронизации (SyncLogger + SyncLogModal)
 ├── types/
 │   ├── cache.ts                   # CachedTask, OfflineAction, …
 │   ├── contacts.ts                # ContactItem, ContactDbData
 │   ├── emails.ts                  # MailItem, MailDirection, EmailDbData
 │   ├── lpi-config.ts              # LpiViewConfig + DEFAULT_CONFIG
+│   ├── presentations.ts           # Презентации: TemplateSpec, слайды, анкета, черновики
 │   ├── settings.ts                # YouGileSettings + DEFAULT_SETTINGS
 │   ├── sql.js.d.ts                # Type declarations for sql.js
 │   └── yougile.ts                 # YouGileTask, CreateTaskPayload, …
@@ -59,6 +64,8 @@ src/
 │   ├── lpi-modals.ts              # LPI: модалки (ProductFilter, MethodFilter, YougileSync, ConfigEditor, LpiChanges)
 │   ├── lpi-utils.ts               # LPI: утилиты (статусы, отображение)
 │   ├── lpi-schema-modal.ts        # Schema Browser — просмотр схемы SQLite БД
+│   ├── presentation-modals.ts     # Презентации: модалки (анкета, штурм, предпросмотр, шаблон, изображения, выбор задачи)
+│   ├── presentations-view.ts      # Презентации (список, черновики, экспорт, отправка в чат YouGile)
 │   ├── schedule-view.ts           # Календарь мероприятий
 │   ├── settings-tab.ts            # Настройки: 7 складных блоков + toggle модулей
 │   ├── suggestions-view.ts        # Предложения (таблица, create/edit, детали, завершение)
@@ -131,10 +138,17 @@ src/
   - **Кэш YouGile-задач**: `yougileTasksByExtId` (Map `application_external_id → task`) строится при `syncFromTasks()`, используется только для статуса `completedLocally`, не для `taskId`
 - **LPI связи по application_id**: В SQLite заявки идентифицируются по `external_id` (человеческий номер, например "12345"), но все межтабличные связи используют UUID `application_id`. При загрузке из SQL добавляется `a.application_id` в запрос; в деталях и Schema Browser `{{application_id}}` подставляется автоматически. Для обращений к связанным таблицам через FK на `applications.application_id` генерируются двухшаговые запросы (сначала SELECT application_id FROM applications WHERE external_id = '...', затем работа с application_id). В авто-генерации Schema Browser и Query Runner FK на `applications.application_id` обрабатываются через `{{application_id}}`, остальные FK — через `{{column_name}}`.
 - **ScheduleView → TasksView**: `openTaskDetail()` — публичный API-метод, заменяющий прямой доступ к `private detailViewActive`, `detailTaskId` и `renderTaskDetail()` из `ScheduleView`
+- **Презентации**: модуль генерирует HTML-презентации из анкеты через LLM; шаблоны TemplateSpec хранятся в `yourbase/presentation_templates/*.json`, дизайн-скил в `yourbase/presentation_rules/`; пользовательские шаблоны имеют приоритет над встроенными с тем же id
+- **Презентации: изображения**: при загрузке копируются в `presentation_pics/` с предсказуемыми путями (`<имя>.jpg`, при конфликте `-2`, `-3`), в HTML встраиваются как base64 (самодостаточный файл для распространения); старые data URI поддерживаются
+- **Презентации: позиционирование**: элементы титульного и финального слайдов настраиваются в шаблоне через `pos` (пресет `align` + координаты left/top/right/bottom в cqw/cqh); финальный блок — абсолютный контейнер `.fin-block`
+- **Презентации: затемнение фона**: настраивается в модалке «Изображения» (per-slide `bgDarken`, 0..1) и в шаблоне (`overlayOpacity`); применяется к титулу/photo/section слайдам
+- **Презентации: полноэкранный режим**: в режиме «Слайды» слайд масштабируется под площадь экрана (16:9, `width:min(100vw, 100vh*16/9)`), кнопка «⛶ Экран»/клавиша F; печать PDF — слайды занимают весь лист (`@page size:13.333in 7.5in; margin:0`)
+- **Презентации: финальный слайд**: всегда «Спасибо за внимание» (требование в системном промпте + фиксированный рендер, игнорирующий heading1)
+- **Презентации: кэш HTML**: привязан к версии рендера (`renderVersion`) и версии шаблона (`templateVersion` = mtime JSON-файла) — правки шаблона применяются сразу
 
 ## Настройки плагина
 
-Настройки разделены на 7 складных блоков. У блоков «Календарь», «Документы», «Письма», «Дашборд», «Контакты» и «LPI» есть toggle — чекбокс включения/отключения модуля. Блок LPI по умолчанию свёрнут.
+Настройки разделены на 8 складных блоков. У блоков «Календарь», «Документы», «Письма», «Дашборд», «Контакты», «LPI» и «Презентации» есть toggle — чекбокс включения/отключения модуля. Блок LPI по умолчанию свёрнут.
 
 | Блок | Поля | Toggle |
 |------|------|--------|
@@ -145,6 +159,7 @@ src/
 | Контакты | проект, доска | `moduleContactsEnabled` |
 | Дашборд | без настроек | `moduleDashboardEnabled` |
 | LPI | путь к SQLite БД (кнопка "Обзор..."), проект, доска, колонка (dropdown) | `moduleLpiEnabled` (по умолч. false) |
+| Презентации | кнопка "Открыть", шаблон по умолчанию (dropdown) | `modulePresentationsEnabled` |
 
 ## Правила версионирования и коммитов
 
