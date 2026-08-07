@@ -88,7 +88,7 @@ export const PRESENTATION_PICS_DIR = 'presentation_pics';
 
 /** Версия HTML-рендера. Увеличивается при изменениях разметки/CSS/скрипта презентации,
  *  чтобы существующие презентации пересобирали свой html автоматически. */
-export const PRESENTATION_RENDER_VERSION = 8;
+export const PRESENTATION_RENDER_VERSION = 11;
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -200,7 +200,7 @@ export async function resolveImageDataUri(app: App, ref: string): Promise<string
   }
 }
 
-function buildCss(tpl: PresentationTemplate): string {
+function buildCss(tpl: PresentationTemplate, transition: 'fade' | 'slide' | 'none' = 'fade', showProgress = true): string {
   const c = tpl.colors;
   const f = tpl.fonts;
   const l = tpl.layouts;
@@ -229,6 +229,8 @@ function buildCss(tpl: PresentationTemplate): string {
     background:${c.white}; color:${c.dark}; border-radius:4px; padding:4px 10px;
   }
   .toolbar button:hover { background:${c.light}; }
+  :fullscreen .toolbar { display:none !important; }
+  :-webkit-full-screen .toolbar { display:none !important; }
   .deck { max-width:1280px; margin:0 auto; padding:16px 0; }
   .slide {
     width:100%; aspect-ratio:16/9; container-type:size; position:relative; overflow:hidden;
@@ -238,11 +240,24 @@ function buildCss(tpl: PresentationTemplate): string {
   .deck.mode-slides { position:fixed; inset:0; max-width:none; margin:0; padding:0; z-index:999;
     background:#000; display:flex; align-items:center; justify-content:center; }
   .deck.mode-slides .slide {
-    display:none; margin:0; aspect-ratio:auto;
+    position:absolute; inset:0; margin:auto; aspect-ratio:auto;
     width:min(100vw, calc(100vh * 16 / 9));
     height:min(100vh, calc(100vw * 9 / 16));
+    opacity:0; pointer-events:none; visibility:hidden;
+    transition:opacity .45s ease, transform .45s ease, visibility 0s linear .45s;
   }
-  .deck.mode-slides .slide.current { display:block; }
+  .deck.mode-slides .slide.current { opacity:1; pointer-events:auto; visibility:visible; transition:opacity .45s ease, transform .45s ease; }
+  .deck.mode-slides .slide.slide-in-left { transform:translateX(-7%); }
+  .deck.mode-slides .slide.slide-in-right { transform:translateX(7%); }
+  .deck.mode-slides .slide.slide-out-left { transform:translateX(-7%); }
+  .deck.mode-slides .slide.slide-out-right { transform:translateX(7%); }
+  ${transition === 'none' ? `
+  .deck.mode-slides .slide { transition:none; }
+  ` : ''}
+  .progress { position:fixed; left:0; right:0; bottom:0; height:3px; z-index:1001; background:rgba(255,255,255,.25); display:none; }
+  .deck.mode-slides ~ .progress { display:block; }
+  .progress .bar { display:block; height:100%; width:0; background:${c.accent}; transition:width .3s ease; }
+  ${showProgress ? '' : '.deck.mode-slides ~ .progress { display:none !important; }'}
   .foot {
     position:absolute; right:4.45cqw; bottom:3.9cqh; font-size:${cqw(13)};
     font-family:"${f.body}", Arial, sans-serif; color:${c.gray}; white-space:nowrap;
@@ -381,11 +396,13 @@ function buildCss(tpl: PresentationTemplate): string {
     * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
     html, body { margin:0 !important; padding:0 !important; background:#fff !important; }
     .toolbar { display:none !important; }
+    .progress { display:none !important; }
     .deck { max-width:none !important; padding:0 !important; margin:0 !important; }
     .deck.mode-slides { position:static !important; display:block !important; background:#fff !important; }
     .deck.mode-slides .slide, .slide {
-      display:block !important; margin:0 !important; padding:0 !important;
-      width:100% !important; height:100vh !important; aspect-ratio:auto !important;
+      display:block !important; position:static !important; margin:0 !important; padding:0 !important;
+      opacity:1 !important; visibility:visible !important; pointer-events:auto !important;
+      width:100% !important; height:100vh !important; aspect-ratio:auto !important; transform:none !important;
     }
     .slide { break-after:page; page-break-after:always; }
     .slide:last-child { break-after:auto; page-break-after:auto; }
@@ -555,14 +572,72 @@ const DECK_SCRIPT = `
 (function(){
   var deck=document.querySelector('.deck');
   var slides=[].slice.call(deck.querySelectorAll('.slide'));
+  var bar=document.querySelector('.progress .bar');
   var cur=0;
+  var timer=null;
+  var auto=false;
+  var interval=parseFloat(deck.getAttribute('data-interval')||'0');
+  var loop=deck.getAttribute('data-loop')==='true';
+  function clearStates(){
+    slides.forEach(function(s){s.classList.remove('current','slide-in-left','slide-in-right','slide-out-left','slide-out-right');});
+  }
+  function updateProgress(){
+    if(!bar) return;
+    bar.style.width=((cur+1)/slides.length*100)+'%';
+  }
+  function resetAuto(){
+    if(!auto||interval<=0) return;
+    clearInterval(timer);
+    timer=setInterval(function(){nav(1);}, interval*1000);
+  }
+  function startAuto(){
+    if(interval<=0) return;
+    auto=true; resetAuto();
+    var b=document.querySelector('.toolbar .auto-btn');
+    if(b) b.textContent='⏸ Стоп';
+  }
+  function stopAuto(){
+    auto=false; clearInterval(timer);
+    var b=document.querySelector('.toolbar .auto-btn');
+    if(b) b.textContent='▶ Авто';
+  }
+  function toggleAuto(){ auto?stopAuto():startAuto(); }
+  function nav(dir){
+    var len=slides.length;
+    var ni=loop ? (cur+dir+len)%len : Math.max(0,Math.min(len-1,cur+dir));
+    if(ni===cur) return;
+    clearStates();
+    var out=slides[cur], inc=slides[ni];
+    cur=ni;
+    var inCls = dir<0 ? 'slide-in-left' : 'slide-in-right';
+    var outCls = dir<0 ? 'slide-out-right' : 'slide-out-left';
+    inc.classList.add(inCls);
+    void inc.offsetWidth;
+    inc.classList.add('current');
+    inc.classList.remove(inCls);
+    out.classList.add(outCls);
+    requestAnimationFrame(function(){
+      if(!loop && cur >= len-1 && dir>0){ stopAuto(); } else { resetAuto(); }
+    });
+    updateProgress();
+  }
   function show(i){
     cur=Math.max(0,Math.min(slides.length-1,i));
-    slides.forEach(function(s,idx){s.classList.toggle('current',idx===cur);});
+    clearStates();
+    slides[cur].classList.add('current');
+    updateProgress();
+    resetAuto();
   }
   function setMode(m){
-    deck.classList.toggle('mode-slides', m==='slides');
-    if(m==='slides' && !deck.querySelector('.slide.current')) show(cur);
+    var slidesMode = m==='slides';
+    deck.classList.toggle('mode-slides', slidesMode);
+    if(slidesMode){
+      if(!deck.querySelector('.slide.current')) show(0);
+      updateProgress();
+      startAuto();
+    } else {
+      stopAuto();
+    }
   }
   function toggleFullscreen(){
     if(document.fullscreenElement){ (document.exitFullscreen||function(){}).call(document); }
@@ -573,12 +648,13 @@ const DECK_SCRIPT = `
   }
   window.__setMode=setMode;
   window.__toggleFullscreen=toggleFullscreen;
-  window.__nav={next:function(){show(cur+1);},prev:function(){show(cur-1);}};
+  window.__toggleAuto=toggleAuto;
+  window.__nav={next:function(){nav(1);},prev:function(){nav(-1);}};
   window.addEventListener('keydown',function(e){
     if(e.key==='f'||e.key==='F'||e.key==='а'||e.key==='А'){ toggleFullscreen(); return; }
     if(!deck.classList.contains('mode-slides')) return;
-    if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(cur+1);}
-    else if(e.key==='ArrowLeft'||e.key==='ArrowUp'||e.key==='PageUp'){e.preventDefault();show(cur-1);}
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){e.preventDefault();nav(1);}
+    else if(e.key==='ArrowLeft'||e.key==='ArrowUp'||e.key==='PageUp'){e.preventDefault();nav(-1);}
     else if(e.key==='Home'){show(0);}
     else if(e.key==='End'){show(slides.length-1);}
   });
@@ -586,7 +662,17 @@ const DECK_SCRIPT = `
   window.addEventListener('touchend',function(e){
     if(!deck.classList.contains('mode-slides')) return;
     var dx=e.changedTouches[0].clientX-(window.__tx||0);
-    if(Math.abs(dx)>40) show(cur+(dx<0?1:-1));
+    if(Math.abs(dx)>40) nav(dx<0?1:-1);
+  });
+  window.addEventListener('click',function(e){
+    if(!deck.classList.contains('mode-slides')) return;
+    if(e.target&&e.target.closest){ if(e.target.closest('.toolbar')) return; if(e.target.closest('a,button')) return; }
+    nav(1);
+  });
+  window.addEventListener('contextmenu',function(e){
+    if(!deck.classList.contains('mode-slides')) return;
+    e.preventDefault();
+    nav(-1);
   });
 })();
 `;
@@ -606,16 +692,29 @@ export function renderPresentationHtml(
     illustrations?: Record<string, string>;
     /** Затемнение фоновой картинки по слайду: 'bg:title' / 'bg:N' → 0..1. */
     bgDarken?: Record<string, number>;
+    /** Интервал автопереключения (сек), 0 = выкл. Приоритет над шаблоном. */
+    slideIntervalSeconds?: number;
+    /** Эффект перехода между слайдами. Приоритет над шаблоном. */
+    slideTransition?: 'fade' | 'slide' | 'none';
+    /** Зацикливать ли показ. Приоритет над шаблоном. */
+    slideLoop?: boolean;
+    /** Показывать ли прогресс-бар в режиме «Слайды». */
+    showProgress?: boolean;
   },
 ): string {
   const total = generation.slides.length;
   const slidesHtml = generation.slides.map((s, i) => renderSlide(s, i, total, tpl, images, meta)).join('\n');
   const title = escapeHtml(generation.title || 'Презентация');
-  const css = buildCss(tpl);
+  const interval = meta?.slideIntervalSeconds ?? tpl.slideIntervalSeconds ?? 0;
+  const transition = meta?.slideTransition ?? tpl.slideTransition ?? 'fade';
+  const loop = meta?.slideLoop ?? tpl.slideLoop ?? false;
+  const showProgress = meta?.showProgress ?? true;
+  const css = buildCss(tpl, transition, showProgress);
   const printBtn = `<button onclick="window.print()">🖨 Печать / PDF</button>`;
   const landingBtn = `<button onclick="window.__setMode('landing')">Лендинг</button>`;
   const slidesBtn = `<button onclick="window.__setMode('slides')">Слайды</button>`;
   const fullBtn = `<button onclick="window.__toggleFullscreen()">⛶ Экран</button>`;
+  const autoBtn = interval > 0 ? `<button class="auto-btn" onclick="window.__toggleAuto()">▶ Авто</button>` : '';
   const prevBtn = `<button onclick="window.__nav.prev()">◀</button>`;
   const nextBtn = `<button onclick="window.__nav.next()">▶</button>`;
   return `<!DOCTYPE html>
@@ -627,10 +726,11 @@ export function renderPresentationHtml(
 <style>${css}</style>
 </head>
 <body>
-<div class="toolbar">${landingBtn}${slidesBtn}${prevBtn}${nextBtn}${fullBtn}${printBtn}</div>
-<div class="deck mode-landing">
+<div class="toolbar">${landingBtn}${slidesBtn}${prevBtn}${nextBtn}${fullBtn}${autoBtn}${printBtn}</div>
+<div class="deck mode-landing" data-interval="${interval}" data-loop="${loop ? 'true' : 'false'}">
 ${slidesHtml}
 </div>
+<div class="progress"><div class="bar"></div></div>
 <script>
 ${DECK_SCRIPT}
 </script>

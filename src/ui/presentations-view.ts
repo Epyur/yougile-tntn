@@ -2,7 +2,7 @@ import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { PresentationDraft, PresentationItem, PresentationQuestionaire } from '../types/presentations';
 import { renderPresentationHtml, resolveImageDataUri, PRESENTATION_RENDER_VERSION } from '../services/presentation-generator';
-import { QuestionnaireModal, BrainstormModal, PresentationPreviewModal, NewTemplateModal, ImageUploadModal, TaskPickModal } from './presentation-modals';
+import { QuestionnaireModal, BrainstormModal, PresentationPreviewModal, NewTemplateModal, ImageUploadModal, TaskPickModal, ShowSettingsModal, SlideTransition } from './presentation-modals';
 
 export const PRESENTATIONS_VIEW_TYPE = 'yougile-presentations';
 
@@ -173,6 +173,7 @@ export class PresentationsView extends ItemView {
     btn('👁 Предпросмотр', () => this.preview(item));
     btn('🖨 PDF', () => this.preview(item, true));
     btn('📷 Изображения', () => this.openImages(item));
+    btn('⚙ Показ', () => this.showSettings(item));
     btn('🔁 Перегенерировать', () => this.regenerate(item));
     btn('💾 Экспорт HTML', () => this.exportHtml(item));
     btn('📤 В чат YouGile', () => void this.sendToYougileChat(item));
@@ -214,7 +215,41 @@ export class PresentationsView extends ItemView {
       qrDataUri,
       illustrations,
       bgDarken: item.bgDarken,
+      slideIntervalSeconds: item.slideIntervalSeconds,
+      slideTransition: item.slideTransition,
+      slideLoop: item.slideLoop,
+      showProgress: item.showProgress,
     });
+  }
+
+  private showSettings(item: PresentationItem): void {
+    const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId)
+      || this.plugin.presentationTemplates.getTemplate('technonicol');
+    new ShowSettingsModal(this.plugin, tpl, {
+      slideIntervalSeconds: item.slideIntervalSeconds,
+      slideTransition: item.slideTransition,
+      slideLoop: item.slideLoop,
+      showProgress: item.showProgress,
+    }, async (opts) => {
+      item.slideIntervalSeconds = opts.slideIntervalSeconds;
+      item.slideTransition = opts.slideTransition;
+      item.slideLoop = opts.slideLoop;
+      item.showProgress = opts.showProgress;
+      item.renderVersion = PRESENTATION_RENDER_VERSION;
+      item.templateVersion = this.plugin.presentationTemplates.getTemplateVersion(item.templateId);
+      item.html = await this.generateHtml(item);
+      await this.plugin.presentationsDb.update(item.id, {
+        slideIntervalSeconds: item.slideIntervalSeconds,
+        slideTransition: item.slideTransition,
+        slideLoop: item.slideLoop,
+        showProgress: item.showProgress,
+        html: item.html,
+        renderVersion: item.renderVersion,
+        templateVersion: item.templateVersion,
+      });
+      new Notice('Презентации: настройки показа обновлены');
+      this.render();
+    }).open();
   }
 
   private buildVCard(q?: PresentationQuestionaire): string | null {

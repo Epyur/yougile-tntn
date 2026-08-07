@@ -130,6 +130,12 @@ export interface PresentationTemplate {
   colors: TemplateColors;
   fonts: TemplateFonts;
   footerText?: string;
+  /** Интервал автопереключения слайдов в режиме «Слайды» (сек), 0/отсутствует = выключено. */
+  slideIntervalSeconds?: number;
+  /** Эффект перехода между слайдами в режиме «Слайды». */
+  slideTransition?: 'fade' | 'slide' | 'none';
+  /** Зацикливать ли показ (после последнего слайда — снова первый и наоборот). */
+  slideLoop?: boolean;
   layouts: PresentationTemplateLayouts;
 }
 
@@ -190,6 +196,14 @@ export interface PresentationItem {
   templateVersion?: string;
   /** Затемнение фона по слайду: ключ ('bg:title', 'bg:N') → 0..1. Задаётся в настройках изображений. */
   bgDarken?: Record<string, number>;
+  /** Переопределение интервала автопереключения (сек), 0 = выкл. Приоритет над шаблоном. */
+  slideIntervalSeconds?: number;
+  /** Переопределение эффекта перехода между слайдами. Приоритет над шаблоном. */
+  slideTransition?: 'fade' | 'slide' | 'none';
+  /** Переопределение зацикливания показа. Приоритет над шаблоном. */
+  slideLoop?: boolean;
+  /** Показывать ли прогресс-бар в режиме «Слайды». */
+  showProgress?: boolean;
 }
 
 /** Черновик презентации: анкета + лог мозгового штурма, сохраняется сразу при вводе,

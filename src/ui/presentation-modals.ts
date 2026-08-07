@@ -609,3 +609,97 @@ export class ImageUploadModal extends Modal {
     this.contentEl.empty();
   }
 }
+
+export type SlideTransition = 'fade' | 'slide' | 'none';
+
+/** Настройки показа презентации: автопереключение, эффект перехода, прогресс-бар. */
+export class ShowSettingsModal extends Modal {
+  plugin: YouGilePlugin;
+  tpl: PresentationTemplate | undefined;
+  interval: number;
+  transition: SlideTransition;
+  loop: boolean;
+  showProgress: boolean;
+  onDone: (opts: { slideIntervalSeconds: number; slideTransition: SlideTransition; slideLoop: boolean; showProgress: boolean }) => void;
+
+  constructor(
+    plugin: YouGilePlugin,
+    tpl: PresentationTemplate | undefined,
+    initial: { slideIntervalSeconds?: number; slideTransition?: SlideTransition; slideLoop?: boolean; showProgress?: boolean },
+    onDone: ShowSettingsModal['onDone'],
+  ) {
+    super(plugin.app);
+    this.plugin = plugin;
+    this.tpl = tpl;
+    this.interval = initial.slideIntervalSeconds ?? tpl?.slideIntervalSeconds ?? 0;
+    this.transition = initial.slideTransition ?? tpl?.slideTransition ?? 'fade';
+    this.loop = initial.slideLoop ?? tpl?.slideLoop ?? false;
+    this.showProgress = initial.showProgress ?? true;
+    this.onDone = onDone;
+    this.modalEl.style.width = 'min(460px, 94vw)';
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('mailer-yougile-container');
+    contentEl.createEl('h3', { text: '⚙ Настройки показа' });
+    contentEl.createEl('div', {
+      text: `Дефолты шаблона «${this.tpl?.name ?? '—'}»: интервал ${this.tpl?.slideIntervalSeconds ?? 0} с · эффект ${this.tpl?.slideTransition ?? 'fade'}`,
+    }).style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:8px;';
+
+    let interval = this.interval;
+    new Setting(contentEl).setName('Автопереключение (сек)')
+      .setDesc('Интервал между слайдами в режиме «Слайды». 0 = выключено.')
+      .addText(t => {
+        t.inputEl.type = 'number';
+        t.inputEl.min = '0';
+        t.inputEl.step = '1';
+        t.setValue(String(interval));
+        t.onChange(v => { interval = parseInt(v, 10); if (isNaN(interval) || interval < 0) interval = 0; });
+      });
+
+    let transition: SlideTransition = this.transition;
+    new Setting(contentEl).setName('Эффект перехода')
+      .addDropdown(d => {
+        for (const val of ['fade', 'slide', 'none'] as SlideTransition[]) {
+          const label = val === 'fade' ? 'Fade (растворение)' : val === 'slide' ? 'Fade + сдвиг' : 'Без эффекта';
+          d.addOption(val, label);
+        }
+        d.setValue(transition);
+        d.onChange(v => { transition = v as SlideTransition; });
+      });
+
+    let showProgress = this.showProgress;
+    new Setting(contentEl).setName('Прогресс-бар')
+      .setDesc('Полоса прогресса внизу экрана в режиме «Слайды».')
+      .addToggle(tg => {
+        tg.setValue(showProgress);
+        tg.onChange(v => { showProgress = v; });
+      });
+
+    let loop = this.loop;
+    new Setting(contentEl).setName('Зациклить показ')
+      .setDesc('После последнего слайда — снова первый (и наоборот). Работает для автопоказа и ручного переключения.')
+      .addToggle(tg => {
+        tg.setValue(loop);
+        tg.onChange(v => { loop = v; });
+      });
+
+    new Setting(contentEl)
+      .addButton(b => b.setButtonText('Сохранить').setCta().onClick(() => {
+        this.close();
+        this.onDone({
+          slideIntervalSeconds: interval,
+          slideTransition: transition,
+          slideLoop: loop,
+          showProgress,
+        });
+      }))
+      .addButton(b => b.setButtonText('Отмена').onClick(() => this.close()));
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}

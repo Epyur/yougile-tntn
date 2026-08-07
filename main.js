@@ -6814,7 +6814,7 @@ async function resolveImageDataUri(app, ref) {
     return "";
   }
 }
-function buildCss(tpl) {
+function buildCss(tpl, transition = "fade", showProgress = true) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa;
   const c = tpl.colors;
   const f = tpl.fonts;
@@ -6843,6 +6843,8 @@ function buildCss(tpl) {
     background:${c.white}; color:${c.dark}; border-radius:4px; padding:4px 10px;
   }
   .toolbar button:hover { background:${c.light}; }
+  :fullscreen .toolbar { display:none !important; }
+  :-webkit-full-screen .toolbar { display:none !important; }
   .deck { max-width:1280px; margin:0 auto; padding:16px 0; }
   .slide {
     width:100%; aspect-ratio:16/9; container-type:size; position:relative; overflow:hidden;
@@ -6852,11 +6854,24 @@ function buildCss(tpl) {
   .deck.mode-slides { position:fixed; inset:0; max-width:none; margin:0; padding:0; z-index:999;
     background:#000; display:flex; align-items:center; justify-content:center; }
   .deck.mode-slides .slide {
-    display:none; margin:0; aspect-ratio:auto;
+    position:absolute; inset:0; margin:auto; aspect-ratio:auto;
     width:min(100vw, calc(100vh * 16 / 9));
     height:min(100vh, calc(100vw * 9 / 16));
+    opacity:0; pointer-events:none; visibility:hidden;
+    transition:opacity .45s ease, transform .45s ease, visibility 0s linear .45s;
   }
-  .deck.mode-slides .slide.current { display:block; }
+  .deck.mode-slides .slide.current { opacity:1; pointer-events:auto; visibility:visible; transition:opacity .45s ease, transform .45s ease; }
+  .deck.mode-slides .slide.slide-in-left { transform:translateX(-7%); }
+  .deck.mode-slides .slide.slide-in-right { transform:translateX(7%); }
+  .deck.mode-slides .slide.slide-out-left { transform:translateX(-7%); }
+  .deck.mode-slides .slide.slide-out-right { transform:translateX(7%); }
+  ${transition === "none" ? `
+  .deck.mode-slides .slide { transition:none; }
+  ` : ""}
+  .progress { position:fixed; left:0; right:0; bottom:0; height:3px; z-index:1001; background:rgba(255,255,255,.25); display:none; }
+  .deck.mode-slides ~ .progress { display:block; }
+  .progress .bar { display:block; height:100%; width:0; background:${c.accent}; transition:width .3s ease; }
+  ${showProgress ? "" : ".deck.mode-slides ~ .progress { display:none !important; }"}
   .foot {
     position:absolute; right:4.45cqw; bottom:3.9cqh; font-size:${cqw(13)};
     font-family:"${f.body}", Arial, sans-serif; color:${c.gray}; white-space:nowrap;
@@ -6994,11 +7009,13 @@ function buildCss(tpl) {
     * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
     html, body { margin:0 !important; padding:0 !important; background:#fff !important; }
     .toolbar { display:none !important; }
+    .progress { display:none !important; }
     .deck { max-width:none !important; padding:0 !important; margin:0 !important; }
     .deck.mode-slides { position:static !important; display:block !important; background:#fff !important; }
     .deck.mode-slides .slide, .slide {
-      display:block !important; margin:0 !important; padding:0 !important;
-      width:100% !important; height:100vh !important; aspect-ratio:auto !important;
+      display:block !important; position:static !important; margin:0 !important; padding:0 !important;
+      opacity:1 !important; visibility:visible !important; pointer-events:auto !important;
+      width:100% !important; height:100vh !important; aspect-ratio:auto !important; transform:none !important;
     }
     .slide { break-after:page; page-break-after:always; }
     .slide:last-child { break-after:auto; page-break-after:auto; }
@@ -7128,14 +7145,20 @@ function renderSlide(slide, index, total, tpl, images, meta) {
   }
 }
 function renderPresentationHtml(generation, tpl, images, meta) {
+  var _a, _b, _c, _d, _e, _f, _g;
   const total = generation.slides.length;
   const slidesHtml = generation.slides.map((s, i) => renderSlide(s, i, total, tpl, images, meta)).join("\n");
   const title = escapeHtml(generation.title || "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F");
-  const css = buildCss(tpl);
+  const interval = (_b = (_a = meta == null ? void 0 : meta.slideIntervalSeconds) != null ? _a : tpl.slideIntervalSeconds) != null ? _b : 0;
+  const transition = (_d = (_c = meta == null ? void 0 : meta.slideTransition) != null ? _c : tpl.slideTransition) != null ? _d : "fade";
+  const loop = (_f = (_e = meta == null ? void 0 : meta.slideLoop) != null ? _e : tpl.slideLoop) != null ? _f : false;
+  const showProgress = (_g = meta == null ? void 0 : meta.showProgress) != null ? _g : true;
+  const css = buildCss(tpl, transition, showProgress);
   const printBtn = `<button onclick="window.print()">\u{1F5A8} \u041F\u0435\u0447\u0430\u0442\u044C / PDF</button>`;
   const landingBtn = `<button onclick="window.__setMode('landing')">\u041B\u0435\u043D\u0434\u0438\u043D\u0433</button>`;
   const slidesBtn = `<button onclick="window.__setMode('slides')">\u0421\u043B\u0430\u0439\u0434\u044B</button>`;
   const fullBtn = `<button onclick="window.__toggleFullscreen()">\u26F6 \u042D\u043A\u0440\u0430\u043D</button>`;
+  const autoBtn = interval > 0 ? `<button class="auto-btn" onclick="window.__toggleAuto()">\u25B6 \u0410\u0432\u0442\u043E</button>` : "";
   const prevBtn = `<button onclick="window.__nav.prev()">\u25C0</button>`;
   const nextBtn = `<button onclick="window.__nav.next()">\u25B6</button>`;
   return `<!DOCTYPE html>
@@ -7147,10 +7170,11 @@ function renderPresentationHtml(generation, tpl, images, meta) {
 <style>${css}</style>
 </head>
 <body>
-<div class="toolbar">${landingBtn}${slidesBtn}${prevBtn}${nextBtn}${fullBtn}${printBtn}</div>
-<div class="deck mode-landing">
+<div class="toolbar">${landingBtn}${slidesBtn}${prevBtn}${nextBtn}${fullBtn}${autoBtn}${printBtn}</div>
+<div class="deck mode-landing" data-interval="${interval}" data-loop="${loop ? "true" : "false"}">
 ${slidesHtml}
 </div>
+<div class="progress"><div class="bar"></div></div>
 <script>
 ${DECK_SCRIPT}
 <\/script>
@@ -7163,19 +7187,77 @@ var init_presentation_generator = __esm({
     "use strict";
     import_obsidian17 = require("obsidian");
     PRESENTATION_PICS_DIR = "presentation_pics";
-    PRESENTATION_RENDER_VERSION = 8;
+    PRESENTATION_RENDER_VERSION = 11;
     DECK_SCRIPT = `
 (function(){
   var deck=document.querySelector('.deck');
   var slides=[].slice.call(deck.querySelectorAll('.slide'));
+  var bar=document.querySelector('.progress .bar');
   var cur=0;
+  var timer=null;
+  var auto=false;
+  var interval=parseFloat(deck.getAttribute('data-interval')||'0');
+  var loop=deck.getAttribute('data-loop')==='true';
+  function clearStates(){
+    slides.forEach(function(s){s.classList.remove('current','slide-in-left','slide-in-right','slide-out-left','slide-out-right');});
+  }
+  function updateProgress(){
+    if(!bar) return;
+    bar.style.width=((cur+1)/slides.length*100)+'%';
+  }
+  function resetAuto(){
+    if(!auto||interval<=0) return;
+    clearInterval(timer);
+    timer=setInterval(function(){nav(1);}, interval*1000);
+  }
+  function startAuto(){
+    if(interval<=0) return;
+    auto=true; resetAuto();
+    var b=document.querySelector('.toolbar .auto-btn');
+    if(b) b.textContent='\u23F8 \u0421\u0442\u043E\u043F';
+  }
+  function stopAuto(){
+    auto=false; clearInterval(timer);
+    var b=document.querySelector('.toolbar .auto-btn');
+    if(b) b.textContent='\u25B6 \u0410\u0432\u0442\u043E';
+  }
+  function toggleAuto(){ auto?stopAuto():startAuto(); }
+  function nav(dir){
+    var len=slides.length;
+    var ni=loop ? (cur+dir+len)%len : Math.max(0,Math.min(len-1,cur+dir));
+    if(ni===cur) return;
+    clearStates();
+    var out=slides[cur], inc=slides[ni];
+    cur=ni;
+    var inCls = dir<0 ? 'slide-in-left' : 'slide-in-right';
+    var outCls = dir<0 ? 'slide-out-right' : 'slide-out-left';
+    inc.classList.add(inCls);
+    void inc.offsetWidth;
+    inc.classList.add('current');
+    inc.classList.remove(inCls);
+    out.classList.add(outCls);
+    requestAnimationFrame(function(){
+      if(!loop && cur >= len-1 && dir>0){ stopAuto(); } else { resetAuto(); }
+    });
+    updateProgress();
+  }
   function show(i){
     cur=Math.max(0,Math.min(slides.length-1,i));
-    slides.forEach(function(s,idx){s.classList.toggle('current',idx===cur);});
+    clearStates();
+    slides[cur].classList.add('current');
+    updateProgress();
+    resetAuto();
   }
   function setMode(m){
-    deck.classList.toggle('mode-slides', m==='slides');
-    if(m==='slides' && !deck.querySelector('.slide.current')) show(cur);
+    var slidesMode = m==='slides';
+    deck.classList.toggle('mode-slides', slidesMode);
+    if(slidesMode){
+      if(!deck.querySelector('.slide.current')) show(0);
+      updateProgress();
+      startAuto();
+    } else {
+      stopAuto();
+    }
   }
   function toggleFullscreen(){
     if(document.fullscreenElement){ (document.exitFullscreen||function(){}).call(document); }
@@ -7186,12 +7268,13 @@ var init_presentation_generator = __esm({
   }
   window.__setMode=setMode;
   window.__toggleFullscreen=toggleFullscreen;
-  window.__nav={next:function(){show(cur+1);},prev:function(){show(cur-1);}};
+  window.__toggleAuto=toggleAuto;
+  window.__nav={next:function(){nav(1);},prev:function(){nav(-1);}};
   window.addEventListener('keydown',function(e){
     if(e.key==='f'||e.key==='F'||e.key==='\u0430'||e.key==='\u0410'){ toggleFullscreen(); return; }
     if(!deck.classList.contains('mode-slides')) return;
-    if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){e.preventDefault();show(cur+1);}
-    else if(e.key==='ArrowLeft'||e.key==='ArrowUp'||e.key==='PageUp'){e.preventDefault();show(cur-1);}
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key==='PageDown'||e.key===' '){e.preventDefault();nav(1);}
+    else if(e.key==='ArrowLeft'||e.key==='ArrowUp'||e.key==='PageUp'){e.preventDefault();nav(-1);}
     else if(e.key==='Home'){show(0);}
     else if(e.key==='End'){show(slides.length-1);}
   });
@@ -7199,7 +7282,17 @@ var init_presentation_generator = __esm({
   window.addEventListener('touchend',function(e){
     if(!deck.classList.contains('mode-slides')) return;
     var dx=e.changedTouches[0].clientX-(window.__tx||0);
-    if(Math.abs(dx)>40) show(cur+(dx<0?1:-1));
+    if(Math.abs(dx)>40) nav(dx<0?1:-1);
+  });
+  window.addEventListener('click',function(e){
+    if(!deck.classList.contains('mode-slides')) return;
+    if(e.target&&e.target.closest){ if(e.target.closest('.toolbar')) return; if(e.target.closest('a,button')) return; }
+    nav(1);
+  });
+  window.addEventListener('contextmenu',function(e){
+    if(!deck.classList.contains('mode-slides')) return;
+    e.preventDefault();
+    nav(-1);
   });
 })();
 `;
@@ -72951,6 +73044,78 @@ var ImageUploadModal = class extends import_obsidian18.Modal {
     this.contentEl.empty();
   }
 };
+var ShowSettingsModal = class extends import_obsidian18.Modal {
+  constructor(plugin, tpl, initial, onDone) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    super(plugin.app);
+    this.plugin = plugin;
+    this.tpl = tpl;
+    this.interval = (_b = (_a = initial.slideIntervalSeconds) != null ? _a : tpl == null ? void 0 : tpl.slideIntervalSeconds) != null ? _b : 0;
+    this.transition = (_d = (_c = initial.slideTransition) != null ? _c : tpl == null ? void 0 : tpl.slideTransition) != null ? _d : "fade";
+    this.loop = (_f = (_e = initial.slideLoop) != null ? _e : tpl == null ? void 0 : tpl.slideLoop) != null ? _f : false;
+    this.showProgress = (_g = initial.showProgress) != null ? _g : true;
+    this.onDone = onDone;
+    this.modalEl.style.width = "min(460px, 94vw)";
+  }
+  onOpen() {
+    var _a, _b, _c, _d, _e, _f;
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    contentEl.createEl("h3", { text: "\u2699 \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E\u043A\u0430\u0437\u0430" });
+    contentEl.createEl("div", {
+      text: `\u0414\u0435\u0444\u043E\u043B\u0442\u044B \u0448\u0430\u0431\u043B\u043E\u043D\u0430 \xAB${(_b = (_a = this.tpl) == null ? void 0 : _a.name) != null ? _b : "\u2014"}\xBB: \u0438\u043D\u0442\u0435\u0440\u0432\u0430\u043B ${(_d = (_c = this.tpl) == null ? void 0 : _c.slideIntervalSeconds) != null ? _d : 0} \u0441 \xB7 \u044D\u0444\u0444\u0435\u043A\u0442 ${(_f = (_e = this.tpl) == null ? void 0 : _e.slideTransition) != null ? _f : "fade"}`
+    }).style.cssText = "font-size:11px;color:var(--text-muted);margin-bottom:8px;";
+    let interval = this.interval;
+    new import_obsidian18.Setting(contentEl).setName("\u0410\u0432\u0442\u043E\u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 (\u0441\u0435\u043A)").setDesc("\u0418\u043D\u0442\u0435\u0440\u0432\u0430\u043B \u043C\u0435\u0436\u0434\u0443 \u0441\u043B\u0430\u0439\u0434\u0430\u043C\u0438 \u0432 \u0440\u0435\u0436\u0438\u043C\u0435 \xAB\u0421\u043B\u0430\u0439\u0434\u044B\xBB. 0 = \u0432\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u043E.").addText((t) => {
+      t.inputEl.type = "number";
+      t.inputEl.min = "0";
+      t.inputEl.step = "1";
+      t.setValue(String(interval));
+      t.onChange((v) => {
+        interval = parseInt(v, 10);
+        if (isNaN(interval) || interval < 0) interval = 0;
+      });
+    });
+    let transition = this.transition;
+    new import_obsidian18.Setting(contentEl).setName("\u042D\u0444\u0444\u0435\u043A\u0442 \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u0430").addDropdown((d) => {
+      for (const val of ["fade", "slide", "none"]) {
+        const label = val === "fade" ? "Fade (\u0440\u0430\u0441\u0442\u0432\u043E\u0440\u0435\u043D\u0438\u0435)" : val === "slide" ? "Fade + \u0441\u0434\u0432\u0438\u0433" : "\u0411\u0435\u0437 \u044D\u0444\u0444\u0435\u043A\u0442\u0430";
+        d.addOption(val, label);
+      }
+      d.setValue(transition);
+      d.onChange((v) => {
+        transition = v;
+      });
+    });
+    let showProgress = this.showProgress;
+    new import_obsidian18.Setting(contentEl).setName("\u041F\u0440\u043E\u0433\u0440\u0435\u0441\u0441-\u0431\u0430\u0440").setDesc("\u041F\u043E\u043B\u043E\u0441\u0430 \u043F\u0440\u043E\u0433\u0440\u0435\u0441\u0441\u0430 \u0432\u043D\u0438\u0437\u0443 \u044D\u043A\u0440\u0430\u043D\u0430 \u0432 \u0440\u0435\u0436\u0438\u043C\u0435 \xAB\u0421\u043B\u0430\u0439\u0434\u044B\xBB.").addToggle((tg) => {
+      tg.setValue(showProgress);
+      tg.onChange((v) => {
+        showProgress = v;
+      });
+    });
+    let loop = this.loop;
+    new import_obsidian18.Setting(contentEl).setName("\u0417\u0430\u0446\u0438\u043A\u043B\u0438\u0442\u044C \u043F\u043E\u043A\u0430\u0437").setDesc("\u041F\u043E\u0441\u043B\u0435 \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0435\u0433\u043E \u0441\u043B\u0430\u0439\u0434\u0430 \u2014 \u0441\u043D\u043E\u0432\u0430 \u043F\u0435\u0440\u0432\u044B\u0439 (\u0438 \u043D\u0430\u043E\u0431\u043E\u0440\u043E\u0442). \u0420\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u0434\u043B\u044F \u0430\u0432\u0442\u043E\u043F\u043E\u043A\u0430\u0437\u0430 \u0438 \u0440\u0443\u0447\u043D\u043E\u0433\u043E \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F.").addToggle((tg) => {
+      tg.setValue(loop);
+      tg.onChange((v) => {
+        loop = v;
+      });
+    });
+    new import_obsidian18.Setting(contentEl).addButton((b) => b.setButtonText("\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C").setCta().onClick(() => {
+      this.close();
+      this.onDone({
+        slideIntervalSeconds: interval,
+        slideTransition: transition,
+        slideLoop: loop,
+        showProgress
+      });
+    })).addButton((b) => b.setButtonText("\u041E\u0442\u043C\u0435\u043D\u0430").onClick(() => this.close()));
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 
 // src/ui/presentations-view.ts
 var PRESENTATIONS_VIEW_TYPE = "yougile-presentations";
@@ -73099,6 +73264,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     btn("\u{1F441} \u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440", () => this.preview(item));
     btn("\u{1F5A8} PDF", () => this.preview(item, true));
     btn("\u{1F4F7} \u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F", () => this.openImages(item));
+    btn("\u2699 \u041F\u043E\u043A\u0430\u0437", () => this.showSettings(item));
     btn("\u{1F501} \u041F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C", () => this.regenerate(item));
     btn("\u{1F4BE} \u042D\u043A\u0441\u043F\u043E\u0440\u0442 HTML", () => this.exportHtml(item));
     btn("\u{1F4E4} \u0412 \u0447\u0430\u0442 YouGile", () => void this.sendToYougileChat(item));
@@ -73136,8 +73302,40 @@ var PresentationsView = class extends import_obsidian19.ItemView {
       email: q == null ? void 0 : q.presenterEmail,
       qrDataUri,
       illustrations,
-      bgDarken: item.bgDarken
+      bgDarken: item.bgDarken,
+      slideIntervalSeconds: item.slideIntervalSeconds,
+      slideTransition: item.slideTransition,
+      slideLoop: item.slideLoop,
+      showProgress: item.showProgress
     });
+  }
+  showSettings(item) {
+    const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
+    new ShowSettingsModal(this.plugin, tpl, {
+      slideIntervalSeconds: item.slideIntervalSeconds,
+      slideTransition: item.slideTransition,
+      slideLoop: item.slideLoop,
+      showProgress: item.showProgress
+    }, async (opts) => {
+      item.slideIntervalSeconds = opts.slideIntervalSeconds;
+      item.slideTransition = opts.slideTransition;
+      item.slideLoop = opts.slideLoop;
+      item.showProgress = opts.showProgress;
+      item.renderVersion = PRESENTATION_RENDER_VERSION;
+      item.templateVersion = this.plugin.presentationTemplates.getTemplateVersion(item.templateId);
+      item.html = await this.generateHtml(item);
+      await this.plugin.presentationsDb.update(item.id, {
+        slideIntervalSeconds: item.slideIntervalSeconds,
+        slideTransition: item.slideTransition,
+        slideLoop: item.slideLoop,
+        showProgress: item.showProgress,
+        html: item.html,
+        renderVersion: item.renderVersion,
+        templateVersion: item.templateVersion
+      });
+      new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E\u043A\u0430\u0437\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u044B");
+      this.render();
+    }).open();
   }
   buildVCard(q) {
     if (!(q == null ? void 0 : q.presenterPhone) && !(q == null ? void 0 : q.presenterEmail)) return null;
@@ -74627,6 +74825,9 @@ var DEFAULT_TEMPLATE_RULES = `# \u041F\u0440\u0430\u0432\u0438\u043B\u0430 \u043
   "fonts": { "title": "Arial Black", "body": "Arial", "uppercase": true,
              "titleSize": 2.7, "bodySize": 1.05 },
   "footerText": "\u0434\u0430\u0442\u0430 \xB7 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \xB7 \u2116",
+  "slideTransition": "fade",
+  "slideIntervalSeconds": 0,
+  "slideLoop": false,
   "layouts": {
     "title":   { "bgStyle": "gradient|solid|image|none", "bg": "#242E40",
                  "gradient": "linear-gradient(...)", "brand": "\u041B\u041E\u0413\u041E\u0422\u0418\u041F",
@@ -74699,6 +74900,9 @@ var BUILTIN_TEMPLATES = [
       bodySize: 1.05
     },
     footerText: "\u0434\u0430\u0442\u0430 \xB7 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0434\u043E\u043A\u043B\u0430\u0434\u0430 \xB7 \u2116",
+    slideTransition: "fade",
+    slideIntervalSeconds: 0,
+    slideLoop: false,
     layouts: {
       title: {
         bgStyle: "gradient",
@@ -74842,6 +75046,15 @@ var PresentationTemplatesService = class {
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.8.2": [
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F \u0441\u043A\u0440\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0432 \u043F\u043E\u043B\u043D\u043E\u044D\u043A\u0440\u0430\u043D\u043D\u043E\u043C \u0440\u0435\u0436\u0438\u043C\u0435 (\u26F6 \u042D\u043A\u0440\u0430\u043D / F)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0441\u043B\u0430\u0439\u0434\u043E\u0432 \u043B\u0435\u0432\u043E\u0439/\u043F\u0440\u0430\u0432\u043E\u0439 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \u043C\u044B\u0448\u0438 (\u043B\u0435\u0432\u0430\u044F \u2014 \u0432\u043F\u0435\u0440\u0451\u0434, \u043F\u0440\u0430\u0432\u0430\u044F \u2014 \u043D\u0430\u0437\u0430\u0434)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0430\u0432\u0442\u043E\u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0441\u043B\u0430\u0439\u0434\u043E\u0432 \u043F\u043E \u0432\u0440\u0435\u043C\u0435\u043D\u0438 (\u0438\u043D\u0442\u0435\u0440\u0432\u0430\u043B \u043D\u0430\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u0435\u0442\u0441\u044F, \u043A\u043D\u043E\u043F\u043A\u0430 \u25B6/\u23F8 \u0410\u0432\u0442\u043E \u0432 \u043F\u0430\u043D\u0435\u043B\u0438)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u044D\u0444\u0444\u0435\u043A\u0442\u044B \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u0430 \u043C\u0435\u0436\u0434\u0443 \u0441\u043B\u0430\u0439\u0434\u0430\u043C\u0438 \u2014 Fade / Fade+\u0441\u0434\u0432\u0438\u0433 / \u0431\u0435\u0437 \u044D\u0444\u0444\u0435\u043A\u0442\u0430",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0440\u043E\u0433\u0440\u0435\u0441\u0441-\u0431\u0430\u0440 \u0432 \u0440\u0435\u0436\u0438\u043C\u0435 \xAB\u0421\u043B\u0430\u0439\u0434\u044B\xBB (\u0432\u043A\u043B\u044E\u0447\u0430\u0435\u0442\u0441\u044F/\u0432\u044B\u043A\u043B\u044E\u0447\u0430\u0435\u0442\u0441\u044F)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0437\u0430\u0446\u0438\u043A\u043B\u0438\u0432\u0430\u043D\u0438\u0435 \u043F\u043E\u043A\u0430\u0437\u0430 (\u043F\u043E\u0441\u043B\u0435 \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0435\u0433\u043E \u0441\u043B\u0430\u0439\u0434\u0430 \u2014 \u0441\u043D\u043E\u0432\u0430 \u043F\u0435\u0440\u0432\u044B\u0439)",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E\u043A\u0430\u0437\u0430 (\u2699 \u041F\u043E\u043A\u0430\u0437) \u2014 \u0438\u043D\u0442\u0435\u0440\u0432\u0430\u043B, \u044D\u0444\u0444\u0435\u043A\u0442, \u043F\u0440\u043E\u0433\u0440\u0435\u0441\u0441-\u0431\u0430\u0440, \u0437\u0430\u0446\u0438\u043A\u043B\u0438\u0432\u0430\u043D\u0438\u0435; \u0434\u0435\u0444\u043E\u043B\u0442\u044B \u0438\u0437 \u0448\u0430\u0431\u043B\u043E\u043D\u0430"
+  ],
   "0.8.1": [
     "\u0414\u0430\u0448\u0431\u043E\u0440\u0434: \xAB\u0414\u0438\u043D\u0430\u043C\u0438\u043A\u0430 \u043E\u0437\u0430\u0434\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u044F\xBB \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u0440\u0435\u0430\u043B\u044C\u043D\u0443\u044E \u0434\u0430\u0442\u0443 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F (completeAt \u0438\u0437 GET /tasks/{id}), \u0430 \u043D\u0435 \u0434\u0430\u0442\u0443 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F",
     "\u0414\u0430\u0448\u0431\u043E\u0440\u0434: \u0434\u0430\u0442\u0430-\u0444\u0438\u043B\u044C\u0442\u0440\u044B (\u0441/\u043F\u043E) \u0443\u0447\u0438\u0442\u044B\u0432\u0430\u044E\u0442 \u0434\u0430\u0442\u0443 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0418\u041B\u0418 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F \u0437\u0430\u0434\u0430\u0447\u0438",

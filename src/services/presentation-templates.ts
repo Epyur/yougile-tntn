@@ -69,6 +69,9 @@ export const DEFAULT_TEMPLATE_RULES = `# Правила извлечения ш�
   "fonts": { "title": "Arial Black", "body": "Arial", "uppercase": true,
              "titleSize": 2.7, "bodySize": 1.05 },
   "footerText": "дата · название · №",
+  "slideTransition": "fade",
+  "slideIntervalSeconds": 0,
+  "slideLoop": false,
   "layouts": {
     "title":   { "bgStyle": "gradient|solid|image|none", "bg": "#242E40",
                  "gradient": "linear-gradient(...)", "brand": "ЛОГОТИП",
@@ -142,6 +145,9 @@ const BUILTIN_TEMPLATES: PresentationTemplate[] = [
       bodySize: 1.05,
     },
     footerText: 'дата · название доклада · №',
+    slideTransition: 'fade',
+    slideIntervalSeconds: 0,
+    slideLoop: false,
     layouts: {
       title: {
         bgStyle: 'gradient',
