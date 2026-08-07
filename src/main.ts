@@ -23,6 +23,11 @@ import { SyncLogger, SyncLogModal } from './services/sync-logger';
 const PASSWORD_SECRET_ID = 'yougile-password';
 
 const CHANGELOG: Record<string, string[]> = {
+  '0.8.5': [
+    'Настройки: поддержка до 5 моделей LLM с одним API-ключом и URL (список моделей + модель по умолчанию)',
+    'Письма: селектор выбора модели LLM в чате с AI помощником',
+    'Презентации: селектор выбора модели LLM в вьюхе (генерация, мозговой штурм, извлечение шаблона)',
+  ],
   '0.8.4': [
     'Дашборд: исправлена загрузка даты завершения (completeAt) — YouGile не записывает её при завершении через API, поэтому для задач без даты выполняется повторное завершение (PUT completed:true), после которого API фиксирует completedTimestamp',
     'Дашборд: повторный backfill даты завершения ограничен троттлингом 12 ч, чтобы не перезапрашивать задачи на каждом синке',
@@ -470,7 +475,18 @@ export default class YouGilePlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = (await this.loadData() as Partial<YouGileSettings>) || {};
+    // Миграция старого одиночного поля llmModel → список llmModels
+    if (!Array.isArray(data.llmModels) || data.llmModels.length === 0) {
+      if (data.llmModel) {
+        data.llmModels = [data.llmModel];
+        data.llmDefaultModel = data.llmDefaultModel || data.llmModel;
+      } else {
+        data.llmModels = [];
+      }
+    }
+    data.llmModels = (data.llmModels || []).filter(m => typeof m === 'string').slice(0, 5);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
   }
 
   async saveSettings(): Promise<void> {

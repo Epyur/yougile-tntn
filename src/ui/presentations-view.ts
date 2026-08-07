@@ -19,6 +19,7 @@ function escapeHtmlAttr(s: unknown): string {
 
 export class PresentationsView extends ItemView {
   plugin: YouGilePlugin;
+  private selectedModel = '';
 
   constructor(leaf: WorkspaceLeaf, plugin: YouGilePlugin) {
     super(leaf);
@@ -72,7 +73,19 @@ export class PresentationsView extends ItemView {
     toolbar.createEl('button', { text: '🆕 Новая презентация', cls: 'mailer-yougile-refresh-btn' })
       .addEventListener('click', () => this.newPresentation());
     toolbar.createEl('button', { text: '🎨 Новый шаблон', cls: 'mailer-yougile-refresh-btn' })
-      .addEventListener('click', () => new NewTemplateModal(this.plugin).open());
+      .addEventListener('click', () => new NewTemplateModal(this.plugin, this.selectedModel).open());
+
+    const modelLabel = toolbar.createSpan({ text: '🤖 Модель:' });
+    modelLabel.style.cssText = 'font-size:12px;color:var(--text-muted);margin-left:10px;';
+    const modelSel = toolbar.createEl('select');
+    modelSel.addClass('dropdown');
+    modelSel.style.cssText = 'max-width:240px;font-size:12px;';
+    modelSel.createEl('option', { value: '', text: 'По умолчанию' });
+    for (const m of (this.plugin.settings.llmModels || [])) {
+      if (m && m.trim()) modelSel.createEl('option', { value: m.trim(), text: m.trim() });
+    }
+    modelSel.value = this.selectedModel;
+    modelSel.addEventListener('change', () => { this.selectedModel = modelSel.value; });
 
     const list = root.createDiv();
     const drafts = this.plugin.presentationsDb.getDrafts();
@@ -153,7 +166,7 @@ export class PresentationsView extends ItemView {
           void this.plugin.presentationsDb.saveDraft({
             ...newDraft, questionaire: q, brainstormLog: log, updatedAt: new Date().toISOString(),
           });
-        }).open();
+        }, this.selectedModel).open();
       } else {
         void this.doGenerate(q, designRules, newDraft.id);
       }
@@ -316,7 +329,7 @@ export class PresentationsView extends ItemView {
           void this.plugin.presentationsDb.saveDraft({
             ...draft, questionaire: q, brainstormLog: log, updatedAt: new Date().toISOString(),
           });
-        }).open();
+        }, this.selectedModel).open();
       } else {
         await this.doGenerate(q, designRules, draft.id);
       }
@@ -344,7 +357,7 @@ export class PresentationsView extends ItemView {
     this.render();
 
     try {
-      const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
+      const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name, this.selectedModel);
       item.generation = generation;
       item.status = undefined;
       item.error = undefined;
@@ -389,7 +402,7 @@ export class PresentationsView extends ItemView {
         item.error = undefined;
         await this.plugin.presentationsDb.update(item.id, { status: 'generating', error: undefined });
         this.render();
-        const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
+        const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name, this.selectedModel);
         item.title = q.topic;
         item.templateId = q.templateId;
         item.questionaire = q;

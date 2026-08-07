@@ -27,6 +27,17 @@ export class LLMService {
     return this.plugin.getSecretValue(secretName);
   }
 
+  /** Модель для запроса: явный выбор → llmDefaultModel → первая из llmModels → legacy llmModel → дефолт. */
+  resolveModel(override?: string): string {
+    const s = this.plugin.settings;
+    if (override && override.trim()) return override.trim();
+    if (s.llmDefaultModel && s.llmDefaultModel.trim()) return s.llmDefaultModel.trim();
+    const list = (s.llmModels || []).filter(m => m && m.trim());
+    if (list.length > 0) return list[0].trim();
+    if (s.llmModel && s.llmModel.trim()) return s.llmModel.trim();
+    return 'deepseek-v4-pro';
+  }
+
   private extractKeywords(query: string): string[] {
     const stopWords = ['это', 'как', 'так', 'вот', 'для', 'что', 'с', 'на', 'и', 'по', 'к', 'у', 'из', 'за', 'о', 'об', 'от', 'до', 'при', 'без', 'для', 'через', 'между', 'среди', 'вокруг', 'около', 'возле', 'перед', 'над', 'под', 'про', 'в', 'а', 'но', 'или', 'же', 'бы', 'да', 'нет', 'не', 'ни', 'то', 'со', 'же', 'какие', 'просто', 'перечисли', 'базе', 'подготовь', 'дай', 'представь'];
     const words = query.toLowerCase().replace(/[^\w\s\u0400-\u04FF]/g, ' ').split(/\s+/).filter(word => word.length > 2 && !stopWords.includes(word));
@@ -85,11 +96,12 @@ export class LLMService {
     throw lastError || new Error('Превышено количество попыток');
   }
 
-  private async complete(system: string, user: string): Promise<string> {
+  private async complete(system: string, user: string, model?: string): Promise<string> {
     const apiKey = this.getApiKey();
     if (!apiKey) throw new Error('API ключ не настроен');
 
-    const { llmModel, llmApiUrl } = this.plugin.settings;
+    const { llmApiUrl } = this.plugin.settings;
+    const resolvedModel = this.resolveModel(model);
     return this.retryWithBackoff(async () => {
       const response = await this.requestWithTimeout({
         url: llmApiUrl || 'https://ask.chadgpt.ru/api/v1/chat/completions',
@@ -99,7 +111,7 @@ export class LLMService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: llmModel || 'deepseek-v4-pro',
+          model: resolvedModel,
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: user },
@@ -155,6 +167,7 @@ export class LLMService {
     q: PresentationQuestionaire,
     designRules: string,
     templateName: string,
+    model?: string,
   ): Promise<PresentationGeneration> {
     const system = `${designRules}
 
@@ -215,12 +228,12 @@ ${illList ? `\n## ДОСТУПНЫЕ ИЛЛЮСТРАЦИИ (путь — опи
 
 Сгенерируй JSON презентации. Поле subtitle титульного слайда заполни поводом (кикером), если он указан; иначе пусто.`;
 
-    const text = await this.complete(system, user);
+    const text = await this.complete(system, user, model);
     let parsed: unknown;
     try {
       parsed = this.extractJsonBlock(text);
     } catch (firstErr) {
-      const retry = await this.complete(system, 'Предыдущий ответ не был валидным JSON. Верни ТОЛЬКО JSON по той же схеме.');
+      const retry = await this.complete(system, 'Предыдущий ответ не был валидным JSON. Верни ТОЛЬКО JSON по той же схеме.', model);
       parsed = this.extractJsonBlock(retry);
     }
     const obj = parsed as Partial<PresentationGeneration>;
@@ -275,6 +288,7 @@ ${illList ? `\n## ДОСТУПНЫЕ ИЛЛЮСТРАЦИИ (путь — опи
     designRules: string,
     round: number,
     maxRounds: number,
+    model?: string,
   ): Promise<{ done: boolean; question?: string; summary?: string }> {
     const system = `Ты — мастер мозгового штурма по подготовке презентаций.
 Твоя цель — НЕ генерировать презентацию, а собрать от автора достаточно деталей, чтобы потом из них сделать убедительные слайды.
@@ -314,7 +328,7 @@ ${transcript || '—'}
 
 Раунд ${round} из ${maxRounds}. Ответь JSON по схеме.`;
 
-    const text = await this.complete(system, user);
+    const text = await this.complete(system, user, model);
     let parsed: unknown;
     try {
       parsed = this.extractJsonBlock(text);
@@ -326,14 +340,14 @@ ${transcript || '—'}
   }
 
   /** Извлечение шаблона (TemplateSpec) из примера презентации. */
-  async extractTemplate(example: string, templateRules: string): Promise<PresentationTemplate> {
+  async extractTemplate(example: string, templateRules: string, model?: string): Promise<PresentationTemplate> {
     const user = `## ПРИМЕР ПРЕЗЕНТАЦИИ\n\n${example.substring(0, 20000)}\n\nИзвлеки шаблон и верни JSON TemplateSpec.`;
-    const text = await this.complete(templateRules, user);
+    const text = await this.complete(templateRules, user, model);
     let parsed: unknown;
     try {
       parsed = this.extractJsonBlock(text);
     } catch (firstErr) {
-      const retry = await this.complete(templateRules, 'Предыдущий ответ не был валидным JSON. Верни ТОЛЬКО JSON TemplateSpec без пояснений.');
+      const retry = await this.complete(templateRules, 'Предыдущий ответ не был валидным JSON. Верни ТОЛЬКО JSON TemplateSpec без пояснений.', model);
       parsed = this.extractJsonBlock(retry);
     }
     const obj = parsed as Partial<PresentationTemplate>;
@@ -341,11 +355,12 @@ ${transcript || '—'}
     return obj as PresentationTemplate;
   }
 
-  async ask(question: string, fileContext = '', historyContext = ''): Promise<string> {
+  async ask(question: string, fileContext = '', historyContext = '', model?: string): Promise<string> {
     const apiKey = this.getApiKey();
     if (!apiKey) throw new Error('API ключ не настроен');
 
-    const { llmModel, llmApiUrl, llmSystemPrompt } = this.plugin.settings;
+    const { llmApiUrl, llmSystemPrompt } = this.plugin.settings;
+    const resolvedModel = this.resolveModel(model);
     const allEmails = this.plugin.emailDb.getAllEmails();
     const directions = this.plugin.emailDb.getDirections();
 
@@ -376,7 +391,7 @@ ${transcript || '—'}
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: llmModel || 'deepseek-v4-pro',
+          model: resolvedModel,
           messages: [
             { role: 'system', content: llmSystemPrompt || 'Ты — эксперт. Отвечай на русском языке.' },
             { role: 'user', content: userPrompt },

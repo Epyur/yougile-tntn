@@ -830,6 +830,7 @@ class ChatAIEmailModal extends Modal {
   lastAnswer = '';
   lastQuestion = '';
   createBtn!: HTMLButtonElement;
+  selectedModel = '';
 
   constructor(plugin: YouGilePlugin) {
     super(plugin.app);
@@ -843,6 +844,19 @@ class ChatAIEmailModal extends Modal {
 
     const header = contentEl.createDiv({ cls: 'mailer-yougile-header' });
     header.createEl('h3', { text: '🤖 Чат с AI помощником' });
+
+    const modelRow = contentEl.createDiv({ cls: 'mailer-yougile-header mailer-mb-8' });
+    modelRow.createSpan({ text: '🤖 Модель:' })
+      .style.cssText = 'font-size:12px;color:var(--text-muted);margin-right:6px;';
+    const modelSel = modelRow.createEl('select');
+    modelSel.addClass('dropdown');
+    modelSel.style.cssText = 'max-width:260px;font-size:12px;';
+    modelSel.createEl('option', { value: '', text: 'По умолчанию' });
+    for (const m of (this.plugin.settings.llmModels || [])) {
+      if (m && m.trim()) modelSel.createEl('option', { value: m.trim(), text: m.trim() });
+    }
+    modelSel.value = this.selectedModel;
+    modelSel.addEventListener('change', () => { this.selectedModel = modelSel.value; });
 
     const infoBar = contentEl.createDiv({ cls: 'mailer-yougile-sync-indicator' });
     const allEmails = this.plugin.emailDb.getAllEmails();
@@ -953,7 +967,7 @@ class ChatAIEmailModal extends Modal {
         }
       }
 
-      const answer = await this.plugin.llmService.ask(question, fileContext, historyContext);
+      const answer = await this.plugin.llmService.ask(question, fileContext, historyContext, this.selectedModel);
       this.lastQuestion = question;
       this.lastAnswer = answer;
       this.createBtn.style.display = '';

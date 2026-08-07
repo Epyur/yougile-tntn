@@ -221,16 +221,41 @@ export class YouGileSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }));
 
+      this.renderSubheading(body, 'Модели LLM (до 5, один API-ключ)');
+
+      const models = this.plugin.settings.llmModels;
+      if (!Array.isArray(models)) this.plugin.settings.llmModels = [];
+      while (this.plugin.settings.llmModels.length < 5) this.plugin.settings.llmModels.push('');
+      while (this.plugin.settings.llmModels.length > 5) this.plugin.settings.llmModels.pop();
+
+      for (let i = 0; i < 5; i++) {
+        const idx = i;
+        new Setting(body)
+          .setName(`Модель ${i + 1}`)
+          .setDesc(i === 0 ? 'Названия моделей (напр. deepseek-v4-pro, deepseek-v4-flash). Все используют один URL API и API-ключ.' : '')
+          .addText(text => text
+            .setPlaceholder('deepseek-v4-pro')
+            .setValue(this.plugin.settings.llmModels[idx] || '')
+            .onChange(async (value) => {
+              this.plugin.settings.llmModels[idx] = value.trim();
+              await this.plugin.saveSettings();
+            }));
+      }
+
       new Setting(body)
-        .setName('Модель')
-        .setDesc('Название модели LLM')
-        .addText(text => text
-          .setPlaceholder('deepseek-v4-pro')
-          .setValue(this.plugin.settings.llmModel)
-          .onChange(async (value) => {
-            this.plugin.settings.llmModel = value;
+        .setName('Модель по умолчанию')
+        .setDesc('Используется, если в вьюхе писем/презентаций модель не выбрана явно')
+        .addDropdown(dd => {
+          dd.addOption('', '— первая настроенная —');
+          for (const m of this.plugin.settings.llmModels) {
+            if (m && m.trim()) dd.addOption(m.trim(), m.trim());
+          }
+          dd.setValue(this.plugin.settings.llmDefaultModel);
+          dd.onChange(async (value) => {
+            this.plugin.settings.llmDefaultModel = value;
             await this.plugin.saveSettings();
-          }));
+          });
+        });
 
       new Setting(body)
         .setName('Системный промпт')

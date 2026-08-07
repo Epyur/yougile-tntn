@@ -283,9 +283,9 @@ export class PresentationTemplatesService {
   }
 
   /** Генерация нового шаблона через LLM по примеру (HTML/текст) и сохранение в файл. */
-  async createTemplateFromExample(example: string, name: string): Promise<PresentationTemplate> {
+  async createTemplateFromExample(example: string, name: string, model?: string): Promise<PresentationTemplate> {
     const rules = await this.readTemplateRules();
-    const spec = await this.plugin.llmService.extractTemplate(example, rules);
+    const spec = await this.plugin.llmService.extractTemplate(example, rules, model);
     const safeId = (spec.id || name || 'template').toLowerCase()
       .replace(/[^a-z0-9-_]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'template';
     spec.id = safeId;

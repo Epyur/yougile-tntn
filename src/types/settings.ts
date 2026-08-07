@@ -22,6 +22,11 @@ export interface YouGileSettings {
   emailDefaultAuthor: string;
   llmApiKeySecret: string;
   llmApiUrl: string;
+  /** Список подключённых моделей LLM (до 5) — все используют один llmApiUrl и llmApiKeySecret. */
+  llmModels: string[];
+  /** Модель по умолчанию (одна из llmModels). Пусто = первая настроенная. */
+  llmDefaultModel: string;
+  /** Устаревшее поле (одна модель). Fallback, если llmModels пуст. */
   llmModel: string;
   llmSystemPrompt: string;
   docxTemplatePath: string;
@@ -63,6 +68,8 @@ export const DEFAULT_SETTINGS: YouGileSettings = {
   emailDefaultAuthor: 'Кравченко А.А.',
   llmApiKeySecret: '',
   llmApiUrl: 'https://ask.chadgpt.ru/api/v1/chat/completions',
+  llmModels: [],
+  llmDefaultModel: '',
   llmModel: 'deepseek-v4-pro',
   llmSystemPrompt: 'Ты — эксперт по пожарной безопасности строительных материалов и систем TECHNONICOL.\n\nОтвечай на русском языке естественно и человечно, как опытный специалист, а не как структурированный отчет.\nИзбегай маркдауна, звездочек, заголовков и четких структурных разделов.\nИспользуй плавные переходы между мыслями, абзацы для удобства чтения.\nЕсли информации недостаточно — честно скажи об этом, но предложи, где можно уточнить.\nНе выдумывай факты, которых нет в базе.\nОтвечай дружелюбно и профессионально.',
   docxTemplatePath: '',

@@ -7516,6 +7516,8 @@ var DEFAULT_SETTINGS = {
   emailDefaultAuthor: "\u041A\u0440\u0430\u0432\u0447\u0435\u043D\u043A\u043E \u0410.\u0410.",
   llmApiKeySecret: "",
   llmApiUrl: "https://ask.chadgpt.ru/api/v1/chat/completions",
+  llmModels: [],
+  llmDefaultModel: "",
   llmModel: "deepseek-v4-pro",
   llmSystemPrompt: "\u0422\u044B \u2014 \u044D\u043A\u0441\u043F\u0435\u0440\u0442 \u043F\u043E \u043F\u043E\u0436\u0430\u0440\u043D\u043E\u0439 \u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u043E\u0441\u0442\u0438 \u0441\u0442\u0440\u043E\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0445 \u043C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u043E\u0432 \u0438 \u0441\u0438\u0441\u0442\u0435\u043C TECHNONICOL.\n\n\u041E\u0442\u0432\u0435\u0447\u0430\u0439 \u043D\u0430 \u0440\u0443\u0441\u0441\u043A\u043E\u043C \u044F\u0437\u044B\u043A\u0435 \u0435\u0441\u0442\u0435\u0441\u0442\u0432\u0435\u043D\u043D\u043E \u0438 \u0447\u0435\u043B\u043E\u0432\u0435\u0447\u043D\u043E, \u043A\u0430\u043A \u043E\u043F\u044B\u0442\u043D\u044B\u0439 \u0441\u043F\u0435\u0446\u0438\u0430\u043B\u0438\u0441\u0442, \u0430 \u043D\u0435 \u043A\u0430\u043A \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0439 \u043E\u0442\u0447\u0435\u0442.\n\u0418\u0437\u0431\u0435\u0433\u0430\u0439 \u043C\u0430\u0440\u043A\u0434\u0430\u0443\u043D\u0430, \u0437\u0432\u0435\u0437\u0434\u043E\u0447\u0435\u043A, \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u043E\u0432 \u0438 \u0447\u0435\u0442\u043A\u0438\u0445 \u0441\u0442\u0440\u0443\u043A\u0442\u0443\u0440\u043D\u044B\u0445 \u0440\u0430\u0437\u0434\u0435\u043B\u043E\u0432.\n\u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439 \u043F\u043B\u0430\u0432\u043D\u044B\u0435 \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u044B \u043C\u0435\u0436\u0434\u0443 \u043C\u044B\u0441\u043B\u044F\u043C\u0438, \u0430\u0431\u0437\u0430\u0446\u044B \u0434\u043B\u044F \u0443\u0434\u043E\u0431\u0441\u0442\u0432\u0430 \u0447\u0442\u0435\u043D\u0438\u044F.\n\u0415\u0441\u043B\u0438 \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u0438 \u043D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u2014 \u0447\u0435\u0441\u0442\u043D\u043E \u0441\u043A\u0430\u0436\u0438 \u043E\u0431 \u044D\u0442\u043E\u043C, \u043D\u043E \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0438, \u0433\u0434\u0435 \u043C\u043E\u0436\u043D\u043E \u0443\u0442\u043E\u0447\u043D\u0438\u0442\u044C.\n\u041D\u0435 \u0432\u044B\u0434\u0443\u043C\u044B\u0432\u0430\u0439 \u0444\u0430\u043A\u0442\u044B, \u043A\u043E\u0442\u043E\u0440\u044B\u0445 \u043D\u0435\u0442 \u0432 \u0431\u0430\u0437\u0435.\n\u041E\u0442\u0432\u0435\u0447\u0430\u0439 \u0434\u0440\u0443\u0436\u0435\u043B\u044E\u0431\u043D\u043E \u0438 \u043F\u0440\u043E\u0444\u0435\u0441\u0441\u0438\u043E\u043D\u0430\u043B\u044C\u043D\u043E.",
   docxTemplatePath: "",
@@ -7915,10 +7917,29 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.plugin.settings.llmApiUrl = value;
         await this.plugin.saveSettings();
       }));
-      new import_obsidian2.Setting(body).setName("\u041C\u043E\u0434\u0435\u043B\u044C").setDesc("\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u043C\u043E\u0434\u0435\u043B\u0438 LLM").addText((text) => text.setPlaceholder("deepseek-v4-pro").setValue(this.plugin.settings.llmModel).onChange(async (value) => {
-        this.plugin.settings.llmModel = value;
-        await this.plugin.saveSettings();
-      }));
+      this.renderSubheading(body, "\u041C\u043E\u0434\u0435\u043B\u0438 LLM (\u0434\u043E 5, \u043E\u0434\u0438\u043D API-\u043A\u043B\u044E\u0447)");
+      const models = this.plugin.settings.llmModels;
+      if (!Array.isArray(models)) this.plugin.settings.llmModels = [];
+      while (this.plugin.settings.llmModels.length < 5) this.plugin.settings.llmModels.push("");
+      while (this.plugin.settings.llmModels.length > 5) this.plugin.settings.llmModels.pop();
+      for (let i = 0; i < 5; i++) {
+        const idx = i;
+        new import_obsidian2.Setting(body).setName(`\u041C\u043E\u0434\u0435\u043B\u044C ${i + 1}`).setDesc(i === 0 ? "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u044F \u043C\u043E\u0434\u0435\u043B\u0435\u0439 (\u043D\u0430\u043F\u0440. deepseek-v4-pro, deepseek-v4-flash). \u0412\u0441\u0435 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u044E\u0442 \u043E\u0434\u0438\u043D URL API \u0438 API-\u043A\u043B\u044E\u0447." : "").addText((text) => text.setPlaceholder("deepseek-v4-pro").setValue(this.plugin.settings.llmModels[idx] || "").onChange(async (value) => {
+          this.plugin.settings.llmModels[idx] = value.trim();
+          await this.plugin.saveSettings();
+        }));
+      }
+      new import_obsidian2.Setting(body).setName("\u041C\u043E\u0434\u0435\u043B\u044C \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E").setDesc("\u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442\u0441\u044F, \u0435\u0441\u043B\u0438 \u0432 \u0432\u044C\u044E\u0445\u0435 \u043F\u0438\u0441\u0435\u043C/\u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439 \u043C\u043E\u0434\u0435\u043B\u044C \u043D\u0435 \u0432\u044B\u0431\u0440\u0430\u043D\u0430 \u044F\u0432\u043D\u043E").addDropdown((dd) => {
+        dd.addOption("", "\u2014 \u043F\u0435\u0440\u0432\u0430\u044F \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u0430\u044F \u2014");
+        for (const m of this.plugin.settings.llmModels) {
+          if (m && m.trim()) dd.addOption(m.trim(), m.trim());
+        }
+        dd.setValue(this.plugin.settings.llmDefaultModel);
+        dd.onChange(async (value) => {
+          this.plugin.settings.llmDefaultModel = value;
+          await this.plugin.saveSettings();
+        });
+      });
       new import_obsidian2.Setting(body).setName("\u0421\u0438\u0441\u0442\u0435\u043C\u043D\u044B\u0439 \u043F\u0440\u043E\u043C\u043F\u0442").setDesc("\u0421\u0438\u0441\u0442\u0435\u043C\u043D\u044B\u0439 \u043F\u0440\u043E\u043C\u043F\u0442 \u0434\u043B\u044F LLM").addTextArea((text) => text.setPlaceholder("\u0422\u044B \u2014 \u044D\u043A\u0441\u043F\u0435\u0440\u0442...").setValue(this.plugin.settings.llmSystemPrompt).onChange(async (value) => {
         this.plugin.settings.llmSystemPrompt = value;
         await this.plugin.saveSettings();
@@ -30479,6 +30500,7 @@ var ChatAIEmailModal = class extends import_obsidian7.Modal {
     this.isProcessing = false;
     this.lastAnswer = "";
     this.lastQuestion = "";
+    this.selectedModel = "";
     this.plugin = plugin;
   }
   onOpen() {
@@ -30487,6 +30509,19 @@ var ChatAIEmailModal = class extends import_obsidian7.Modal {
     contentEl.addClass("mailer-yougile-container");
     const header = contentEl.createDiv({ cls: "mailer-yougile-header" });
     header.createEl("h3", { text: "\u{1F916} \u0427\u0430\u0442 \u0441 AI \u043F\u043E\u043C\u043E\u0449\u043D\u0438\u043A\u043E\u043C" });
+    const modelRow = contentEl.createDiv({ cls: "mailer-yougile-header mailer-mb-8" });
+    modelRow.createSpan({ text: "\u{1F916} \u041C\u043E\u0434\u0435\u043B\u044C:" }).style.cssText = "font-size:12px;color:var(--text-muted);margin-right:6px;";
+    const modelSel = modelRow.createEl("select");
+    modelSel.addClass("dropdown");
+    modelSel.style.cssText = "max-width:260px;font-size:12px;";
+    modelSel.createEl("option", { value: "", text: "\u041F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" });
+    for (const m of this.plugin.settings.llmModels || []) {
+      if (m && m.trim()) modelSel.createEl("option", { value: m.trim(), text: m.trim() });
+    }
+    modelSel.value = this.selectedModel;
+    modelSel.addEventListener("change", () => {
+      this.selectedModel = modelSel.value;
+    });
     const infoBar = contentEl.createDiv({ cls: "mailer-yougile-sync-indicator" });
     const allEmails = this.plugin.emailDb.getAllEmails();
     infoBar.setText(`\u{1F4CA} \u0411\u0430\u0437\u0430 \u0437\u043D\u0430\u043D\u0438\u0439: ${allEmails.length} \u043F\u0438\u0441\u0435\u043C | \u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043D\u043D\u044B\u0445 \u0444\u0430\u0439\u043B\u043E\u0432: ${this.uploadedFiles.length}`);
@@ -30590,7 +30625,7 @@ ${msg.role === "user" ? "\u{1F464} \u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0
 `;
         }
       }
-      const answer = await this.plugin.llmService.ask(question, fileContext, historyContext);
+      const answer = await this.plugin.llmService.ask(question, fileContext, historyContext, this.selectedModel);
       this.lastQuestion = question;
       this.lastAnswer = answer;
       this.createBtn.style.display = "";
@@ -72761,9 +72796,10 @@ var PresentationPreviewModal = class extends import_obsidian18.Modal {
   }
 };
 var NewTemplateModal = class extends import_obsidian18.Modal {
-  constructor(plugin) {
+  constructor(plugin, model = "") {
     super(plugin.app);
     this.plugin = plugin;
+    this.model = model;
     this.modalEl.style.width = "min(900px, 94vw)";
   }
   onOpen() {
@@ -72790,7 +72826,7 @@ var NewTemplateModal = class extends import_obsidian18.Modal {
       }
       b.setDisabled(true).setButtonText("\u0418\u0437\u0432\u043B\u0435\u0447\u0435\u043D\u0438\u0435...");
       try {
-        await this.plugin.presentationTemplates.createTemplateFromExample(example, name2);
+        await this.plugin.presentationTemplates.createTemplateFromExample(example, name2, this.model);
         this.close();
       } catch (e) {
         new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
@@ -72803,17 +72839,19 @@ var NewTemplateModal = class extends import_obsidian18.Modal {
   }
 };
 var BrainstormModal = class extends import_obsidian18.Modal {
-  constructor(plugin, q, designRules, onDone, onProgress) {
+  constructor(plugin, q, designRules, onDone, onProgress, model = "") {
     super(plugin.app);
     this.log = [];
     this.maxRounds = 5;
     this.round = 0;
     this.busy = false;
+    this.model = "";
     this.plugin = plugin;
     this.q = { ...q };
     this.designRules = designRules;
     this.onDone = onDone;
     this.onProgress = onProgress;
+    this.model = model;
     this.modalEl.style.width = "min(900px, 96vw)";
     this.modalEl.style.height = "80vh";
   }
@@ -72863,7 +72901,7 @@ var BrainstormModal = class extends import_obsidian18.Modal {
     this.setBusy(true);
     this.round++;
     try {
-      const reply = await this.plugin.llmService.brainstormNext(this.q, this.log, this.designRules, this.round, this.maxRounds);
+      const reply = await this.plugin.llmService.brainstormNext(this.q, this.log, this.designRules, this.round, this.maxRounds, this.model);
       if (reply.done) {
         if (reply.summary) {
           this.appendMessage("assistant", "\u2705 \u0414\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u0434\u0435\u0442\u0430\u043B\u0435\u0439. \u0418\u0442\u043E\u0433\u043E\u0432\u044B\u0439 \u0431\u0440\u0438\u0444:\n\n" + reply.summary);
@@ -73142,6 +73180,7 @@ function escapeHtmlAttr(s) {
 var PresentationsView = class extends import_obsidian19.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
+    this.selectedModel = "";
     this.plugin = plugin;
   }
   getViewType() {
@@ -73181,7 +73220,20 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     header.createEl("h3", { text: "\u{1F4FD} \u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438" });
     const toolbar = root.createDiv({ cls: "mailer-yougile-header mailer-mt-8" });
     toolbar.createEl("button", { text: "\u{1F195} \u041D\u043E\u0432\u0430\u044F \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F", cls: "mailer-yougile-refresh-btn" }).addEventListener("click", () => this.newPresentation());
-    toolbar.createEl("button", { text: "\u{1F3A8} \u041D\u043E\u0432\u044B\u0439 \u0448\u0430\u0431\u043B\u043E\u043D", cls: "mailer-yougile-refresh-btn" }).addEventListener("click", () => new NewTemplateModal(this.plugin).open());
+    toolbar.createEl("button", { text: "\u{1F3A8} \u041D\u043E\u0432\u044B\u0439 \u0448\u0430\u0431\u043B\u043E\u043D", cls: "mailer-yougile-refresh-btn" }).addEventListener("click", () => new NewTemplateModal(this.plugin, this.selectedModel).open());
+    const modelLabel = toolbar.createSpan({ text: "\u{1F916} \u041C\u043E\u0434\u0435\u043B\u044C:" });
+    modelLabel.style.cssText = "font-size:12px;color:var(--text-muted);margin-left:10px;";
+    const modelSel = toolbar.createEl("select");
+    modelSel.addClass("dropdown");
+    modelSel.style.cssText = "max-width:240px;font-size:12px;";
+    modelSel.createEl("option", { value: "", text: "\u041F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E" });
+    for (const m of this.plugin.settings.llmModels || []) {
+      if (m && m.trim()) modelSel.createEl("option", { value: m.trim(), text: m.trim() });
+    }
+    modelSel.value = this.selectedModel;
+    modelSel.addEventListener("change", () => {
+      this.selectedModel = modelSel.value;
+    });
     const list = root.createDiv();
     const drafts = this.plugin.presentationsDb.getDrafts();
     if (drafts.length > 0) {
@@ -73258,7 +73310,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
             brainstormLog: log,
             updatedAt: (/* @__PURE__ */ new Date()).toISOString()
           });
-        }).open();
+        }, this.selectedModel).open();
       } else {
         void this.doGenerate(q, designRules, newDraft.id);
       }
@@ -73412,7 +73464,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
             brainstormLog: log,
             updatedAt: (/* @__PURE__ */ new Date()).toISOString()
           });
-        }).open();
+        }, this.selectedModel).open();
       } else {
         await this.doGenerate(q, designRules, draft.id);
       }
@@ -73437,7 +73489,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     await this.plugin.presentationsDb.add(item);
     this.render();
     try {
-      const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
+      const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name, this.selectedModel);
       item.generation = generation;
       item.status = void 0;
       item.error = void 0;
@@ -73480,7 +73532,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
         item.error = void 0;
         await this.plugin.presentationsDb.update(item.id, { status: "generating", error: void 0 });
         this.render();
-        const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
+        const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name, this.selectedModel);
         item.title = q.topic;
         item.templateId = q.templateId;
         item.questionaire = q;
@@ -74489,6 +74541,16 @@ var LLMService = class {
     if (!secretName) return null;
     return this.plugin.getSecretValue(secretName);
   }
+  /** Модель для запроса: явный выбор → llmDefaultModel → первая из llmModels → legacy llmModel → дефолт. */
+  resolveModel(override) {
+    const s = this.plugin.settings;
+    if (override && override.trim()) return override.trim();
+    if (s.llmDefaultModel && s.llmDefaultModel.trim()) return s.llmDefaultModel.trim();
+    const list = (s.llmModels || []).filter((m) => m && m.trim());
+    if (list.length > 0) return list[0].trim();
+    if (s.llmModel && s.llmModel.trim()) return s.llmModel.trim();
+    return "deepseek-v4-pro";
+  }
   extractKeywords(query) {
     const stopWords = ["\u044D\u0442\u043E", "\u043A\u0430\u043A", "\u0442\u0430\u043A", "\u0432\u043E\u0442", "\u0434\u043B\u044F", "\u0447\u0442\u043E", "\u0441", "\u043D\u0430", "\u0438", "\u043F\u043E", "\u043A", "\u0443", "\u0438\u0437", "\u0437\u0430", "\u043E", "\u043E\u0431", "\u043E\u0442", "\u0434\u043E", "\u043F\u0440\u0438", "\u0431\u0435\u0437", "\u0434\u043B\u044F", "\u0447\u0435\u0440\u0435\u0437", "\u043C\u0435\u0436\u0434\u0443", "\u0441\u0440\u0435\u0434\u0438", "\u0432\u043E\u043A\u0440\u0443\u0433", "\u043E\u043A\u043E\u043B\u043E", "\u0432\u043E\u0437\u043B\u0435", "\u043F\u0435\u0440\u0435\u0434", "\u043D\u0430\u0434", "\u043F\u043E\u0434", "\u043F\u0440\u043E", "\u0432", "\u0430", "\u043D\u043E", "\u0438\u043B\u0438", "\u0436\u0435", "\u0431\u044B", "\u0434\u0430", "\u043D\u0435\u0442", "\u043D\u0435", "\u043D\u0438", "\u0442\u043E", "\u0441\u043E", "\u0436\u0435", "\u043A\u0430\u043A\u0438\u0435", "\u043F\u0440\u043E\u0441\u0442\u043E", "\u043F\u0435\u0440\u0435\u0447\u0438\u0441\u043B\u0438", "\u0431\u0430\u0437\u0435", "\u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u044C", "\u0434\u0430\u0439", "\u043F\u0440\u0435\u0434\u0441\u0442\u0430\u0432\u044C"];
     const words = query.toLowerCase().replace(/[^\w\s\u0400-\u04FF]/g, " ").split(/\s+/).filter((word) => word.length > 2 && !stopWords.includes(word));
@@ -74549,10 +74611,11 @@ var LLMService = class {
     }
     throw lastError || new Error("\u041F\u0440\u0435\u0432\u044B\u0448\u0435\u043D\u043E \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E \u043F\u043E\u043F\u044B\u0442\u043E\u043A");
   }
-  async complete(system, user) {
+  async complete(system, user, model) {
     const apiKey = this.getApiKey();
     if (!apiKey) throw new Error("API \u043A\u043B\u044E\u0447 \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D");
-    const { llmModel, llmApiUrl } = this.plugin.settings;
+    const { llmApiUrl } = this.plugin.settings;
+    const resolvedModel = this.resolveModel(model);
     return this.retryWithBackoff(async () => {
       var _a, _b, _c;
       const response = await this.requestWithTimeout({
@@ -74563,7 +74626,7 @@ var LLMService = class {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: llmModel || "deepseek-v4-pro",
+          model: resolvedModel,
           messages: [
             { role: "system", content: system },
             { role: "user", content: user }
@@ -74607,7 +74670,7 @@ var LLMService = class {
     return JSON.parse(cleaned.substring(start, end + 1));
   }
   /** Генерация структуры презентации из анкеты по дизайн-скилу. */
-  async generateSlides(q, designRules, templateName) {
+  async generateSlides(q, designRules, templateName, model) {
     const system = `${designRules}
 
 ## \u0412\u044B\u0445\u043E\u0434\u043D\u043E\u0439 \u0444\u043E\u0440\u043C\u0430\u0442
@@ -74668,12 +74731,12 @@ ${illList}
 \u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439 \u0438\u0445 \u043F\u0443\u0442\u0438 \u0432 \u043F\u043E\u043B\u0435 imagePath \u0441\u043B\u0430\u0439\u0434\u043E\u0432, \u0433\u0434\u0435 \u043E\u043D\u0438 \u0443\u043C\u0435\u0441\u0442\u043D\u044B.` : ""}
 
 \u0421\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u0443\u0439 JSON \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438. \u041F\u043E\u043B\u0435 subtitle \u0442\u0438\u0442\u0443\u043B\u044C\u043D\u043E\u0433\u043E \u0441\u043B\u0430\u0439\u0434\u0430 \u0437\u0430\u043F\u043E\u043B\u043D\u0438 \u043F\u043E\u0432\u043E\u0434\u043E\u043C (\u043A\u0438\u043A\u0435\u0440\u043E\u043C), \u0435\u0441\u043B\u0438 \u043E\u043D \u0443\u043A\u0430\u0437\u0430\u043D; \u0438\u043D\u0430\u0447\u0435 \u043F\u0443\u0441\u0442\u043E.`;
-    const text = await this.complete(system, user);
+    const text = await this.complete(system, user, model);
     let parsed;
     try {
       parsed = this.extractJsonBlock(text);
     } catch (firstErr) {
-      const retry = await this.complete(system, "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0435 \u0431\u044B\u043B \u0432\u0430\u043B\u0438\u0434\u043D\u044B\u043C JSON. \u0412\u0435\u0440\u043D\u0438 \u0422\u041E\u041B\u042C\u041A\u041E JSON \u043F\u043E \u0442\u043E\u0439 \u0436\u0435 \u0441\u0445\u0435\u043C\u0435.");
+      const retry = await this.complete(system, "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0435 \u0431\u044B\u043B \u0432\u0430\u043B\u0438\u0434\u043D\u044B\u043C JSON. \u0412\u0435\u0440\u043D\u0438 \u0422\u041E\u041B\u042C\u041A\u041E JSON \u043F\u043E \u0442\u043E\u0439 \u0436\u0435 \u0441\u0445\u0435\u043C\u0435.", model);
       parsed = this.extractJsonBlock(retry);
     }
     const obj = parsed;
@@ -74716,7 +74779,7 @@ ${illList}
   }
   /** Мозговой штурм: LLM задаёт по одному уточняющему вопросу, пока не соберёт
    *  детали. Возвращает { done:false, question } или { done:true, summary }. */
-  async brainstormNext(q, log, designRules, round, maxRounds) {
+  async brainstormNext(q, log, designRules, round, maxRounds, model) {
     const system = `\u0422\u044B \u2014 \u043C\u0430\u0441\u0442\u0435\u0440 \u043C\u043E\u0437\u0433\u043E\u0432\u043E\u0433\u043E \u0448\u0442\u0443\u0440\u043C\u0430 \u043F\u043E \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0435 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439.
 \u0422\u0432\u043E\u044F \u0446\u0435\u043B\u044C \u2014 \u041D\u0415 \u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044E, \u0430 \u0441\u043E\u0431\u0440\u0430\u0442\u044C \u043E\u0442 \u0430\u0432\u0442\u043E\u0440\u0430 \u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u0434\u0435\u0442\u0430\u043B\u0435\u0439, \u0447\u0442\u043E\u0431\u044B \u043F\u043E\u0442\u043E\u043C \u0438\u0437 \u043D\u0438\u0445 \u0441\u0434\u0435\u043B\u0430\u0442\u044C \u0443\u0431\u0435\u0434\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0435 \u0441\u043B\u0430\u0439\u0434\u044B.
 
@@ -74753,7 +74816,7 @@ ${designRules}
 ${transcript || "\u2014"}
 
 \u0420\u0430\u0443\u043D\u0434 ${round} \u0438\u0437 ${maxRounds}. \u041E\u0442\u0432\u0435\u0442\u044C JSON \u043F\u043E \u0441\u0445\u0435\u043C\u0435.`;
-    const text = await this.complete(system, user);
+    const text = await this.complete(system, user, model);
     let parsed;
     try {
       parsed = this.extractJsonBlock(text);
@@ -74764,28 +74827,29 @@ ${transcript || "\u2014"}
     return { done: !!obj.done, question: obj.question, summary: obj.summary };
   }
   /** Извлечение шаблона (TemplateSpec) из примера презентации. */
-  async extractTemplate(example, templateRules) {
+  async extractTemplate(example, templateRules, model) {
     const user = `## \u041F\u0420\u0418\u041C\u0415\u0420 \u041F\u0420\u0415\u0417\u0415\u041D\u0422\u0410\u0426\u0418\u0418
 
 ${example.substring(0, 2e4)}
 
 \u0418\u0437\u0432\u043B\u0435\u043A\u0438 \u0448\u0430\u0431\u043B\u043E\u043D \u0438 \u0432\u0435\u0440\u043D\u0438 JSON TemplateSpec.`;
-    const text = await this.complete(templateRules, user);
+    const text = await this.complete(templateRules, user, model);
     let parsed;
     try {
       parsed = this.extractJsonBlock(text);
     } catch (firstErr) {
-      const retry = await this.complete(templateRules, "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0435 \u0431\u044B\u043B \u0432\u0430\u043B\u0438\u0434\u043D\u044B\u043C JSON. \u0412\u0435\u0440\u043D\u0438 \u0422\u041E\u041B\u042C\u041A\u041E JSON TemplateSpec \u0431\u0435\u0437 \u043F\u043E\u044F\u0441\u043D\u0435\u043D\u0438\u0439.");
+      const retry = await this.complete(templateRules, "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0435 \u0431\u044B\u043B \u0432\u0430\u043B\u0438\u0434\u043D\u044B\u043C JSON. \u0412\u0435\u0440\u043D\u0438 \u0422\u041E\u041B\u042C\u041A\u041E JSON TemplateSpec \u0431\u0435\u0437 \u043F\u043E\u044F\u0441\u043D\u0435\u043D\u0438\u0439.", model);
       parsed = this.extractJsonBlock(retry);
     }
     const obj = parsed;
     if (!obj || !obj.id || !obj.name) throw new Error("LLM \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0439 TemplateSpec");
     return obj;
   }
-  async ask(question, fileContext = "", historyContext = "") {
+  async ask(question, fileContext = "", historyContext = "", model) {
     const apiKey = this.getApiKey();
     if (!apiKey) throw new Error("API \u043A\u043B\u044E\u0447 \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D");
-    const { llmModel, llmApiUrl, llmSystemPrompt } = this.plugin.settings;
+    const { llmApiUrl, llmSystemPrompt } = this.plugin.settings;
+    const resolvedModel = this.resolveModel(model);
     const allEmails = this.plugin.emailDb.getAllEmails();
     const directions = this.plugin.emailDb.getDirections();
     const keywords = this.extractKeywords(question);
@@ -74821,7 +74885,7 @@ ${question}
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: llmModel || "deepseek-v4-pro",
+          model: resolvedModel,
           messages: [
             { role: "system", content: llmSystemPrompt || "\u0422\u044B \u2014 \u044D\u043A\u0441\u043F\u0435\u0440\u0442. \u041E\u0442\u0432\u0435\u0447\u0430\u0439 \u043D\u0430 \u0440\u0443\u0441\u0441\u043A\u043E\u043C \u044F\u0437\u044B\u043A\u0435." },
             { role: "user", content: userPrompt }
@@ -75101,9 +75165,9 @@ var PresentationTemplatesService = class {
     return DEFAULT_TEMPLATE_RULES;
   }
   /** Генерация нового шаблона через LLM по примеру (HTML/текст) и сохранение в файл. */
-  async createTemplateFromExample(example, name2) {
+  async createTemplateFromExample(example, name2, model) {
     const rules = await this.readTemplateRules();
-    const spec = await this.plugin.llmService.extractTemplate(example, rules);
+    const spec = await this.plugin.llmService.extractTemplate(example, rules, model);
     const safeId = (spec.id || name2 || "template").toLowerCase().replace(/[^a-z0-9-_]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "template";
     spec.id = safeId;
     spec.name = name2 || spec.name || safeId;
@@ -75123,6 +75187,11 @@ var PresentationTemplatesService = class {
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.8.5": [
+    "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438: \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u043A\u0430 \u0434\u043E 5 \u043C\u043E\u0434\u0435\u043B\u0435\u0439 LLM \u0441 \u043E\u0434\u043D\u0438\u043C API-\u043A\u043B\u044E\u0447\u043E\u043C \u0438 URL (\u0441\u043F\u0438\u0441\u043E\u043A \u043C\u043E\u0434\u0435\u043B\u0435\u0439 + \u043C\u043E\u0434\u0435\u043B\u044C \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E)",
+    "\u041F\u0438\u0441\u044C\u043C\u0430: \u0441\u0435\u043B\u0435\u043A\u0442\u043E\u0440 \u0432\u044B\u0431\u043E\u0440\u0430 \u043C\u043E\u0434\u0435\u043B\u0438 LLM \u0432 \u0447\u0430\u0442\u0435 \u0441 AI \u043F\u043E\u043C\u043E\u0449\u043D\u0438\u043A\u043E\u043C",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0441\u0435\u043B\u0435\u043A\u0442\u043E\u0440 \u0432\u044B\u0431\u043E\u0440\u0430 \u043C\u043E\u0434\u0435\u043B\u0438 LLM \u0432 \u0432\u044C\u044E\u0445\u0435 (\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F, \u043C\u043E\u0437\u0433\u043E\u0432\u043E\u0439 \u0448\u0442\u0443\u0440\u043C, \u0438\u0437\u0432\u043B\u0435\u0447\u0435\u043D\u0438\u0435 \u0448\u0430\u0431\u043B\u043E\u043D\u0430)"
+  ],
   "0.8.4": [
     "\u0414\u0430\u0448\u0431\u043E\u0440\u0434: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0434\u0430\u0442\u044B \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F (completeAt) \u2014 YouGile \u043D\u0435 \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442 \u0435\u0451 \u043F\u0440\u0438 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0438 \u0447\u0435\u0440\u0435\u0437 API, \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u0434\u043B\u044F \u0437\u0430\u0434\u0430\u0447 \u0431\u0435\u0437 \u0434\u0430\u0442\u044B \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0435 (PUT completed:true), \u043F\u043E\u0441\u043B\u0435 \u043A\u043E\u0442\u043E\u0440\u043E\u0433\u043E API \u0444\u0438\u043A\u0441\u0438\u0440\u0443\u0435\u0442 completedTimestamp",
     "\u0414\u0430\u0448\u0431\u043E\u0440\u0434: \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u044B\u0439 backfill \u0434\u0430\u0442\u044B \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F \u043E\u0433\u0440\u0430\u043D\u0438\u0447\u0435\u043D \u0442\u0440\u043E\u0442\u0442\u043B\u0438\u043D\u0433\u043E\u043C 12 \u0447, \u0447\u0442\u043E\u0431\u044B \u043D\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0440\u0430\u0448\u0438\u0432\u0430\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0438 \u043D\u0430 \u043A\u0430\u0436\u0434\u043E\u043C \u0441\u0438\u043D\u043A\u0435"
@@ -75531,7 +75600,17 @@ var YouGilePlugin = class extends import_obsidian24.Plugin {
     this.app.workspace.detachLeavesOfType(PRESENTATIONS_VIEW_TYPE);
   }
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const data = await this.loadData() || {};
+    if (!Array.isArray(data.llmModels) || data.llmModels.length === 0) {
+      if (data.llmModel) {
+        data.llmModels = [data.llmModel];
+        data.llmDefaultModel = data.llmDefaultModel || data.llmModel;
+      } else {
+        data.llmModels = [];
+      }
+    }
+    data.llmModels = (data.llmModels || []).filter((m) => typeof m === "string").slice(0, 5);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
   }
   async saveSettings() {
     this.normalizeProjectBoardSettings();

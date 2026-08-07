@@ -231,10 +231,12 @@ export class PresentationPreviewModal extends Modal {
 
 export class NewTemplateModal extends Modal {
   plugin: YouGilePlugin;
+  model: string;
 
-  constructor(plugin: YouGilePlugin) {
+  constructor(plugin: YouGilePlugin, model = '') {
     super(plugin.app);
     this.plugin = plugin;
+    this.model = model;
     this.modalEl.style.width = 'min(900px, 94vw)';
   }
 
@@ -265,7 +267,7 @@ export class NewTemplateModal extends Modal {
         }
         b.setDisabled(true).setButtonText('Извлечение...');
         try {
-          await this.plugin.presentationTemplates.createTemplateFromExample(example, name);
+          await this.plugin.presentationTemplates.createTemplateFromExample(example, name, this.model);
           this.close();
         } catch (e) {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
@@ -292,6 +294,7 @@ export class BrainstormModal extends Modal {
   maxRounds = 5;
   round = 0;
   busy = false;
+  model = '';
   private bodyEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
   private btnEl!: HTMLButtonElement;
@@ -303,6 +306,7 @@ export class BrainstormModal extends Modal {
     designRules: string,
     onDone: (q: PresentationQuestionaire) => void,
     onProgress?: (log: Array<{ role: 'user' | 'assistant'; text: string }>) => void,
+    model = '',
   ) {
     super(plugin.app);
     this.plugin = plugin;
@@ -310,6 +314,7 @@ export class BrainstormModal extends Modal {
     this.designRules = designRules;
     this.onDone = onDone;
     this.onProgress = onProgress;
+    this.model = model;
     this.modalEl.style.width = 'min(900px, 96vw)';
     this.modalEl.style.height = '80vh';
   }
@@ -373,7 +378,7 @@ export class BrainstormModal extends Modal {
     this.setBusy(true);
     this.round++;
     try {
-      const reply = await this.plugin.llmService.brainstormNext(this.q, this.log, this.designRules, this.round, this.maxRounds);
+      const reply = await this.plugin.llmService.brainstormNext(this.q, this.log, this.designRules, this.round, this.maxRounds, this.model);
       if (reply.done) {
         if (reply.summary) {
           this.appendMessage('assistant', '✅ Достаточно деталей. Итоговый бриф:\n\n' + reply.summary);
