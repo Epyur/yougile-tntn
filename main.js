@@ -68728,12 +68728,16 @@ var DashboardView = class extends import_obsidian8.ItemView {
     if (this.dateFrom) {
       const from = new Date(this.dateFrom);
       from.setHours(0, 0, 0, 0);
-      tasks = tasks.filter((t) => t.timestamp >= from.getTime());
+      tasks = tasks.filter(
+        (t) => t.timestamp >= from.getTime() || t.completed && t.completeAt !== void 0 && t.completeAt >= from.getTime()
+      );
     }
     if (this.dateTo) {
       const to = new Date(this.dateTo);
       to.setHours(23, 59, 59, 999);
-      tasks = tasks.filter((t) => t.timestamp <= to.getTime());
+      tasks = tasks.filter(
+        (t) => t.timestamp <= to.getTime() || t.completed && t.completeAt !== void 0 && t.completeAt <= to.getTime()
+      );
     }
     return tasks;
   }
@@ -68933,6 +68937,7 @@ var DashboardView = class extends import_obsidian8.ItemView {
     return { box, el };
   }
   renderCharts(container, tasks) {
+    var _a;
     const grid = container.createDiv({ cls: "mailer-chart-grid" });
     const columnCount = /* @__PURE__ */ new Map();
     for (const t of tasks) {
@@ -68972,7 +68977,8 @@ var DashboardView = class extends import_obsidian8.ItemView {
       const key = new Date(t.timestamp).toLocaleDateString();
       if (dayCreatedCount.has(key)) dayCreatedCount.set(key, (dayCreatedCount.get(key) || 0) + 1);
       if (t.completed) {
-        dayCompletedCount.set(key, (dayCompletedCount.get(key) || 0) + 1);
+        const cKey = new Date((_a = t.completeAt) != null ? _a : t.timestamp).toLocaleDateString();
+        if (dayCompletedCount.has(cKey)) dayCompletedCount.set(cKey, (dayCompletedCount.get(cKey) || 0) + 1);
       }
     }
     const dayLabels = [...dayCreatedCount.keys()];
@@ -69118,12 +69124,13 @@ var DashboardView = class extends import_obsidian8.ItemView {
       }
       return str;
     };
-    const headers = ["\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435", "\u041A\u043E\u043B\u043E\u043D\u043A\u0430", "\u041F\u0440\u043E\u0435\u043A\u0442", "\u0414\u043E\u0441\u043A\u0430", "\u0418\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u0438", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0435\u0434\u043B\u0430\u0439\u043D", "\u0421\u043E\u0437\u0434\u0430\u043D\u0430"];
+    const headers = ["\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435", "\u041A\u043E\u043B\u043E\u043D\u043A\u0430", "\u041F\u0440\u043E\u0435\u043A\u0442", "\u0414\u043E\u0441\u043A\u0430", "\u0418\u0441\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u0438", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0435\u0434\u043B\u0430\u0439\u043D", "\u0421\u043E\u0437\u0434\u0430\u043D\u0430", "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430"];
     const rows = [headers.join(sep)];
     for (const t of tasks) {
       const assignees = (t.assigned || []).map((a) => this.plugin.db.getUserName(a)).join(", ");
       const deadlineStr = t.deadline ? new Date(t.deadline).toLocaleDateString() : "";
       const createdStr = new Date(t.timestamp).toLocaleDateString();
+      const completeStr = t.completed && t.completeAt ? new Date(t.completeAt).toLocaleDateString() : "";
       rows.push([
         esc(t.title),
         esc(t.columnTitle),
@@ -69132,7 +69139,8 @@ var DashboardView = class extends import_obsidian8.ItemView {
         esc(assignees),
         t.completed ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E" : "\u0412 \u0440\u0430\u0431\u043E\u0442\u0435",
         deadlineStr,
-        createdStr
+        createdStr,
+        completeStr
       ].join(sep));
     }
     const folderPath = "\u042D\u043A\u0441\u043F\u043E\u0440\u0442";
@@ -73459,6 +73467,7 @@ var LocalDatabase = class {
     this.initialized = false;
     this.userMap = /* @__PURE__ */ new Map();
     this._users = [];
+    this.syncingPromise = null;
     this.app = app;
     this.plugin = plugin;
   }
@@ -73556,7 +73565,17 @@ var LocalDatabase = class {
     return this.data.offlineQueue.some((a) => !a.synced);
   }
   async sync() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B;
+    if (this.syncingPromise) return this.syncingPromise;
+    const p = this.doSync();
+    this.syncingPromise = p;
+    try {
+      await p;
+    } finally {
+      if (this.syncingPromise === p) this.syncingPromise = null;
+    }
+  }
+  async doSync() {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H;
     if (!this.plugin.settings.apiKeySecret || !this.plugin.getSecretValue(this.plugin.settings.apiKeySecret)) {
       return;
     }
@@ -73634,6 +73653,7 @@ var LocalDatabase = class {
       }
       const now = Date.now();
       const taskMap = new Map(remoteTasks.map((t) => [t.id, t]));
+      const existingMap = new Map(this.data.tasks.map((t) => [t.id, t]));
       const allSubtaskIds = /* @__PURE__ */ new Set();
       for (const rt of remoteTasks) {
         if (rt.subtasks) {
@@ -73645,8 +73665,9 @@ var LocalDatabase = class {
       const subtaskCache = /* @__PURE__ */ new Map();
       for (const sid of allSubtaskIds) {
         const known = taskMap.get(sid);
-        if (known && known.title) {
-          subtaskCache.set(sid, known.title);
+        const cachedTitle = (_b = known == null ? void 0 : known.title) != null ? _b : (_a = existingMap.get(sid)) == null ? void 0 : _a.title;
+        if (cachedTitle) {
+          subtaskCache.set(sid, cachedTitle);
         } else {
           try {
             const st = await this.plugin.client.getTaskById(sid);
@@ -73660,7 +73681,6 @@ var LocalDatabase = class {
       const columnMap = new Map(allColumns.map((c) => [c.id, c]));
       const projectMap = new Map(remoteProjects.map((p) => [p.id, p.title]));
       const mergedTasks = [];
-      const existingMap = new Map(this.data.tasks.map((t) => [t.id, t]));
       const processedIds = /* @__PURE__ */ new Set();
       for (const rt of remoteTasks) {
         processedIds.add(rt.id);
@@ -73668,27 +73688,28 @@ var LocalDatabase = class {
         if (existing && existing.updatedAt === rt.updatedAt) {
           mergedTasks.push(existing);
         } else {
-          const colId = (_a = rt.columnId) != null ? _a : "";
+          const colId = (_c = rt.columnId) != null ? _c : "";
           const column = columnMap.get(colId);
           const board = column ? boardMap.get(column.boardId) : void 0;
-          const projectTitle = board ? (_b = projectMap.get(board.projectId)) != null ? _b : "" : "";
+          const projectTitle = board ? (_d = projectMap.get(board.projectId)) != null ? _d : "" : "";
           mergedTasks.push({
             id: rt.id,
-            title: (_c = rt.title) != null ? _c : "",
-            description: (_d = rt.description) != null ? _d : "",
+            title: (_e = rt.title) != null ? _e : "",
+            description: (_f = rt.description) != null ? _f : "",
             columnId: colId,
-            columnTitle: (_e = column == null ? void 0 : column.title) != null ? _e : "",
-            boardId: (_f = board == null ? void 0 : board.id) != null ? _f : "",
-            boardTitle: (_g = board == null ? void 0 : board.title) != null ? _g : "",
-            projectId: (_h = board == null ? void 0 : board.projectId) != null ? _h : "",
+            columnTitle: (_g = column == null ? void 0 : column.title) != null ? _g : "",
+            boardId: (_h = board == null ? void 0 : board.id) != null ? _h : "",
+            boardTitle: (_i = board == null ? void 0 : board.title) != null ? _i : "",
+            projectId: (_j = board == null ? void 0 : board.projectId) != null ? _j : "",
             projectTitle,
-            completed: (_i = rt.completed) != null ? _i : false,
-            assigned: ((_j = rt.assigned) != null ? _j : []).map((id) => this.getUserName(id)),
-            subtasks: ((_k = rt.subtasks) != null ? _k : []).map((sid) => ({ id: sid, title: subtaskCache.get(sid) || sid })),
-            timestamp: (_l = rt.timestamp) != null ? _l : 0,
+            completed: (_k = rt.completed) != null ? _k : false,
+            completeAt: (_m = this.normalizeCompleteAt((_l = rt.completeAt) != null ? _l : rt.completedTimestamp)) != null ? _m : existing == null ? void 0 : existing.completeAt,
+            assigned: ((_n = rt.assigned) != null ? _n : []).map((id) => this.getUserName(id)),
+            subtasks: ((_o = rt.subtasks) != null ? _o : []).map((sid) => ({ id: sid, title: subtaskCache.get(sid) || sid })),
+            timestamp: (_p = rt.timestamp) != null ? _p : 0,
             cachedAt: now,
-            updatedAt: (_m = rt.updatedAt) != null ? _m : "",
-            deadline: (_n = rt.deadline) == null ? void 0 : _n.deadline
+            updatedAt: (_q = rt.updatedAt) != null ? _q : "",
+            deadline: (_r = rt.deadline) == null ? void 0 : _r.deadline
           });
         }
       }
@@ -73705,28 +73726,59 @@ var LocalDatabase = class {
           } catch (e) {
             continue;
           }
-          const colId = (_o = st.columnId) != null ? _o : "";
+          const colId = (_s = st.columnId) != null ? _s : "";
           const column = columnMap.get(colId);
           const board = column ? boardMap.get(column.boardId) : void 0;
-          const projectTitle = board ? (_p = projectMap.get(board.projectId)) != null ? _p : "" : "";
+          const projectTitle = board ? (_t = projectMap.get(board.projectId)) != null ? _t : "" : "";
           mergedTasks.push({
             id: st.id,
-            title: (_q = st.title) != null ? _q : "",
-            description: (_r = st.description) != null ? _r : "",
+            title: (_u = st.title) != null ? _u : "",
+            description: (_v = st.description) != null ? _v : "",
             columnId: colId,
-            columnTitle: (_s = column == null ? void 0 : column.title) != null ? _s : "",
-            boardId: (_t = board == null ? void 0 : board.id) != null ? _t : "",
-            boardTitle: (_u = board == null ? void 0 : board.title) != null ? _u : "",
-            projectId: (_v = board == null ? void 0 : board.projectId) != null ? _v : "",
+            columnTitle: (_w = column == null ? void 0 : column.title) != null ? _w : "",
+            boardId: (_x = board == null ? void 0 : board.id) != null ? _x : "",
+            boardTitle: (_y = board == null ? void 0 : board.title) != null ? _y : "",
+            projectId: (_z = board == null ? void 0 : board.projectId) != null ? _z : "",
             projectTitle,
-            completed: (_w = st.completed) != null ? _w : false,
-            assigned: ((_x = st.assigned) != null ? _x : []).map((id) => this.getUserName(id)),
-            subtasks: ((_y = st.subtasks) != null ? _y : []).map((sst) => ({ id: sst, title: subtaskCache.get(sst) || sst })),
-            timestamp: (_z = st.timestamp) != null ? _z : 0,
+            completed: (_B = (_A = st.completed) != null ? _A : st.complete) != null ? _B : false,
+            completeAt: this.normalizeCompleteAt((_C = st.completeAt) != null ? _C : st.completedTimestamp),
+            assigned: ((_D = st.assigned) != null ? _D : []).map((id) => this.getUserName(id)),
+            subtasks: ((_E = st.subtasks) != null ? _E : []).map((sst) => ({ id: sst, title: subtaskCache.get(sst) || sst })),
+            timestamp: (_F = st.timestamp) != null ? _F : 0,
             cachedAt: now,
-            updatedAt: (_A = st.updatedAt) != null ? _A : "",
-            deadline: (_B = st.deadline) == null ? void 0 : _B.deadline
+            updatedAt: (_G = st.updatedAt) != null ? _G : "",
+            deadline: (_H = st.deadline) == null ? void 0 : _H.deadline
           });
+        }
+      }
+      const backfillInterval = 12 * 60 * 60 * 1e3;
+      const candidates = mergedTasks.filter((t) => {
+        var _a2;
+        return t.completed && !t.completeAt && ((_a2 = t.completeAtCheckedAt) != null ? _a2 : 0) < now - backfillInterval;
+      });
+      if (candidates.length > 0) {
+        const BATCH = 5;
+        const stillMissing = [];
+        for (let i = 0; i < candidates.length; i += BATCH) {
+          const batch = candidates.slice(i, i + BATCH);
+          await Promise.all(batch.map(async (t) => {
+            var _a2;
+            t.completeAtCheckedAt = now;
+            try {
+              const full = await this.plugin.client.getTaskById(t.id);
+              const ts = this.normalizeCompleteAt((_a2 = full.completeAt) != null ? _a2 : full.completedTimestamp);
+              if (ts) {
+                t.completeAt = ts;
+              } else {
+                stillMissing.push(t.id);
+              }
+            } catch (e) {
+              stillMissing.push(t.id);
+            }
+          }));
+        }
+        if (stillMissing.length > 0) {
+          console.log(`YouGile backfill: still no completeAt for ${stillMissing.length} task(s): ${stillMissing.join(", ")}`);
         }
       }
       this.data.tasks = mergedTasks;
@@ -73738,6 +73790,12 @@ var LocalDatabase = class {
       console.warn("YouGile: sync failed \u2014", msg);
       await this.logSyncError(msg);
     }
+  }
+  normalizeCompleteAt(value) {
+    if (value === void 0 || value === null || value === "") return void 0;
+    if (typeof value === "number") return value;
+    const ts = Date.parse(String(value).replace(" ", "T"));
+    return isNaN(ts) ? void 0 : ts;
   }
   getLpiProjectId() {
     const projects = this.getProjects();
@@ -74784,6 +74842,14 @@ var PresentationTemplatesService = class {
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.8.1": [
+    "\u0414\u0430\u0448\u0431\u043E\u0440\u0434: \xAB\u0414\u0438\u043D\u0430\u043C\u0438\u043A\u0430 \u043E\u0437\u0430\u0434\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u044F\xBB \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442 \u0440\u0435\u0430\u043B\u044C\u043D\u0443\u044E \u0434\u0430\u0442\u0443 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F (completeAt \u0438\u0437 GET /tasks/{id}), \u0430 \u043D\u0435 \u0434\u0430\u0442\u0443 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F",
+    "\u0414\u0430\u0448\u0431\u043E\u0440\u0434: \u0434\u0430\u0442\u0430-\u0444\u0438\u043B\u044C\u0442\u0440\u044B (\u0441/\u043F\u043E) \u0443\u0447\u0438\u0442\u044B\u0432\u0430\u044E\u0442 \u0434\u0430\u0442\u0443 \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u044F \u0418\u041B\u0418 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F \u0437\u0430\u0434\u0430\u0447\u0438",
+    "\u0414\u0430\u0448\u0431\u043E\u0440\u0434: \u0432 CSV-\u044D\u043A\u0441\u043F\u043E\u0440\u0442 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u043A\u043E\u043B\u043E\u043D\u043A\u0430 \xAB\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430\xBB",
+    "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F: \u0434\u043B\u044F \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0445 \u0437\u0430\u0434\u0430\u0447 \u0434\u043E\u0437\u0430\u0433\u0440\u0443\u0436\u0430\u0435\u0442\u0441\u044F \u0434\u0430\u0442\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F (\u0431\u0430\u0442\u0447\u0430\u043C\u0438 \u043F\u043E 5, \u0442\u0440\u043E\u0442\u0442\u043B\u0438\u043D\u0433 \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u044B\u0445 \u043F\u043E\u043F\u044B\u0442\u043E\u043A 12 \u0447), \u043A\u044D\u0448\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u0432 yougile_cache.json",
+    "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F: \u0437\u0430\u0449\u0438\u0442\u0430 \u043E\u0442 \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0433\u043E \u0432\u0445\u043E\u0434\u0430 (db.sync) \u2014 \u043E\u0434\u043D\u043E\u0432\u0440\u0435\u043C\u0435\u043D\u043D\u044B\u0435 \u0432\u044B\u0437\u043E\u0432\u044B \u043D\u0435 \u0434\u0443\u0431\u043B\u0438\u0440\u0443\u044E\u0442 \u0437\u0430\u043F\u0440\u043E\u0441\u044B",
+    "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F: \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u0438 \u043F\u043E\u0434\u0437\u0430\u0434\u0430\u0447 \u043F\u0435\u0440\u0435\u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u044E\u0442\u0441\u044F \u0438\u0437 \u043A\u044D\u0448\u0430, \u0430 \u043D\u0435 \u0437\u0430\u043F\u0440\u0430\u0448\u0438\u0432\u0430\u044E\u0442\u0441\u044F \u043A\u0430\u0436\u0434\u044B\u0439 \u0440\u0430\u0437"
+  ],
   "0.8.0": [
     "\u041D\u043E\u0432\u044B\u0439 \u043C\u043E\u0434\u0443\u043B\u044C \xAB\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438\xBB: \u0441\u043E\u0437\u0434\u0430\u043D\u0438\u0435 HTML-\u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439 \u0438\u0437 \u0430\u043D\u043A\u0435\u0442\u044B \u0447\u0435\u0440\u0435\u0437 LLM (\u043C\u043E\u0437\u0433\u043E\u0432\u043E\u0439 \u0448\u0442\u0443\u0440\u043C, \u0447\u0435\u0440\u043D\u043E\u0432\u0438\u043A\u0438 \u0441 \u043F\u043E\u0432\u0442\u043E\u0440\u043E\u043C \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438)",
     "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0448\u0430\u0431\u043B\u043E\u043D\u044B \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u044F TemplateSpec (JSON) \u2014 \u0432\u0441\u0442\u0440\u043E\u0435\u043D\u043D\u044B\u0439 \xAB\u0422\u0435\u0445\u043D\u043E\u043D\u0438\u043A\u043E\u043B\u044C\xBB + \u0438\u0437\u0432\u043B\u0435\u0447\u0435\u043D\u0438\u0435 \u0448\u0430\u0431\u043B\u043E\u043D\u0430 \u0438\u0437 \u043F\u0440\u0438\u043C\u0435\u0440\u0430 \u0447\u0435\u0440\u0435\u0437 LLM",

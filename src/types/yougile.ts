@@ -4,6 +4,8 @@ export interface YouGileTask {
   description?: string;
   columnId?: string;
   completed?: boolean;
+  completedTimestamp?: number;
+  completeAt?: number;
   assigned?: string[];
   subtasks?: string[];
   timestamp?: number;
@@ -87,14 +89,28 @@ export interface YouGileTaskFull {
   title: string;
   timestamp: number;
   columnId?: string;
+  boardId?: string;
+  projectId?: string;
   description?: string;
+  color?: string;
+  createdAt?: string;
+  createdBy?: string;
   archived?: boolean;
   archivedTimestamp?: number;
   completed?: boolean;
   completedTimestamp?: number;
+  complete?: boolean;
+  completeAt?: string;
+  assignedUserIds?: string[];
+  parentTaskIds?: string[];
+  messages?: Array<{
+    authorId: string;
+    timestamp: number;
+    text: string;
+    mentions?: string[];
+  }>;
   subtasks?: string[];
   assigned?: string[];
-  createdBy?: string;
   deadline?: {
     deadline?: number;
     startDate?: number;
@@ -112,7 +128,6 @@ export interface YouGileTaskFull {
     items: Array<{ title: string; isCompleted: boolean }>;
   }>;
   stickers?: Record<string, string>;
-  color?: string;
   idTaskCommon?: string;
   idTaskProject?: string;
   type?: string;

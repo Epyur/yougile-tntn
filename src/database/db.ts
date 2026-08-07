@@ -132,7 +132,20 @@ export class LocalDatabase {
     return this.data.offlineQueue.some(a => !a.synced);
   }
 
+  private syncingPromise: Promise<void> | null = null;
+
   async sync(): Promise<void> {
+    if (this.syncingPromise) return this.syncingPromise;
+    const p = this.doSync();
+    this.syncingPromise = p;
+    try {
+      await p;
+    } finally {
+      if (this.syncingPromise === p) this.syncingPromise = null;
+    }
+  }
+
+  private async doSync(): Promise<void> {
     if (!this.plugin.settings.apiKeySecret || !this.plugin.getSecretValue(this.plugin.settings.apiKeySecret)) {
       return;
     }
@@ -223,6 +236,8 @@ export class LocalDatabase {
 
       const taskMap = new Map(remoteTasks.map(t => [t.id, t]));
 
+      const existingMap = new Map(this.data.tasks.map(t => [t.id, t]));
+
       const allSubtaskIds = new Set<string>();
       for (const rt of remoteTasks) {
         if (rt.subtasks) {
@@ -234,8 +249,9 @@ export class LocalDatabase {
       const subtaskCache = new Map<string, string>();
       for (const sid of allSubtaskIds) {
         const known = taskMap.get(sid);
-        if (known && known.title) {
-          subtaskCache.set(sid, known.title);
+        const cachedTitle = known?.title ?? existingMap.get(sid)?.title;
+        if (cachedTitle) {
+          subtaskCache.set(sid, cachedTitle);
         } else {
           try {
             const st = await this.plugin.client.getTaskById(sid);
@@ -251,7 +267,6 @@ export class LocalDatabase {
       const projectMap = new Map(remoteProjects.map(p => [p.id, p.title]));
 
       const mergedTasks: CachedTask[] = [];
-      const existingMap = new Map(this.data.tasks.map(t => [t.id, t]));
 
       const processedIds = new Set<string>();
 
@@ -276,6 +291,7 @@ export class LocalDatabase {
             projectId: board?.projectId ?? '',
             projectTitle,
             completed: rt.completed ?? false,
+            completeAt: this.normalizeCompleteAt(rt.completeAt ?? rt.completedTimestamp) ?? existing?.completeAt,
             assigned: (rt.assigned ?? []).map(id => this.getUserName(id)),
             subtasks: (rt.subtasks ?? []).map(sid => ({ id: sid, title: subtaskCache.get(sid) || sid })),
             timestamp: rt.timestamp ?? 0,
@@ -313,7 +329,8 @@ export class LocalDatabase {
             boardTitle: board?.title ?? '',
             projectId: board?.projectId ?? '',
             projectTitle,
-            completed: st.completed ?? false,
+            completed: st.completed ?? st.complete ?? false,
+            completeAt: this.normalizeCompleteAt(st.completeAt ?? st.completedTimestamp),
             assigned: (st.assigned ?? []).map(id => this.getUserName(id)),
             subtasks: (st.subtasks ?? []).map(sst => ({ id: sst, title: subtaskCache.get(sst) || sst })),
             timestamp: st.timestamp ?? 0,
@@ -321,6 +338,33 @@ export class LocalDatabase {
             updatedAt: st.updatedAt ?? '',
             deadline: st.deadline?.deadline,
           });
+        }
+      }
+
+      const backfillInterval = 12 * 60 * 60 * 1000;
+      const candidates = mergedTasks.filter(t => t.completed && !t.completeAt && (t.completeAtCheckedAt ?? 0) < now - backfillInterval);
+      if (candidates.length > 0) {
+        const BATCH = 5;
+        const stillMissing: string[] = [];
+        for (let i = 0; i < candidates.length; i += BATCH) {
+          const batch = candidates.slice(i, i + BATCH);
+          await Promise.all(batch.map(async (t) => {
+            t.completeAtCheckedAt = now;
+            try {
+              const full = await this.plugin.client.getTaskById(t.id);
+              const ts = this.normalizeCompleteAt(full.completeAt ?? full.completedTimestamp);
+              if (ts) {
+                t.completeAt = ts;
+              } else {
+                stillMissing.push(t.id);
+              }
+            } catch {
+              stillMissing.push(t.id);
+            }
+          }));
+        }
+        if (stillMissing.length > 0) {
+          console.log(`YouGile backfill: still no completeAt for ${stillMissing.length} task(s): ${stillMissing.join(', ')}`);
         }
       }
 
@@ -334,6 +378,13 @@ export class LocalDatabase {
       console.warn('YouGile: sync failed —', msg);
       await this.logSyncError(msg);
     }
+  }
+
+  private normalizeCompleteAt(value: string | number | undefined): number | undefined {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (typeof value === 'number') return value;
+    const ts = Date.parse(String(value).replace(' ', 'T'));
+    return isNaN(ts) ? undefined : ts;
   }
 
   private getLpiProjectId(): string | undefined {

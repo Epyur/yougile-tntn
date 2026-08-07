@@ -14,6 +14,8 @@ export interface CachedTask {
   projectId: string;
   projectTitle: string;
   completed: boolean;
+  completeAt?: number;
+  completeAtCheckedAt?: number;
   assigned: string[];
   subtasks: CachedSubtask[];
   timestamp: number;

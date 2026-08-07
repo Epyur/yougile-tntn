@@ -80,12 +80,18 @@ export class DashboardView extends ItemView {
     if (this.dateFrom) {
       const from = new Date(this.dateFrom);
       from.setHours(0, 0, 0, 0);
-      tasks = tasks.filter(t => t.timestamp >= from.getTime());
+      tasks = tasks.filter(t =>
+        t.timestamp >= from.getTime() ||
+        (t.completed && t.completeAt !== undefined && t.completeAt >= from.getTime())
+      );
     }
     if (this.dateTo) {
       const to = new Date(this.dateTo);
       to.setHours(23, 59, 59, 999);
-      tasks = tasks.filter(t => t.timestamp <= to.getTime());
+      tasks = tasks.filter(t =>
+        t.timestamp <= to.getTime() ||
+        (t.completed && t.completeAt !== undefined && t.completeAt <= to.getTime())
+      );
     }
     return tasks;
   }
@@ -350,7 +356,8 @@ export class DashboardView extends ItemView {
       const key = new Date(t.timestamp).toLocaleDateString();
       if (dayCreatedCount.has(key)) dayCreatedCount.set(key, (dayCreatedCount.get(key) || 0) + 1);
       if (t.completed) {
-        dayCompletedCount.set(key, (dayCompletedCount.get(key) || 0) + 1);
+        const cKey = new Date(t.completeAt ?? t.timestamp).toLocaleDateString();
+        if (dayCompletedCount.has(cKey)) dayCompletedCount.set(cKey, (dayCompletedCount.get(cKey) || 0) + 1);
       }
     }
     const dayLabels = [...dayCreatedCount.keys()];
@@ -507,12 +514,13 @@ export class DashboardView extends ItemView {
       }
       return str;
     };
-    const headers = ['Название', 'Колонка', 'Проект', 'Доска', 'Исполнители', 'Статус', 'Дедлайн', 'Создана'];
+    const headers = ['Название', 'Колонка', 'Проект', 'Доска', 'Исполнители', 'Статус', 'Дедлайн', 'Создана', 'Завершена'];
     const rows: string[] = [headers.join(sep)];
     for (const t of tasks) {
       const assignees = (t.assigned || []).map(a => this.plugin.db.getUserName(a)).join(', ');
       const deadlineStr = t.deadline ? new Date(t.deadline).toLocaleDateString() : '';
       const createdStr = new Date(t.timestamp).toLocaleDateString();
+      const completeStr = t.completed && t.completeAt ? new Date(t.completeAt).toLocaleDateString() : '';
       rows.push([
         esc(t.title),
         esc(t.columnTitle),
@@ -522,6 +530,7 @@ export class DashboardView extends ItemView {
         t.completed ? 'Завершено' : 'В работе',
         deadlineStr,
         createdStr,
+        completeStr,
       ].join(sep));
     }
     const folderPath = 'Экспорт';
