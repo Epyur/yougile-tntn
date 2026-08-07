@@ -181,7 +181,7 @@ export class YouGileClient {
     try {
       return await this.request<Record<string, unknown>>('PUT', `/tasks/${encodeURIComponent(id)}`, payload);
     } catch (e: unknown) {
-      console.error('YouGile updateTask error:', e);
+      console.error('YouGile updateTaskRaw error:', e);
       throw e;
     }
   }

@@ -351,15 +351,23 @@ export class LocalDatabase {
           await Promise.all(batch.map(async (t) => {
             t.completeAtCheckedAt = now;
             try {
-              const full = await this.plugin.client.getTaskById(t.id);
-              const ts = this.normalizeCompleteAt(full.completeAt ?? full.completedTimestamp);
+              let full = await this.plugin.client.getTaskById(t.id);
+              let ts = this.normalizeCompleteAt(full.completeAt ?? full.completedTimestamp);
+              if (!ts) {
+                // YouGile не записал дату при первоначальном завершении (например, создано уже завершённым).
+                // Повторное завершение тем же payload заставляет API зафиксировать completedTimestamp.
+                await this.plugin.client.updateTask(t.id, { completed: true });
+                full = await this.plugin.client.getTaskById(t.id);
+                ts = this.normalizeCompleteAt(full.completeAt ?? full.completedTimestamp);
+              }
               if (ts) {
                 t.completeAt = ts;
               } else {
                 stillMissing.push(t.id);
               }
-            } catch {
+            } catch (err) {
               stillMissing.push(t.id);
+              console.log(`YouGile backfill: error for ${t.id}: ${err instanceof Error ? err.message : String(err)}`);
             }
           }));
         }

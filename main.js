@@ -7700,7 +7700,7 @@ var YouGileClient = class {
     try {
       return await this.request("PUT", `/tasks/${encodeURIComponent(id)}`, payload);
     } catch (e) {
-      console.error("YouGile updateTask error:", e);
+      console.error("YouGile updateTaskRaw error:", e);
       throw e;
     }
   }
@@ -74031,18 +74031,24 @@ var LocalDatabase = class {
         for (let i = 0; i < candidates.length; i += BATCH) {
           const batch = candidates.slice(i, i + BATCH);
           await Promise.all(batch.map(async (t) => {
-            var _a2;
+            var _a2, _b2;
             t.completeAtCheckedAt = now;
             try {
-              const full = await this.plugin.client.getTaskById(t.id);
-              const ts = this.normalizeCompleteAt((_a2 = full.completeAt) != null ? _a2 : full.completedTimestamp);
+              let full = await this.plugin.client.getTaskById(t.id);
+              let ts = this.normalizeCompleteAt((_a2 = full.completeAt) != null ? _a2 : full.completedTimestamp);
+              if (!ts) {
+                await this.plugin.client.updateTask(t.id, { completed: true });
+                full = await this.plugin.client.getTaskById(t.id);
+                ts = this.normalizeCompleteAt((_b2 = full.completeAt) != null ? _b2 : full.completedTimestamp);
+              }
               if (ts) {
                 t.completeAt = ts;
               } else {
                 stillMissing.push(t.id);
               }
-            } catch (e) {
+            } catch (err) {
               stillMissing.push(t.id);
+              console.log(`YouGile backfill: error for ${t.id}: ${err instanceof Error ? err.message : String(err)}`);
             }
           }));
         }
@@ -75117,6 +75123,10 @@ var PresentationTemplatesService = class {
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.8.4": [
+    "\u0414\u0430\u0448\u0431\u043E\u0440\u0434: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0434\u0430\u0442\u044B \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F (completeAt) \u2014 YouGile \u043D\u0435 \u0437\u0430\u043F\u0438\u0441\u044B\u0432\u0430\u0435\u0442 \u0435\u0451 \u043F\u0440\u0438 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0438 \u0447\u0435\u0440\u0435\u0437 API, \u043F\u043E\u044D\u0442\u043E\u043C\u0443 \u0434\u043B\u044F \u0437\u0430\u0434\u0430\u0447 \u0431\u0435\u0437 \u0434\u0430\u0442\u044B \u0432\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0435 (PUT completed:true), \u043F\u043E\u0441\u043B\u0435 \u043A\u043E\u0442\u043E\u0440\u043E\u0433\u043E API \u0444\u0438\u043A\u0441\u0438\u0440\u0443\u0435\u0442 completedTimestamp",
+    "\u0414\u0430\u0448\u0431\u043E\u0440\u0434: \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u044B\u0439 backfill \u0434\u0430\u0442\u044B \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u044F \u043E\u0433\u0440\u0430\u043D\u0438\u0447\u0435\u043D \u0442\u0440\u043E\u0442\u0442\u043B\u0438\u043D\u0433\u043E\u043C 12 \u0447, \u0447\u0442\u043E\u0431\u044B \u043D\u0435 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0440\u0430\u0448\u0438\u0432\u0430\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0438 \u043D\u0430 \u043A\u0430\u0436\u0434\u043E\u043C \u0441\u0438\u043D\u043A\u0435"
+  ],
   "0.8.3": [
     "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0444\u043E\u043D\u043E\u0432\u044B\u0435 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F \u043A\u043E \u0432\u0441\u0435\u043C \u0442\u0438\u043F\u0430\u043C \u0441\u043B\u0430\u0439\u0434\u043E\u0432 \u2014 \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u043D\u044B\u043C (bullets/cards/table) \u0438 \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u043E\u043C\u0443, \u0430 \u043D\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043A \u0442\u0438\u0442\u0443\u043B\u044C\u043D\u043E\u043C\u0443",
     "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \xAB\u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F\xBB \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u043D\u0443\u043C\u0435\u0440\u0430\u0446\u0438\u044F \u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D \u0432\u044B\u0431\u043E\u0440 \u0444\u043E\u043D\u0430 \u0434\u043B\u044F \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0441\u043B\u0430\u0439\u0434\u0430",
