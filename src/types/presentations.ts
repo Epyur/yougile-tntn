@@ -204,6 +204,10 @@ export interface PresentationItem {
   slideLoop?: boolean;
   /** Показывать ли прогресс-бар в режиме «Слайды». */
   showProgress?: boolean;
+  /** Статус генерации: 'generating' — в процессе, 'error' — не удалась. Отсутствует = готова. */
+  status?: 'generating' | 'error';
+  /** Сообщение об ошибке генерации. */
+  error?: string;
 }
 
 /** Черновик презентации: анкета + лог мозгового штурма, сохраняется сразу при вводе,

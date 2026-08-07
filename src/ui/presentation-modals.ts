@@ -582,8 +582,8 @@ export class ImageUploadModal extends Modal {
       };
 
       makeSelect('🎬 Титул (фон):', 'bg:title');
-      for (let i = 0; i < this.slideCount; i++) {
-        makeSelect(`Слайд ${i + 1} (фон):`, `bg:${i}`);
+      for (let i = 1; i < this.slideCount; i++) {
+        makeSelect(`Слайд ${i} (фон):`, `bg:${i}`);
       }
       const clearBtn = slidesDiv.createEl('button', { text: 'Сбросить все', cls: 'mailer-yougile-refresh-btn' });
       clearBtn.style.marginTop = '8px';

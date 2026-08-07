@@ -396,3 +396,10 @@
 .mailer-hidden {
   display: none;
 }
+
+.mailer-blink { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: var(--interactive-accent); animation: mailer-blink 1.2s steps(2, start) infinite; }
+@keyframes mailer-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.15; }
+  100% { opacity: 1; }
+}

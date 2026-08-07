@@ -6921,7 +6921,8 @@ function buildCss(tpl, transition = "fade", showProgress = true) {
   .s-section .sub { color:${(_C = section.textColor) != null ? _C : c.dark}; font-size:${cqw(14)}; line-height:1.35; }
 
   /* ---------- Content (bullets / cards / table) ---------- */
-  .s-content { background:${(_E = (_D = content.bg) != null ? _D : c.bg) != null ? _E : "#fff"}; }
+  .s-content { background:${(_E = (_D = content.bg) != null ? _D : c.bg) != null ? _E : "#fff"}; background-size:cover; background-position:center; }
+  .s-content .s-bg-dark, .s-final .s-bg-dark { position:absolute; inset:0; }
   .s-content .hd {
     position:absolute; left:4.45cqw; top:4.45cqw; right:4.45cqw;
     font-family:"${f.title}", Arial Black, sans-serif; font-size:${headerSize}cqw; line-height:1.2; ${up}
@@ -6986,7 +6987,7 @@ function buildCss(tpl, transition = "fade", showProgress = true) {
   .s-photo .bullet .bt { color:${(_Z = photo.textColor) != null ? _Z : c.white}; font-size:${cqw(bodySize * 15)}; line-height:1.25; }
 
   /* ---------- Final ---------- */
-  .s-final { background:${(__ = final.bg) != null ? __ : c.dark}; position:relative; text-align:center; }
+  .s-final { background:${(__ = final.bg) != null ? __ : c.dark}; background-size:cover; background-position:center; position:relative; text-align:center; }
   ${(() => {
     var _a2;
     const blockPos = (_a2 = final.pos) == null ? void 0 : _a2.block;
@@ -7023,7 +7024,7 @@ function buildCss(tpl, transition = "fade", showProgress = true) {
   `;
 }
 function renderSlide(slide, index, total, tpl, images, meta) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
   const c = tpl.colors;
   const f = tpl.fonts;
   const up = f.uppercase ? "uppercase" : "none";
@@ -7071,7 +7072,10 @@ function renderSlide(slide, index, total, tpl, images, meta) {
     }
     case "bullets": {
       const bullets = (slide.bullets || []).map((b) => `<div class="bullet"><span class="mark"></span><span class="bt">${escapeHtml(b)}</span></div>`).join("");
-      return `<div class="slide s-content${illCls}">
+      const bgUri = images[`bg:${index}`];
+      const darken = (_h = meta == null ? void 0 : meta.bgDarken) == null ? void 0 : _h[`bg:${index}`];
+      return `<div class="slide s-content${illCls}" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ""}>
+        ${darken !== void 0 && bgUri ? `<div class="s-bg-dark" style="background:rgba(0,0,0,${darken});"></div>` : ""}
         ${hd}
         <div class="body-bullets">${bullets}</div>
         ${illHtml}
@@ -7083,11 +7087,14 @@ function renderSlide(slide, index, total, tpl, images, meta) {
         var _a2;
         return `<div class="card"><div class="card-t">${escapeHtml(upper(card.title, (_a2 = f.uppercase) != null ? _a2 : true))}</div><div class="card-b">${escapeHtml(card.body)}</div></div>`;
       }).join("");
-      const n = (_i = (_h = slide.cards) == null ? void 0 : _h.length) != null ? _i : 0;
+      const n = (_j = (_i = slide.cards) == null ? void 0 : _i.length) != null ? _j : 0;
       const gridCols = n <= 3 ? Math.max(1, n) : n <= 4 ? 2 : 3;
       const gridRows = Math.max(1, Math.ceil(n / gridCols));
       const gridStyle = `grid-template-columns:repeat(${gridCols},1fr);grid-template-rows:repeat(${gridRows},1fr);`;
-      return `<div class="slide s-content${illCls}">
+      const bgUri = images[`bg:${index}`];
+      const darken = (_k = meta == null ? void 0 : meta.bgDarken) == null ? void 0 : _k[`bg:${index}`];
+      return `<div class="slide s-content${illCls}" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ""}>
+        ${darken !== void 0 && bgUri ? `<div class="s-bg-dark" style="background:rgba(0,0,0,${darken});"></div>` : ""}
         ${hd}
         <div class="cards-grid" style="${gridStyle}">${cards}</div>
         ${illHtml}
@@ -7097,10 +7104,13 @@ function renderSlide(slide, index, total, tpl, images, meta) {
     case "table": {
       const t = slide.table;
       if (!t) return "";
-      const highlightIdx = (_k = (_j = tpl.layouts.table) == null ? void 0 : _j.highlightColumn) != null ? _k : 1;
+      const highlightIdx = (_m = (_l = tpl.layouts.table) == null ? void 0 : _l.highlightColumn) != null ? _m : 1;
       const head = t.headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
       const rows = t.rows.map((row) => `<tr>${row.map((cell, ci) => `<td${ci === highlightIdx ? ' class="hl"' : ""}>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("");
-      return `<div class="slide s-content${illCls}">
+      const bgUri = images[`bg:${index}`];
+      const darken = (_n = meta == null ? void 0 : meta.bgDarken) == null ? void 0 : _n[`bg:${index}`];
+      return `<div class="slide s-content${illCls}" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ""}>
+        ${darken !== void 0 && bgUri ? `<div class="s-bg-dark" style="background:rgba(0,0,0,${darken});"></div>` : ""}
         ${hd}
         <div class="tbl-wrap"><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
         ${illHtml}
@@ -7109,11 +7119,11 @@ function renderSlide(slide, index, total, tpl, images, meta) {
     }
     case "photo": {
       const bgUri = images[`bg:${index}`];
-      const photo = (_l = tpl.layouts.photo) != null ? _l : {};
+      const photo = (_o = tpl.layouts.photo) != null ? _o : {};
       const bullets = (slide.bullets || []).map((b) => `<div class="bullet"><span class="mark"></span><span class="bt">${escapeHtml(b)}</span></div>`).join("");
-      const phead = slide.heading1 || slide.heading2 ? `<div class="p-hd"><span class="l1">${escapeHtml(upper(slide.heading1, (_m = f.uppercase) != null ? _m : true))}</span>${slide.heading2 ? `<br><span class="l2">${escapeHtml(upper(slide.heading2, (_n = f.uppercase) != null ? _n : true))}</span>` : ""}</div>` : "";
-      const photoDarken = (_o = meta == null ? void 0 : meta.bgDarken) == null ? void 0 : _o[`bg:${index}`];
-      const overlayBg = photoDarken !== void 0 ? `rgba(0,0,0,${photoDarken})` : (_p = photo.overlay) != null ? _p : "rgba(16,20,30,.6)";
+      const phead = slide.heading1 || slide.heading2 ? `<div class="p-hd"><span class="l1">${escapeHtml(upper(slide.heading1, (_p = f.uppercase) != null ? _p : true))}</span>${slide.heading2 ? `<br><span class="l2">${escapeHtml(upper(slide.heading2, (_q = f.uppercase) != null ? _q : true))}</span>` : ""}</div>` : "";
+      const photoDarken = (_r = meta == null ? void 0 : meta.bgDarken) == null ? void 0 : _r[`bg:${index}`];
+      const overlayBg = photoDarken !== void 0 ? `rgba(0,0,0,${photoDarken})` : (_s = photo.overlay) != null ? _s : "rgba(16,20,30,.6)";
       const overlayHtml = bgUri ? `<div class="p-overlay" style="background:${overlayBg};"></div>` : "";
       return `<div class="slide s-photo" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ""}>
         ${overlayHtml}
@@ -7125,11 +7135,14 @@ function renderSlide(slide, index, total, tpl, images, meta) {
       </div>`;
     }
     case "final": {
-      const final = (_q = tpl.layouts.final) != null ? _q : {};
-      const slogan = (_r = tpl.layouts.title) == null ? void 0 : _r.slogan;
+      const final = (_t = tpl.layouts.final) != null ? _t : {};
+      const slogan = (_u = tpl.layouts.title) == null ? void 0 : _u.slogan;
       const speakerName = slide.speaker || (meta == null ? void 0 : meta.presenter) || "";
       const qrHtml = (meta == null ? void 0 : meta.qrDataUri) ? `<div class="fin-qr"><img src="${meta.qrDataUri}" alt="QR-\u043A\u043E\u0434 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u0430"></div>` : "";
-      return `<div class="slide s-final">
+      const bgUri = images[`bg:${index}`];
+      const darken = (_v = meta == null ? void 0 : meta.bgDarken) == null ? void 0 : _v[`bg:${index}`];
+      return `<div class="slide s-final" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ""}>
+        ${darken !== void 0 && bgUri ? `<div class="s-bg-dark" style="background:rgba(0,0,0,${darken});"></div>` : ""}
         <div class="fin-block">
           <div class="fin-center">${escapeHtml(upper("\u0421\u043F\u0430\u0441\u0438\u0431\u043E \u0437\u0430 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435", true))}</div>
           <div class="fin-line"></div>
@@ -7187,7 +7200,7 @@ var init_presentation_generator = __esm({
     "use strict";
     import_obsidian17 = require("obsidian");
     PRESENTATION_PICS_DIR = "presentation_pics";
-    PRESENTATION_RENDER_VERSION = 11;
+    PRESENTATION_RENDER_VERSION = 13;
     DECK_SCRIPT = `
 (function(){
   var deck=document.querySelector('.deck');
@@ -73022,8 +73035,8 @@ var ImageUploadModal = class extends import_obsidian18.Modal {
         return sel;
       };
       makeSelect("\u{1F3AC} \u0422\u0438\u0442\u0443\u043B (\u0444\u043E\u043D):", "bg:title");
-      for (let i = 0; i < this.slideCount; i++) {
-        makeSelect(`\u0421\u043B\u0430\u0439\u0434 ${i + 1} (\u0444\u043E\u043D):`, `bg:${i}`);
+      for (let i = 1; i < this.slideCount; i++) {
+        makeSelect(`\u0421\u043B\u0430\u0439\u0434 ${i} (\u0444\u043E\u043D):`, `bg:${i}`);
       }
       const clearBtn = slidesDiv.createEl("button", { text: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0432\u0441\u0435", cls: "mailer-yougile-refresh-btn" });
       clearBtn.style.marginTop = "8px";
@@ -73142,7 +73155,19 @@ var PresentationsView = class extends import_obsidian19.ItemView {
   }
   async onOpen() {
     await this.plugin.presentationTemplates.init();
+    this.markStaleGenerating();
     this.render();
+  }
+  /** Помечает «зависшие» генерации (перезагрузка плагина во время LLM-вызова) как ошибки. */
+  markStaleGenerating() {
+    const cutoff = Date.now() - 10 * 60 * 1e3;
+    for (const item of this.plugin.presentationsDb.getAll()) {
+      if (item.status === "generating" && new Date(item.updatedAt).getTime() < cutoff) {
+        item.status = "error";
+        item.error = "\u0413\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F \u043F\u0440\u0435\u0440\u0432\u0430\u043D\u0430 (\u043F\u0435\u0440\u0435\u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430). \u041F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u0435 \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044E.";
+        void this.plugin.presentationsDb.update(item.id, { status: "error", error: item.error });
+      }
+    }
   }
   onClose() {
     this.containerEl.empty();
@@ -73240,7 +73265,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     }, draft.questionaire).open();
   }
   renderItem(container, item) {
-    var _a;
+    var _a, _b, _c;
     const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId);
     const row = container.createDiv();
     row.style.cssText = "border:1px solid var(--background-modifier-border);border-radius:6px;padding:8px 10px;margin-bottom:8px;";
@@ -73252,7 +73277,6 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     const meta = row.createDiv();
     meta.style.cssText = "font-size:11px;color:var(--text-muted);margin:4px 0;";
     const created = new Date(item.createdAt).toLocaleDateString("ru-RU");
-    meta.setText(`\u0421\u043E\u0437\u0434\u0430\u043D\u043E: ${created} \xB7 \u0421\u043B\u0430\u0439\u0434\u043E\u0432: ${item.generation.slides.length} \xB7 \u0428\u0430\u0431\u043B\u043E\u043D: ${(_a = tpl == null ? void 0 : tpl.name) != null ? _a : item.templateId} \xB7 \u041A\u0430\u0440\u0442\u0438\u043D\u043E\u043A: ${Object.keys(item.images).length}`);
     const actions = row.createDiv();
     actions.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
     const btn = (text, fn) => {
@@ -73261,6 +73285,25 @@ var PresentationsView = class extends import_obsidian19.ItemView {
       b.addEventListener("click", fn);
       return b;
     };
+    if (item.status === "generating") {
+      const statusEl = row.createDiv();
+      statusEl.style.cssText = "display:flex;align-items:center;font-size:12px;color:var(--text-muted);margin:4px 0;";
+      statusEl.createDiv({ cls: "mailer-blink" });
+      statusEl.createSpan({ text: "\u0413\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F\u2026 \u044D\u0442\u043E \u0437\u0430\u0439\u043C\u0451\u0442 1\u20133 \u043C\u0438\u043D\u0443\u0442\u044B" });
+      meta.setText(`\u0421\u043E\u0437\u0434\u0430\u043D\u043E: ${created} \xB7 \u0428\u0430\u0431\u043B\u043E\u043D: ${(_a = tpl == null ? void 0 : tpl.name) != null ? _a : item.templateId}`);
+      btn("\u{1F5D1} \u0423\u0434\u0430\u043B\u0438\u0442\u044C", () => this.deleteItem(item));
+      return;
+    }
+    if (item.status === "error") {
+      const errEl = row.createDiv();
+      errEl.style.cssText = "font-size:12px;color:var(--text-error);margin:4px 0;";
+      errEl.setText(`\u274C ${item.error || "\u041E\u0448\u0438\u0431\u043A\u0430 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438"}`);
+      meta.setText(`\u0421\u043E\u0437\u0434\u0430\u043D\u043E: ${created} \xB7 \u0428\u0430\u0431\u043B\u043E\u043D: ${(_b = tpl == null ? void 0 : tpl.name) != null ? _b : item.templateId}`);
+      btn("\u{1F501} \u041F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C", () => this.regenerate(item));
+      btn("\u{1F5D1} \u0423\u0434\u0430\u043B\u0438\u0442\u044C", () => this.deleteItem(item));
+      return;
+    }
+    meta.setText(`\u0421\u043E\u0437\u0434\u0430\u043D\u043E: ${created} \xB7 \u0421\u043B\u0430\u0439\u0434\u043E\u0432: ${item.generation.slides.length} \xB7 \u0428\u0430\u0431\u043B\u043E\u043D: ${(_c = tpl == null ? void 0 : tpl.name) != null ? _c : item.templateId} \xB7 \u041A\u0430\u0440\u0442\u0438\u043D\u043E\u043A: ${Object.keys(item.images).length}`);
     btn("\u{1F441} \u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440", () => this.preview(item));
     btn("\u{1F5A8} PDF", () => this.preview(item, true));
     btn("\u{1F4F7} \u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F", () => this.openImages(item));
@@ -73376,29 +73419,45 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     }).open();
   }
   async doGenerate(q, designRules, draftId) {
+    new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
+    const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
+    const item = {
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      title: q.topic,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      templateId: q.templateId,
+      questionaire: q,
+      generation: { title: q.topic, slides: [] },
+      images: {},
+      renderVersion: PRESENTATION_RENDER_VERSION,
+      templateVersion: this.plugin.presentationTemplates.getTemplateVersion(q.templateId),
+      status: "generating"
+    };
+    await this.plugin.presentationsDb.add(item);
+    this.render();
     try {
-      new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
-      const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
       const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
-      const item = {
-        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-        title: q.topic,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        templateId: q.templateId,
-        questionaire: q,
-        generation,
-        images: {},
-        renderVersion: PRESENTATION_RENDER_VERSION,
-        templateVersion: this.plugin.presentationTemplates.getTemplateVersion(q.templateId)
-      };
+      item.generation = generation;
+      item.status = void 0;
+      item.error = void 0;
       item.html = await this.generateHtml(item);
-      await this.plugin.presentationsDb.add(item);
+      await this.plugin.presentationsDb.update(item.id, {
+        generation,
+        status: void 0,
+        error: void 0,
+        html: item.html,
+        renderVersion: item.renderVersion,
+        templateVersion: item.templateVersion
+      });
       if (draftId) await this.plugin.presentationsDb.deleteDraft(draftId);
       new import_obsidian19.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \xAB${item.title}\xBB \u0441\u043E\u0437\u0434\u0430\u043D\u0430 (${generation.slides.length} \u0441\u043B\u0430\u0439\u0434\u043E\u0432)`);
       this.render();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      item.status = "error";
+      item.error = msg;
+      await this.plugin.presentationsDb.update(item.id, { status: "error", error: msg });
       new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438: ${msg}. \u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u2014 \u043C\u043E\u0436\u043D\u043E \u043F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C \u0431\u0435\u0437 \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0433\u043E \u0432\u0432\u043E\u0434\u0430.`);
       if (draftId) {
         const draft = this.plugin.presentationsDb.getDraftById(draftId);
@@ -73417,11 +73476,16 @@ var PresentationsView = class extends import_obsidian19.ItemView {
         new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
         const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
         const designRules = await this.plugin.presentationTemplates.readDesignRules();
+        item.status = "generating";
+        item.error = void 0;
+        await this.plugin.presentationsDb.update(item.id, { status: "generating", error: void 0 });
+        this.render();
         const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
         item.title = q.topic;
         item.templateId = q.templateId;
         item.questionaire = q;
         item.generation = generation;
+        item.status = void 0;
         item.renderVersion = PRESENTATION_RENDER_VERSION;
         item.templateVersion = this.plugin.presentationTemplates.getTemplateVersion(q.templateId);
         item.html = await this.generateHtml(item);
@@ -73430,6 +73494,8 @@ var PresentationsView = class extends import_obsidian19.ItemView {
           templateId: item.templateId,
           questionaire: q,
           generation,
+          status: void 0,
+          error: void 0,
           html: item.html,
           renderVersion: item.renderVersion,
           templateVersion: item.templateVersion
@@ -73437,7 +73503,12 @@ var PresentationsView = class extends import_obsidian19.ItemView {
         new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E");
         this.render();
       } catch (e) {
-        new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438: ${e instanceof Error ? e.message : String(e)}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        item.status = "error";
+        item.error = msg;
+        await this.plugin.presentationsDb.update(item.id, { status: "error", error: msg });
+        new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438: ${msg}`);
+        this.render();
       }
     }, item.questionaire).open();
   }
@@ -75046,6 +75117,11 @@ var PresentationTemplatesService = class {
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.8.3": [
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0444\u043E\u043D\u043E\u0432\u044B\u0435 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F \u043A\u043E \u0432\u0441\u0435\u043C \u0442\u0438\u043F\u0430\u043C \u0441\u043B\u0430\u0439\u0434\u043E\u0432 \u2014 \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u043D\u044B\u043C (bullets/cards/table) \u0438 \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u043E\u043C\u0443, \u0430 \u043D\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043A \u0442\u0438\u0442\u0443\u043B\u044C\u043D\u043E\u043C\u0443",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \xAB\u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F\xBB \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u043D\u0443\u043C\u0435\u0440\u0430\u0446\u0438\u044F \u0438 \u0434\u043E\u0441\u0442\u0443\u043F\u0435\u043D \u0432\u044B\u0431\u043E\u0440 \u0444\u043E\u043D\u0430 \u0434\u043B\u044F \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u043E\u0433\u043E \u0441\u043B\u0430\u0439\u0434\u0430",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0438\u043D\u0434\u0438\u043A\u0430\u0442\u043E\u0440 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438 \u2014 \u043D\u043E\u0432\u0430\u044F \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u044F \u0441\u0440\u0430\u0437\u0443 \u043F\u043E\u044F\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0432 \u0441\u043F\u0438\u0441\u043A\u0435 \u0441 \u043C\u0438\u0433\u0430\u044E\u0449\u0438\u043C \u043C\u0430\u0440\u043A\u0435\u0440\u043E\u043C \xAB\u0413\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F\u2026\xBB, \u043F\u043E \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0438 \u043F\u0440\u0435\u0432\u0440\u0430\u0449\u0430\u0435\u0442\u0441\u044F \u0432 \u0433\u043E\u0442\u043E\u0432\u0443\u044E, \u043F\u0440\u0438 \u043E\u0448\u0438\u0431\u043A\u0435 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0441\u0442\u0430\u0442\u0443\u0441 \u0441 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438"
+  ],
   "0.8.2": [
     "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0430\u043D\u0435\u043B\u044C \u0443\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F \u0441\u043A\u0440\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0432 \u043F\u043E\u043B\u043D\u043E\u044D\u043A\u0440\u0430\u043D\u043D\u043E\u043C \u0440\u0435\u0436\u0438\u043C\u0435 (\u26F6 \u042D\u043A\u0440\u0430\u043D / F)",
     "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u0435 \u0441\u043B\u0430\u0439\u0434\u043E\u0432 \u043B\u0435\u0432\u043E\u0439/\u043F\u0440\u0430\u0432\u043E\u0439 \u043A\u043D\u043E\u043F\u043A\u043E\u0439 \u043C\u044B\u0448\u0438 (\u043B\u0435\u0432\u0430\u044F \u2014 \u0432\u043F\u0435\u0440\u0451\u0434, \u043F\u0440\u0430\u0432\u0430\u044F \u2014 \u043D\u0430\u0437\u0430\u0434)",

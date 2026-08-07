@@ -88,7 +88,7 @@ export const PRESENTATION_PICS_DIR = 'presentation_pics';
 
 /** Версия HTML-рендера. Увеличивается при изменениях разметки/CSS/скрипта презентации,
  *  чтобы существующие презентации пересобирали свой html автоматически. */
-export const PRESENTATION_RENDER_VERSION = 11;
+export const PRESENTATION_RENDER_VERSION = 13;
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -307,7 +307,8 @@ function buildCss(tpl: PresentationTemplate, transition: 'fade' | 'slide' | 'non
   .s-section .sub { color:${section.textColor ?? c.dark}; font-size:${cqw(14)}; line-height:1.35; }
 
   /* ---------- Content (bullets / cards / table) ---------- */
-  .s-content { background:${content.bg ?? c.bg ?? '#fff'}; }
+  .s-content { background:${content.bg ?? c.bg ?? '#fff'}; background-size:cover; background-position:center; }
+  .s-content .s-bg-dark, .s-final .s-bg-dark { position:absolute; inset:0; }
   .s-content .hd {
     position:absolute; left:4.45cqw; top:4.45cqw; right:4.45cqw;
     font-family:"${f.title}", Arial Black, sans-serif; font-size:${headerSize}cqw; line-height:1.2; ${up}
@@ -372,7 +373,7 @@ function buildCss(tpl: PresentationTemplate, transition: 'fade' | 'slide' | 'non
   .s-photo .bullet .bt { color:${photo.textColor ?? c.white}; font-size:${cqw(bodySize * 15)}; line-height:1.25; }
 
   /* ---------- Final ---------- */
-  .s-final { background:${final.bg ?? c.dark}; position:relative; text-align:center; }
+  .s-final { background:${final.bg ?? c.dark}; background-size:cover; background-position:center; position:relative; text-align:center; }
   ${(() => {
     const blockPos = final.pos?.block;
     const blockCss = blockPos
@@ -490,7 +491,10 @@ function renderSlide(
     case 'bullets': {
       const bullets = (slide.bullets || []).map(b =>
         `<div class="bullet"><span class="mark"></span><span class="bt">${escapeHtml(b)}</span></div>`).join('');
-      return `<div class="slide s-content${illCls}">
+      const bgUri = images[`bg:${index}`];
+      const darken = meta?.bgDarken?.[`bg:${index}`];
+      return `<div class="slide s-content${illCls}" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ''}>
+        ${darken !== undefined && bgUri ? `<div class="s-bg-dark" style="background:rgba(0,0,0,${darken});"></div>` : ''}
         ${hd}
         <div class="body-bullets">${bullets}</div>
         ${illHtml}
@@ -504,7 +508,10 @@ function renderSlide(
       const gridCols = n <= 3 ? Math.max(1, n) : (n <= 4 ? 2 : 3);
       const gridRows = Math.max(1, Math.ceil(n / gridCols));
       const gridStyle = `grid-template-columns:repeat(${gridCols},1fr);grid-template-rows:repeat(${gridRows},1fr);`;
-      return `<div class="slide s-content${illCls}">
+      const bgUri = images[`bg:${index}`];
+      const darken = meta?.bgDarken?.[`bg:${index}`];
+      return `<div class="slide s-content${illCls}" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ''}>
+        ${darken !== undefined && bgUri ? `<div class="s-bg-dark" style="background:rgba(0,0,0,${darken});"></div>` : ''}
         ${hd}
         <div class="cards-grid" style="${gridStyle}">${cards}</div>
         ${illHtml}
@@ -518,7 +525,10 @@ function renderSlide(
       const head = t.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
       const rows = t.rows.map(row =>
         `<tr>${row.map((cell, ci) => `<td${ci === highlightIdx ? ' class="hl"' : ''}>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('');
-      return `<div class="slide s-content${illCls}">
+      const bgUri = images[`bg:${index}`];
+      const darken = meta?.bgDarken?.[`bg:${index}`];
+      return `<div class="slide s-content${illCls}" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ''}>
+        ${darken !== undefined && bgUri ? `<div class="s-bg-dark" style="background:rgba(0,0,0,${darken});"></div>` : ''}
         ${hd}
         <div class="tbl-wrap"><table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>
         ${illHtml}
@@ -552,7 +562,10 @@ function renderSlide(
       const qrHtml = meta?.qrDataUri
         ? `<div class="fin-qr"><img src="${meta.qrDataUri}" alt="QR-код контакта"></div>`
         : '';
-      return `<div class="slide s-final">
+      const bgUri = images[`bg:${index}`];
+      const darken = meta?.bgDarken?.[`bg:${index}`];
+      return `<div class="slide s-final" ${bgUri ? `style="${bgImageStyle(bgUri)}"` : ''}>
+        ${darken !== undefined && bgUri ? `<div class="s-bg-dark" style="background:rgba(0,0,0,${darken});"></div>` : ''}
         <div class="fin-block">
           <div class="fin-center">${escapeHtml(upper('Спасибо за внимание', true))}</div>
           <div class="fin-line"></div>

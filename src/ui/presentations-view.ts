@@ -39,7 +39,20 @@ export class PresentationsView extends ItemView {
 
   async onOpen(): Promise<void> {
     await this.plugin.presentationTemplates.init();
+    this.markStaleGenerating();
     this.render();
+  }
+
+  /** Помечает «зависшие» генерации (перезагрузка плагина во время LLM-вызова) как ошибки. */
+  private markStaleGenerating(): void {
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    for (const item of this.plugin.presentationsDb.getAll()) {
+      if (item.status === 'generating' && new Date(item.updatedAt).getTime() < cutoff) {
+        item.status = 'error';
+        item.error = 'Генерация прервана (перезагрузка). Повторите перегенерацию.';
+        void this.plugin.presentationsDb.update(item.id, { status: 'error', error: item.error });
+      }
+    }
   }
 
   onClose(): Promise<void> {
@@ -160,7 +173,6 @@ export class PresentationsView extends ItemView {
     const meta = row.createDiv();
     meta.style.cssText = 'font-size:11px;color:var(--text-muted);margin:4px 0;';
     const created = new Date(item.createdAt).toLocaleDateString('ru-RU');
-    meta.setText(`Создано: ${created} · Слайдов: ${item.generation.slides.length} · Шаблон: ${tpl?.name ?? item.templateId} · Картинок: ${Object.keys(item.images).length}`);
 
     const actions = row.createDiv();
     actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
@@ -170,6 +182,28 @@ export class PresentationsView extends ItemView {
       b.addEventListener('click', fn);
       return b;
     };
+
+    if (item.status === 'generating') {
+      const statusEl = row.createDiv();
+      statusEl.style.cssText = 'display:flex;align-items:center;font-size:12px;color:var(--text-muted);margin:4px 0;';
+      statusEl.createDiv({ cls: 'mailer-blink' });
+      statusEl.createSpan({ text: 'Генерация… это займёт 1–3 минуты' });
+      meta.setText(`Создано: ${created} · Шаблон: ${tpl?.name ?? item.templateId}`);
+      btn('🗑 Удалить', () => this.deleteItem(item));
+      return;
+    }
+
+    if (item.status === 'error') {
+      const errEl = row.createDiv();
+      errEl.style.cssText = 'font-size:12px;color:var(--text-error);margin:4px 0;';
+      errEl.setText(`❌ ${item.error || 'Ошибка генерации'}`);
+      meta.setText(`Создано: ${created} · Шаблон: ${tpl?.name ?? item.templateId}`);
+      btn('🔁 Перегенерировать', () => this.regenerate(item));
+      btn('🗑 Удалить', () => this.deleteItem(item));
+      return;
+    }
+
+    meta.setText(`Создано: ${created} · Слайдов: ${item.generation.slides.length} · Шаблон: ${tpl?.name ?? item.templateId} · Картинок: ${Object.keys(item.images).length}`);
     btn('👁 Предпросмотр', () => this.preview(item));
     btn('🖨 PDF', () => this.preview(item, true));
     btn('📷 Изображения', () => this.openImages(item));
@@ -290,30 +324,47 @@ export class PresentationsView extends ItemView {
   }
 
   private async doGenerate(q: PresentationQuestionaire, designRules: string, draftId?: string): Promise<void> {
+    new Notice('Презентации: генерация...');
+    const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId)
+      || this.plugin.presentationTemplates.getTemplate('technonicol')!;
+    const item: PresentationItem = {
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      title: q.topic,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      templateId: q.templateId,
+      questionaire: q,
+      generation: { title: q.topic, slides: [] },
+      images: {},
+      renderVersion: PRESENTATION_RENDER_VERSION,
+      templateVersion: this.plugin.presentationTemplates.getTemplateVersion(q.templateId),
+      status: 'generating',
+    };
+    await this.plugin.presentationsDb.add(item);
+    this.render();
+
     try {
-      new Notice('Презентации: генерация...');
-      const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId)
-        || this.plugin.presentationTemplates.getTemplate('technonicol')!;
       const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
-      const item: PresentationItem = {
-        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-        title: q.topic,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        templateId: q.templateId,
-        questionaire: q,
-        generation,
-        images: {},
-        renderVersion: PRESENTATION_RENDER_VERSION,
-        templateVersion: this.plugin.presentationTemplates.getTemplateVersion(q.templateId),
-      };
+      item.generation = generation;
+      item.status = undefined;
+      item.error = undefined;
       item.html = await this.generateHtml(item);
-      await this.plugin.presentationsDb.add(item);
+      await this.plugin.presentationsDb.update(item.id, {
+        generation,
+        status: undefined,
+        error: undefined,
+        html: item.html,
+        renderVersion: item.renderVersion,
+        templateVersion: item.templateVersion,
+      });
       if (draftId) await this.plugin.presentationsDb.deleteDraft(draftId);
       new Notice(`Презентации: «${item.title}» создана (${generation.slides.length} слайдов)`);
       this.render();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      item.status = 'error';
+      item.error = msg;
+      await this.plugin.presentationsDb.update(item.id, { status: 'error', error: msg });
       new Notice(`Ошибка генерации: ${msg}. Черновик сохранён — можно повторить без повторного ввода.`);
       if (draftId) {
         const draft = this.plugin.presentationsDb.getDraftById(draftId);
@@ -334,22 +385,33 @@ export class PresentationsView extends ItemView {
         const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId)
           || this.plugin.presentationTemplates.getTemplate('technonicol')!;
         const designRules = await this.plugin.presentationTemplates.readDesignRules();
+        item.status = 'generating';
+        item.error = undefined;
+        await this.plugin.presentationsDb.update(item.id, { status: 'generating', error: undefined });
+        this.render();
         const generation = await this.plugin.llmService.generateSlides(q, designRules, tpl.name);
         item.title = q.topic;
         item.templateId = q.templateId;
         item.questionaire = q;
         item.generation = generation;
+        item.status = undefined;
         item.renderVersion = PRESENTATION_RENDER_VERSION;
         item.templateVersion = this.plugin.presentationTemplates.getTemplateVersion(q.templateId);
         item.html = await this.generateHtml(item);
         await this.plugin.presentationsDb.update(item.id, {
           title: item.title, templateId: item.templateId, questionaire: q, generation,
+          status: undefined, error: undefined,
           html: item.html, renderVersion: item.renderVersion, templateVersion: item.templateVersion,
         });
         new Notice('Презентации: перегенерировано');
         this.render();
       } catch (e) {
-        new Notice(`Ошибка перегенерации: ${e instanceof Error ? e.message : String(e)}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        item.status = 'error';
+        item.error = msg;
+        await this.plugin.presentationsDb.update(item.id, { status: 'error', error: msg });
+        new Notice(`Ошибка перегенерации: ${msg}`);
+        this.render();
       }
     }, item.questionaire).open();
   }
