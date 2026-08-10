@@ -2,7 +2,7 @@ import type { LpiItem } from '../types/lpi';
 import ApexCharts from 'apexcharts';
 import type { LpiView } from './lpi-view';
 import { ProductFilterModal, MethodFilterModal } from './lpi-modals';
-import { isCompleted, getMethodDisplayName } from './lpi-utils';
+import { isCompleted, getMethodDisplayName, toMonthKey } from './lpi-utils';
 
 export class LpiDashboard {
   private view: LpiView;
@@ -251,8 +251,8 @@ export class LpiDashboard {
   private buildCompletedMonthlySeries(items: LpiItem[]): Record<string, unknown> {
     const months: Record<string, number> = {};
     for (const item of items) {
-      if (!item.protocol_date) continue;
-      const month = item.protocol_date.substring(0, 7);
+      const month = toMonthKey(item.protocol_date);
+      if (!month) continue;
       months[month] = (months[month] || 0) + 1;
     }
     const sorted = Object.entries(months).sort((a, b) => a[0].localeCompare(b[0]));

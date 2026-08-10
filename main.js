@@ -70604,6 +70604,15 @@ function getProtocolDate(item) {
   if (isCompleted(item)) return item.protocol_date || "";
   return "\u2014";
 }
+function toMonthKey(dateStr) {
+  if (!dateStr) return "";
+  const s = dateStr.trim();
+  if (!s) return "";
+  if (/^\d{4}-\d{2}/.test(s)) return s.substring(0, 7);
+  const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}`;
+  return "";
+}
 
 // src/ui/lpi-sync.ts
 var DB_PATH = "yourbase/lpi_data.json";
@@ -71676,8 +71685,8 @@ var LpiDashboard = class {
   buildCompletedMonthlySeries(items) {
     const months = {};
     for (const item of items) {
-      if (!item.protocol_date) continue;
-      const month = item.protocol_date.substring(0, 7);
+      const month = toMonthKey(item.protocol_date);
+      if (!month) continue;
       months[month] = (months[month] || 0) + 1;
     }
     const sorted = Object.entries(months).sort((a, b) => a[0].localeCompare(b[0]));
@@ -75187,6 +75196,9 @@ var PresentationTemplatesService = class {
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.8.6": [
+    "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0433\u0440\u0443\u043F\u043F\u0438\u0440\u043E\u0432\u043A\u0430 \u0433\u0440\u0430\u0444\u0438\u043A\u0430 \xAB\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0435 \u0437\u0430\u044F\u0432\u043E\u043A \u043F\u043E \u043C\u0435\u0441\u044F\u0446\u0430\u043C\xBB \u2014 \u0434\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430 \u0442\u0435\u043F\u0435\u0440\u044C \u043D\u043E\u0440\u043C\u0430\u043B\u0438\u0437\u0443\u0435\u0442\u0441\u044F \u0432 \u043C\u0435\u0441\u044F\u0446 (YYYY-MM) \u043D\u0435\u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E \u043E\u0442 \u0444\u043E\u0440\u043C\u0430\u0442\u0430 (ISO \u0438\u043B\u0438 \u0414\u0414.\u041C\u041C.\u0413\u0413\u0413\u0413), \u0432\u043C\u0435\u0441\u0442\u043E \u043E\u0448\u0438\u0431\u043E\u0447\u043D\u043E\u0439 \u0433\u0440\u0443\u043F\u043F\u0438\u0440\u043E\u0432\u043A\u0438 \u043F\u043E \u0434\u043D\u044F\u043C"
+  ],
   "0.8.5": [
     "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438: \u043F\u043E\u0434\u0434\u0435\u0440\u0436\u043A\u0430 \u0434\u043E 5 \u043C\u043E\u0434\u0435\u043B\u0435\u0439 LLM \u0441 \u043E\u0434\u043D\u0438\u043C API-\u043A\u043B\u044E\u0447\u043E\u043C \u0438 URL (\u0441\u043F\u0438\u0441\u043E\u043A \u043C\u043E\u0434\u0435\u043B\u0435\u0439 + \u043C\u043E\u0434\u0435\u043B\u044C \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E)",
     "\u041F\u0438\u0441\u044C\u043C\u0430: \u0441\u0435\u043B\u0435\u043A\u0442\u043E\u0440 \u0432\u044B\u0431\u043E\u0440\u0430 \u043C\u043E\u0434\u0435\u043B\u0438 LLM \u0432 \u0447\u0430\u0442\u0435 \u0441 AI \u043F\u043E\u043C\u043E\u0449\u043D\u0438\u043A\u043E\u043C",
