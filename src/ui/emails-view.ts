@@ -44,7 +44,7 @@ export class EmailsView extends ItemView {
     container.addClass('mailer-yougile-container');
     this.containerElContent = container.createDiv();
     this.selectedColumnIds = new Set(this.plugin.settings.emailSelectedColumnIds.split(',').filter(Boolean));
-    this.renderView();
+    await this.syncAndRender();
   }
 
   private getAssignedUserId(): string[] {
@@ -813,9 +813,13 @@ export class EmailsView extends ItemView {
       this.containerElContent.createDiv({ text: 'Настройте API ключ в настройках плагина', cls: 'mailer-yougile-empty' });
       return;
     }
-    await this.plugin.db.sync();
-    this.plugin.emailDb.syncFromTasks(this.plugin.db.getTasks());
-    await this.plugin.emailDb.init();
+    try {
+      await this.plugin.db.sync();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      new Notice(`YouGile: Ошибка синхронизации — ${msg}`);
+    }
+    await this.plugin.emailDb.syncFromTasks(this.plugin.db.getTasks());
     this.renderView();
   }
 }

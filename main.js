@@ -29802,7 +29802,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
     container.addClass("mailer-yougile-container");
     this.containerElContent = container.createDiv();
     this.selectedColumnIds = new Set(this.plugin.settings.emailSelectedColumnIds.split(",").filter(Boolean));
-    this.renderView();
+    await this.syncAndRender();
   }
   getAssignedUserId() {
     const login = this.plugin.settings.login;
@@ -30486,9 +30486,13 @@ var EmailsView = class extends import_obsidian7.ItemView {
       this.containerElContent.createDiv({ text: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430", cls: "mailer-yougile-empty" });
       return;
     }
-    await this.plugin.db.sync();
-    this.plugin.emailDb.syncFromTasks(this.plugin.db.getTasks());
-    await this.plugin.emailDb.init();
+    try {
+      await this.plugin.db.sync();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      new import_obsidian7.Notice(`YouGile: \u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u2014 ${msg}`);
+    }
+    await this.plugin.emailDb.syncFromTasks(this.plugin.db.getTasks());
     this.renderView();
   }
 };
@@ -70170,7 +70174,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
       const msg = e instanceof Error ? e.message : String(e);
       new import_obsidian10.Notice(`YouGile: \u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u2014 ${msg}`);
     }
-    this.plugin.contactDb.syncFromTasks(this.plugin.db.getTasks());
+    await this.plugin.contactDb.syncFromTasks(this.plugin.db.getTasks());
     this.selectedColumnIds = new Set(this.plugin.settings.contactSelectedColumnIds.split(",").filter(Boolean));
     this.renderView();
   }
@@ -74242,7 +74246,7 @@ var EmailDatabase = class {
     }
     this.save();
   }
-  syncFromTasks(tasks) {
+  async syncFromTasks(tasks) {
     var _a, _b, _c, _d, _e;
     let changed = false;
     let syncedCount = 0;
@@ -74303,7 +74307,7 @@ var EmailDatabase = class {
       }
     }
     if (changed) {
-      this.save();
+      await this.save();
       this.logSync(syncedCount);
     }
   }
@@ -74384,7 +74388,7 @@ var ContactDatabase = class {
     this.data.contacts = this.data.contacts.filter((c) => c.id !== id);
     this.save();
   }
-  syncFromTasks(tasks) {
+  async syncFromTasks(tasks) {
     const contactTasks = tasks.filter((t) => {
       try {
         const desc = JSON.parse(t.description || "{}");
@@ -74430,7 +74434,7 @@ var ContactDatabase = class {
       } catch (e) {
       }
     }
-    this.save();
+    await this.save();
     if (contactTasks.length > 0) {
       this.logSync(addedCount, updatedCount);
     }
@@ -75196,6 +75200,11 @@ var PresentationTemplatesService = class {
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.8.7": [
+    "\u041F\u0438\u0441\u044C\u043C\u0430: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile \u2014 \u0438\u0437 syncAndRender \u0443\u0431\u0440\u0430\u043D \u0432\u044B\u0437\u043E\u0432 emailDb.init() \u043F\u043E\u0441\u043B\u0435 syncFromTasks, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u043F\u0435\u0440\u0435\u0447\u0438\u0442\u044B\u0432\u0430\u043B mailer_data.json \u0441 \u0434\u0438\u0441\u043A\u0430 \u0438 \u0437\u0430\u0442\u0438\u0440\u0430\u043B \u0442\u043E\u043B\u044C\u043A\u043E \u0447\u0442\u043E \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 (save() \u043D\u0435 \u0434\u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u2014 \u0433\u043E\u043D\u043A\u0430). syncFromTasks \u0441\u0442\u0430\u043B async \u0438 \u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E \u0441\u043E\u0445\u0440\u0430\u043D\u044F\u0435\u0442 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442",
+    "\u041F\u0438\u0441\u044C\u043C\u0430: \u0432\u044C\u044E\u0445\u0430 \u0442\u0435\u043F\u0435\u0440\u044C \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u043F\u0440\u0438 \u043E\u0442\u043A\u0440\u044B\u0442\u0438\u0438 (onOpen), \u0430 \u043D\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \u043A\u043D\u043E\u043F\u043A\u0435 \xAB\u{1F504}\xBB; \u043E\u0448\u0438\u0431\u043A\u0438 db.sync() \u043F\u0435\u0440\u0435\u0445\u0432\u0430\u0442\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u0441 \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435\u043C, \u0430 \u043D\u0435 \u043C\u043E\u043B\u0447\u0430 \u043E\u0431\u0440\u044B\u0432\u0430\u044E\u0442 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0435 \u0441\u043F\u0438\u0441\u043A\u0430",
+    "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B: syncFromTasks \u0434\u043E\u0436\u0438\u0434\u0430\u0435\u0442\u0441\u044F \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u0432 contacts_data.json, \u0447\u0442\u043E\u0431\u044B \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u043D\u0435 \u0442\u0435\u0440\u044F\u043B\u0441\u044F"
+  ],
   "0.8.6": [
     "LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0433\u0440\u0443\u043F\u043F\u0438\u0440\u043E\u0432\u043A\u0430 \u0433\u0440\u0430\u0444\u0438\u043A\u0430 \xAB\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0438\u0435 \u0437\u0430\u044F\u0432\u043E\u043A \u043F\u043E \u043C\u0435\u0441\u044F\u0446\u0430\u043C\xBB \u2014 \u0434\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430 \u0442\u0435\u043F\u0435\u0440\u044C \u043D\u043E\u0440\u043C\u0430\u043B\u0438\u0437\u0443\u0435\u0442\u0441\u044F \u0432 \u043C\u0435\u0441\u044F\u0446 (YYYY-MM) \u043D\u0435\u0437\u0430\u0432\u0438\u0441\u0438\u043C\u043E \u043E\u0442 \u0444\u043E\u0440\u043C\u0430\u0442\u0430 (ISO \u0438\u043B\u0438 \u0414\u0414.\u041C\u041C.\u0413\u0413\u0413\u0413), \u0432\u043C\u0435\u0441\u0442\u043E \u043E\u0448\u0438\u0431\u043E\u0447\u043D\u043E\u0439 \u0433\u0440\u0443\u043F\u043F\u0438\u0440\u043E\u0432\u043A\u0438 \u043F\u043E \u0434\u043D\u044F\u043C"
   ],

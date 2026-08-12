@@ -91,7 +91,7 @@ export class EmailDatabase {
     this.save();
   }
 
-  syncFromTasks(tasks: CachedTask[]): void {
+  async syncFromTasks(tasks: CachedTask[]): Promise<void> {
     let changed = false;
     let syncedCount = 0;
     for (const task of tasks) {
@@ -156,7 +156,7 @@ export class EmailDatabase {
       }
     }
     if (changed) {
-      this.save();
+      await this.save();
       this.logSync(syncedCount);
     }
   }

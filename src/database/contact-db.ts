@@ -62,7 +62,7 @@ export class ContactDatabase {
     this.save();
   }
 
-  syncFromTasks(tasks: CachedTask[]): void {
+  async syncFromTasks(tasks: CachedTask[]): Promise<void> {
     const contactTasks = tasks.filter(t => {
       try {
         const desc = JSON.parse(t.description || '{}');
@@ -109,7 +109,7 @@ export class ContactDatabase {
         // skip invalid
       }
     }
-    this.save();
+    await this.save();
     if (contactTasks.length > 0) {
       this.logSync(addedCount, updatedCount);
     }

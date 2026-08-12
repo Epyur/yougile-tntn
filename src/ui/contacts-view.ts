@@ -486,7 +486,7 @@ export class ContactsView extends ItemView {
       const msg = e instanceof Error ? e.message : String(e);
       new Notice(`YouGile: Ошибка синхронизации — ${msg}`);
     }
-    this.plugin.contactDb.syncFromTasks(this.plugin.db.getTasks());
+    await this.plugin.contactDb.syncFromTasks(this.plugin.db.getTasks());
     this.selectedColumnIds = new Set(this.plugin.settings.contactSelectedColumnIds.split(',').filter(Boolean));
     this.renderView();
   }
