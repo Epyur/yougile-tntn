@@ -1,8 +1,9 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { PresentationDraft, PresentationItem, PresentationQuestionaire } from '../types/presentations';
-import { renderPresentationHtml, resolveImageDataUri, PRESENTATION_RENDER_VERSION } from '../services/presentation-generator';
+import { buildPresentationHtml, PRESENTATION_RENDER_VERSION } from '../services/presentation-generator';
 import { QuestionnaireModal, BrainstormModal, PresentationPreviewModal, NewTemplateModal, ImageUploadModal, TaskPickModal, ShowSettingsModal, SlideTransition } from './presentation-modals';
+import { PresentationEditorModal } from './presentation-editor';
 
 export const PRESENTATIONS_VIEW_TYPE = 'yougile-presentations';
 
@@ -218,6 +219,7 @@ export class PresentationsView extends ItemView {
 
     meta.setText(`Создано: ${created} · Слайдов: ${item.generation.slides.length} · Шаблон: ${tpl?.name ?? item.templateId} · Картинок: ${Object.keys(item.images).length}`);
     btn('👁 Предпросмотр', () => this.preview(item));
+    btn('✏️ Содержание', () => this.openEditor(item));
     btn('🖨 PDF', () => this.preview(item, true));
     btn('📷 Изображения', () => this.openImages(item));
     btn('⚙ Показ', () => this.showSettings(item));
@@ -227,46 +229,14 @@ export class PresentationsView extends ItemView {
     btn('🗑 Удалить', () => this.deleteItem(item));
   }
 
+  private openEditor(item: PresentationItem): void {
+    new PresentationEditorModal(this.plugin, item, () => this.render()).open();
+  }
+
   private async generateHtml(item: PresentationItem): Promise<string> {
     const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId)
       || this.plugin.presentationTemplates.getTemplate('technonicol')!;
-    const q = item.questionaire;
-    const illustrations: Record<string, string> = {};
-    for (const ill of q?.illustrations || []) {
-      if (ill.uri) {
-        const resolved = await resolveImageDataUri(this.plugin.app, ill.uri);
-        if (resolved) illustrations[ill.path] = resolved;
-      }
-    }
-    const images: Record<string, string> = {};
-    for (const [key, ref] of Object.entries(item.images)) {
-      const resolved = await resolveImageDataUri(this.plugin.app, ref);
-      if (resolved) images[key] = resolved;
-    }
-    let qrDataUri: string | undefined;
-    const vcard = this.buildVCard(q);
-    if (vcard) {
-      try {
-        const QRCode = (await import('qrcode')).default;
-        qrDataUri = await QRCode.toDataURL(vcard, { width: 250, margin: 2, color: { dark: '#FF0000', light: '#FFFFFF' } });
-      } catch {
-        // QR не обязателен — игнорируем ошибку
-      }
-    }
-    return renderPresentationHtml(item.generation, tpl, images, {
-      title: item.title,
-      date: q?.date,
-      presenter: q?.presenter,
-      phone: q?.presenterPhone,
-      email: q?.presenterEmail,
-      qrDataUri,
-      illustrations,
-      bgDarken: item.bgDarken,
-      slideIntervalSeconds: item.slideIntervalSeconds,
-      slideTransition: item.slideTransition,
-      slideLoop: item.slideLoop,
-      showProgress: item.showProgress,
-    });
+    return buildPresentationHtml(this.plugin.app, tpl, item, item.generation);
   }
 
   private showSettings(item: PresentationItem): void {
@@ -297,18 +267,6 @@ export class PresentationsView extends ItemView {
       new Notice('Презентации: настройки показа обновлены');
       this.render();
     }).open();
-  }
-
-  private buildVCard(q?: PresentationQuestionaire): string | null {
-    if (!q?.presenterPhone && !q?.presenterEmail) return null;
-    return [
-      'BEGIN:VCARD',
-      'VERSION:3.0',
-      `FN:${q.presenter || ''}`,
-      `TEL:${q.presenterPhone || ''}`,
-      `EMAIL:${q.presenterEmail || ''}`,
-      'END:VCARD',
-    ].join('\n');
   }
 
   private newPresentation(): void {
@@ -392,6 +350,7 @@ export class PresentationsView extends ItemView {
   }
 
   private regenerate(item: PresentationItem): void {
+    new Notice('Перегенерация заменит текущее содержание презентации (включая ручные правки).');
     new QuestionnaireModal(this.plugin, async (q) => {
       try {
         new Notice('Презентации: перегенерация...');

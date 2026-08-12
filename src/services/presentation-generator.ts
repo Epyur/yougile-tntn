@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import type { PresentationGeneration, PresentationTemplate, PresentationSlide, ElementPos } from '../types/presentations';
+import type { PresentationGeneration, PresentationItem, PresentationQuestionaire, PresentationTemplate, PresentationSlide, ElementPos } from '../types/presentations';
 
 function escapeHtml(s: unknown): string {
   return String(s ?? '')
@@ -182,6 +182,67 @@ export function getVaultResourceUrl(app: App, ref: string): string {
     // ignore
   }
   return ref;
+}
+
+/** Собирает vCard докладчика для QR-кода финального слайда. */
+export function buildVCard(q?: PresentationQuestionaire): string | null {
+  if (!q?.presenterPhone && !q?.presenterEmail) return null;
+  return [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    `FN:${q.presenter || ''}`,
+    `TEL:${q.presenterPhone || ''}`,
+    `EMAIL:${q.presenterEmail || ''}`,
+    'END:VCARD',
+  ].join('\n');
+}
+
+/** Полная сборка HTML презентации из генерации + шаблона + ассетов записи
+ *  (images, иллюстрации из анкеты, QR-код докладчика). Используется и просмотром,
+ *  и редактором содержания — единая точка сборки. */
+export async function buildPresentationHtml(
+  app: App,
+  tpl: PresentationTemplate,
+  item: PresentationItem,
+  generation: PresentationGeneration,
+): Promise<string> {
+  const q = item.questionaire;
+  const illustrations: Record<string, string> = {};
+  for (const ill of q?.illustrations || []) {
+    if (ill.uri) {
+      const resolved = await resolveImageDataUri(app, ill.uri);
+      if (resolved) illustrations[ill.path] = resolved;
+    }
+  }
+  const images: Record<string, string> = {};
+  for (const [key, ref] of Object.entries(item.images)) {
+    const resolved = await resolveImageDataUri(app, ref);
+    if (resolved) images[key] = resolved;
+  }
+  let qrDataUri: string | undefined;
+  const vcard = buildVCard(q);
+  if (vcard) {
+    try {
+      const QRCode = (await import('qrcode')).default;
+      qrDataUri = await QRCode.toDataURL(vcard, { width: 250, margin: 2, color: { dark: '#FF0000', light: '#FFFFFF' } });
+    } catch {
+      // QR не обязателен — игнорируем ошибку
+    }
+  }
+  return renderPresentationHtml(generation, tpl, images, {
+    title: item.title,
+    date: q?.date,
+    presenter: q?.presenter,
+    phone: q?.presenterPhone,
+    email: q?.presenterEmail,
+    qrDataUri,
+    illustrations,
+    bgDarken: item.bgDarken,
+    slideIntervalSeconds: item.slideIntervalSeconds,
+    slideTransition: item.slideTransition,
+    slideLoop: item.slideLoop,
+    showProgress: item.showProgress,
+  });
 }
 
 /** Превращает ссылку на изображение (data URI или путь в vault) в data URI для встраивания в HTML. */

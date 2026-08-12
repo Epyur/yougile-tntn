@@ -6641,6 +6641,8 @@ var presentation_generator_exports = {};
 __export(presentation_generator_exports, {
   PRESENTATION_PICS_DIR: () => PRESENTATION_PICS_DIR,
   PRESENTATION_RENDER_VERSION: () => PRESENTATION_RENDER_VERSION,
+  buildPresentationHtml: () => buildPresentationHtml,
+  buildVCard: () => buildVCard,
   getVaultResourceUrl: () => getVaultResourceUrl,
   normalizeIllustrationPath: () => normalizeIllustrationPath,
   renderPresentationHtml: () => renderPresentationHtml,
@@ -6799,6 +6801,55 @@ function getVaultResourceUrl(app, ref) {
   } catch (e) {
   }
   return ref;
+}
+function buildVCard(q) {
+  if (!(q == null ? void 0 : q.presenterPhone) && !(q == null ? void 0 : q.presenterEmail)) return null;
+  return [
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    `FN:${q.presenter || ""}`,
+    `TEL:${q.presenterPhone || ""}`,
+    `EMAIL:${q.presenterEmail || ""}`,
+    "END:VCARD"
+  ].join("\n");
+}
+async function buildPresentationHtml(app, tpl, item, generation) {
+  const q = item.questionaire;
+  const illustrations = {};
+  for (const ill of (q == null ? void 0 : q.illustrations) || []) {
+    if (ill.uri) {
+      const resolved = await resolveImageDataUri(app, ill.uri);
+      if (resolved) illustrations[ill.path] = resolved;
+    }
+  }
+  const images = {};
+  for (const [key, ref] of Object.entries(item.images)) {
+    const resolved = await resolveImageDataUri(app, ref);
+    if (resolved) images[key] = resolved;
+  }
+  let qrDataUri;
+  const vcard = buildVCard(q);
+  if (vcard) {
+    try {
+      const QRCode2 = (await Promise.resolve().then(() => __toESM(require_browser2()))).default;
+      qrDataUri = await QRCode2.toDataURL(vcard, { width: 250, margin: 2, color: { dark: "#FF0000", light: "#FFFFFF" } });
+    } catch (e) {
+    }
+  }
+  return renderPresentationHtml(generation, tpl, images, {
+    title: item.title,
+    date: q == null ? void 0 : q.date,
+    presenter: q == null ? void 0 : q.presenter,
+    phone: q == null ? void 0 : q.presenterPhone,
+    email: q == null ? void 0 : q.presenterEmail,
+    qrDataUri,
+    illustrations,
+    bgDarken: item.bgDarken,
+    slideIntervalSeconds: item.slideIntervalSeconds,
+    slideTransition: item.slideTransition,
+    slideLoop: item.slideLoop,
+    showProgress: item.showProgress
+  });
 }
 async function resolveImageDataUri(app, ref) {
   if (!ref) return "";
@@ -7318,11 +7369,11 @@ __export(sync_logger_exports, {
   SyncLogModal: () => SyncLogModal,
   SyncLogger: () => SyncLogger
 });
-var import_obsidian20, LOG_PATH, MAX_ENTRIES, SyncLogger, SyncLogModal;
+var import_obsidian21, LOG_PATH, MAX_ENTRIES, SyncLogger, SyncLogModal;
 var init_sync_logger = __esm({
   "src/services/sync-logger.ts"() {
     "use strict";
-    import_obsidian20 = require("obsidian");
+    import_obsidian21 = require("obsidian");
     LOG_PATH = "yourbase/sync_log.json";
     MAX_ENTRIES = 2e3;
     SyncLogger = class {
@@ -7374,7 +7425,7 @@ var init_sync_logger = __esm({
         }
       }
     };
-    SyncLogModal = class extends import_obsidian20.Modal {
+    SyncLogModal = class extends import_obsidian21.Modal {
       constructor(app, logger) {
         super(app);
         this.filterModule = "";
@@ -7495,7 +7546,7 @@ __export(main_exports, {
   default: () => YouGilePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 
 // src/types/settings.ts
 var DEFAULT_SETTINGS = {
@@ -72603,7 +72654,7 @@ var LpiView = class extends import_obsidian16.ItemView {
 };
 
 // src/ui/presentations-view.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 init_presentation_generator();
 
 // src/ui/presentation-modals.ts
@@ -73181,6 +73232,448 @@ var ShowSettingsModal = class extends import_obsidian18.Modal {
   }
 };
 
+// src/ui/presentation-editor.ts
+var import_obsidian19 = require("obsidian");
+init_presentation_generator();
+var LAYOUT_LABELS = {
+  title: "\u0422\u0438\u0442\u0443\u043B\u044C\u043D\u044B\u0439",
+  section: "\u0420\u0430\u0437\u0434\u0435\u043B\u0438\u0442\u0435\u043B\u044C",
+  bullets: "\u041C\u0430\u0440\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0439 \u0441\u043F\u0438\u0441\u043E\u043A",
+  cards: "\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0438",
+  table: "\u0422\u0430\u0431\u043B\u0438\u0446\u0430",
+  photo: "\u0424\u043E\u0442\u043E",
+  final: "\u0424\u0438\u043D\u0430\u043B\u044C\u043D\u044B\u0439"
+};
+var LAYOUT_OPTIONS = Object.keys(LAYOUT_LABELS).map((value) => ({ value, label: LAYOUT_LABELS[value] }));
+function cloneGeneration(g) {
+  return JSON.parse(JSON.stringify(g));
+}
+function newSlide(layout) {
+  switch (layout) {
+    case "title":
+      return { layout, heading1: "\u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438", speaker: "" };
+    case "section":
+      return { layout, heading1: "\u0420\u0430\u0437\u0434\u0435\u043B", heading2: "" };
+    case "bullets":
+      return { layout, heading1: "\u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A", bullets: ["\u041F\u0435\u0440\u0432\u044B\u0439 \u043F\u0443\u043D\u043A\u0442", "\u0412\u0442\u043E\u0440\u043E\u0439 \u043F\u0443\u043D\u043A\u0442"] };
+    case "cards":
+      return { layout, heading1: "\u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A", cards: [{ title: "\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430", body: "\u0422\u0435\u043A\u0441\u0442 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0438" }] };
+    case "table":
+      return { layout, heading1: "\u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A", table: { headers: ["\u041A\u043E\u043B\u043E\u043D\u043A\u0430 1", "\u041A\u043E\u043B\u043E\u043D\u043A\u0430 2"], rows: [["", ""]] } };
+    case "photo":
+      return { layout, heading1: "\u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A", bullets: ["\u041F\u0435\u0440\u0432\u044B\u0439 \u043F\u0443\u043D\u043A\u0442"] };
+    case "final":
+      return { layout, speaker: "" };
+  }
+}
+function migrateLayout(slide, layout) {
+  const keepBullets = (slide.layout === "bullets" || slide.layout === "photo") && (layout === "bullets" || layout === "photo") && Array.isArray(slide.bullets);
+  const res = {
+    layout,
+    heading1: slide.heading1,
+    heading2: slide.heading2,
+    subtitle: slide.subtitle,
+    speaker: slide.speaker,
+    footer: slide.footer,
+    imagePath: slide.imagePath
+  };
+  if (keepBullets) res.bullets = (slide.bullets || []).slice();
+  return res;
+}
+var PresentationEditorModal = class extends import_obsidian19.Modal {
+  constructor(plugin, item, onSaved) {
+    super(plugin.app);
+    this.selectedIndex = 0;
+    this.previewTimer = null;
+    this.plugin = plugin;
+    this.item = item;
+    this.onSaved = onSaved;
+    this.working = cloneGeneration(item.generation);
+    if (this.working.slides.length === 0) {
+      this.working.slides.push({ layout: "bullets", heading1: "\u041D\u043E\u0432\u044B\u0439 \u0441\u043B\u0430\u0439\u0434" });
+    }
+    this.modalEl.style.width = "min(1200px, 96vw)";
+    this.modalEl.style.height = "92vh";
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("mailer-yougile-container");
+    const header = contentEl.createDiv();
+    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;";
+    header.createEl("h3", { text: "\u270F\uFE0F \u0421\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438" });
+    const btns = header.createDiv();
+    btns.style.cssText = "display:flex;gap:6px;";
+    const saveBtn = btns.createEl("button", { text: "\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C", cls: "mod-cta" });
+    saveBtn.addEventListener("click", () => void this.save());
+    const cancelBtn = btns.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
+    cancelBtn.addEventListener("click", () => this.close());
+    const body = contentEl.createDiv();
+    body.style.cssText = "display:flex;gap:10px;height:calc(100% - 52px);";
+    const sidebar = body.createDiv();
+    sidebar.style.cssText = "width:230px;flex:0 0 230px;overflow-y:auto;border:1px solid var(--background-modifier-border);border-radius:6px;padding:6px;";
+    this.slidesEl = sidebar.createDiv();
+    this.renderSlideList();
+    const addBtn = sidebar.createEl("button", { text: "\u2795 \u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u0441\u043B\u0430\u0439\u0434", cls: "mailer-yougile-refresh-btn" });
+    addBtn.style.cssText = "width:100%;margin-top:6px;";
+    addBtn.addEventListener("click", () => this.addSlide());
+    this.fieldsEl = body.createDiv();
+    this.fieldsEl.style.cssText = "width:430px;flex:0 0 430px;overflow-y:auto;border:1px solid var(--background-modifier-border);border-radius:6px;padding:10px;";
+    const previewWrap = body.createDiv();
+    previewWrap.style.cssText = "flex:1;display:flex;flex-direction:column;border:1px solid var(--background-modifier-border);border-radius:6px;overflow:hidden;";
+    const pLabel = previewWrap.createDiv();
+    pLabel.style.cssText = "font-size:11px;color:var(--text-muted);padding:4px 8px;";
+    pLabel.setText("\u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u2014 \u043E\u0431\u043D\u043E\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u043F\u0440\u0438 \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F\u0445");
+    this.previewFrame = previewWrap.createEl("iframe", {
+      attr: { sandbox: "allow-scripts allow-modals", allowfullscreen: "true", allow: "fullscreen" }
+    });
+    this.previewFrame.style.cssText = "flex:1;width:100%;border:0;background:#fff;";
+    this.renderFields();
+    void this.rebuildPreview();
+  }
+  onClose() {
+    if (this.previewTimer !== null) clearTimeout(this.previewTimer);
+    this.contentEl.empty();
+  }
+  // ---------- Панель слайдов ----------
+  renderSlideList() {
+    this.slidesEl.empty();
+    this.working.slides.forEach((slide, i) => {
+      const row = this.slidesEl.createDiv();
+      row.style.cssText = "display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:4px;cursor:pointer;margin-bottom:2px;" + (i === this.selectedIndex ? "background:var(--interactive-accent);color:var(--text-on-accent);" : "");
+      row.addEventListener("click", () => {
+        this.selectedIndex = i;
+        this.renderSlideList();
+        this.renderFields();
+      });
+      const label = row.createSpan();
+      label.style.cssText = "flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+      label.setText(`${i + 1}. ${LAYOUT_LABELS[slide.layout]}: ${slide.heading1 || slide.subtitle || ""}`);
+      this.smallBtn(row, "\u2191", (e) => {
+        e.stopPropagation();
+        this.moveSlide(i, -1);
+      });
+      this.smallBtn(row, "\u2193", (e) => {
+        e.stopPropagation();
+        this.moveSlide(i, 1);
+      });
+      this.smallBtn(row, "\u{1F5D1}", (e) => {
+        e.stopPropagation();
+        this.deleteSlide(i);
+      });
+    });
+  }
+  smallBtn(parent, text, onClick) {
+    const b = parent.createEl("button", { text, cls: "mailer-yougile-refresh-btn" });
+    b.style.cssText = "font-size:10px;padding:1px 4px;";
+    b.addEventListener("click", onClick);
+  }
+  addSlide() {
+    const existing = this.slidesEl.querySelector(".mailer-add-slide-picker");
+    if (existing) existing.remove();
+    const picker = this.slidesEl.createDiv();
+    picker.addClass("mailer-add-slide-picker");
+    picker.style.cssText = "margin-top:6px;border:1px solid var(--background-modifier-border);border-radius:6px;padding:6px;";
+    const sel = picker.createEl("select");
+    for (const opt of LAYOUT_OPTIONS) sel.createEl("option", { value: opt.value, text: opt.label });
+    const row = picker.createDiv();
+    row.style.cssText = "display:flex;gap:4px;margin-top:6px;";
+    const ok = row.createEl("button", { text: "\u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C", cls: "mod-cta" });
+    ok.style.cssText = "flex:1;font-size:11px;";
+    ok.addEventListener("click", () => {
+      const idx = this.selectedIndex + 1;
+      this.working.slides.splice(idx, 0, newSlide(sel.value));
+      this.selectedIndex = idx;
+      picker.remove();
+      this.renderSlideList();
+      this.renderFields();
+      this.schedulePreview();
+    });
+    const cancel = row.createEl("button", { text: "\u041E\u0442\u043C\u0435\u043D\u0430", cls: "mailer-yougile-refresh-btn" });
+    cancel.style.cssText = "flex:1;font-size:11px;";
+    cancel.addEventListener("click", () => picker.remove());
+  }
+  deleteSlide(i) {
+    if (this.working.slides.length <= 1) {
+      new import_obsidian19.Notice("\u041D\u0435\u043B\u044C\u0437\u044F \u0443\u0434\u0430\u043B\u0438\u0442\u044C \u0435\u0434\u0438\u043D\u0441\u0442\u0432\u0435\u043D\u043D\u044B\u0439 \u0441\u043B\u0430\u0439\u0434");
+      return;
+    }
+    if (!window.confirm("\u0423\u0434\u0430\u043B\u0438\u0442\u044C \u0441\u043B\u0430\u0439\u0434?")) return;
+    this.working.slides.splice(i, 1);
+    if (this.selectedIndex >= this.working.slides.length) {
+      this.selectedIndex = this.working.slides.length - 1;
+    }
+    this.renderSlideList();
+    this.renderFields();
+    this.schedulePreview();
+  }
+  moveSlide(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= this.working.slides.length) return;
+    const arr = this.working.slides;
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+    this.selectedIndex = j;
+    this.renderSlideList();
+    this.renderFields();
+    this.schedulePreview();
+  }
+  // ---------- Формы ----------
+  renderFields() {
+    this.fieldsEl.empty();
+    const slide = this.working.slides[this.selectedIndex];
+    if (!slide) {
+      this.fieldsEl.createDiv({ text: "\u041D\u0435\u0442 \u0441\u043B\u0430\u0439\u0434\u0430" });
+      return;
+    }
+    const layoutRow = this.fieldsEl.createDiv();
+    layoutRow.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:4px;";
+    layoutRow.createSpan({ text: "\u041C\u0430\u043A\u0435\u0442:" }).style.cssText = "font-size:12px;color:var(--text-muted);";
+    const layoutSel = layoutRow.createEl("select");
+    for (const opt of LAYOUT_OPTIONS) {
+      layoutSel.createEl("option", { value: opt.value, text: opt.label });
+    }
+    layoutSel.value = slide.layout;
+    layoutSel.addEventListener("change", () => {
+      const idx = this.selectedIndex;
+      this.working.slides[idx] = migrateLayout(this.working.slides[idx], layoutSel.value);
+      this.renderFields();
+      this.renderSlideList();
+      this.schedulePreview();
+    });
+    if (slide.layout !== "final") {
+      this.textField("\u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A", slide.heading1 || "", (v) => {
+        slide.heading1 = v;
+        this.schedulePreview();
+      });
+    }
+    if (slide.layout !== "title" && slide.layout !== "final") {
+      this.textField("\u041F\u043E\u0434\u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A (\u0441\u0442\u0440\u043E\u043A\u0430 2)", slide.heading2 || "", (v) => {
+        slide.heading2 = v;
+        this.schedulePreview();
+      });
+    }
+    if (slide.layout === "title" || slide.layout === "section") {
+      this.textField(slide.layout === "title" ? "\u041A\u0438\u043A\u0435\u0440 (\u043D\u0430\u0434 \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u043E\u043C)" : "\u041F\u043E\u0434\u043F\u0438\u0441\u044C", slide.subtitle || "", (v) => {
+        slide.subtitle = v;
+        this.schedulePreview();
+      });
+    }
+    if (slide.layout === "title" || slide.layout === "final") {
+      this.textField("\u0414\u043E\u043A\u043B\u0430\u0434\u0447\u0438\u043A", slide.speaker || "", (v) => {
+        slide.speaker = v;
+        this.schedulePreview();
+      });
+    }
+    if (slide.layout === "bullets" || slide.layout === "photo") this.renderBullets(slide);
+    if (slide.layout === "cards") this.renderCards(slide);
+    if (slide.layout === "table") this.renderTable(slide);
+    this.textField("\u041A\u043E\u043B\u043E\u043D\u0442\u0438\u0442\u0443\u043B (\u0441\u0432\u043E\u0451, \u043E\u043F\u0446\u0438\u043E\u043D\u0430\u043B\u044C\u043D\u043E)", slide.footer || "", (v) => {
+      slide.footer = v;
+      this.schedulePreview();
+    });
+  }
+  textField(label, value, onChange) {
+    const lab = this.fieldsEl.createEl("label");
+    lab.style.cssText = "display:block;font-size:11px;color:var(--text-muted);margin-top:10px;";
+    lab.setText(label);
+    const input = this.fieldsEl.createEl("input", { attr: { type: "text" } });
+    input.style.cssText = "width:100%;";
+    input.value = value;
+    input.addEventListener("input", () => onChange(input.value));
+  }
+  renderBullets(slide) {
+    const head = this.fieldsEl.createDiv();
+    head.style.cssText = "font-weight:600;font-size:12px;margin-top:12px;";
+    head.setText("\u041F\u0443\u043D\u043A\u0442\u044B \u0441\u043F\u0438\u0441\u043A\u0430");
+    const list = this.fieldsEl.createDiv();
+    const rebuild = () => {
+      list.empty();
+      (slide.bullets || []).forEach((b, i) => {
+        const row = list.createDiv();
+        row.style.cssText = "display:flex;gap:4px;align-items:center;margin-top:4px;";
+        const ta = row.createEl("textarea");
+        ta.style.cssText = "flex:1;min-height:30px;";
+        ta.value = b;
+        ta.addEventListener("input", () => {
+          if (slide.bullets) slide.bullets[i] = ta.value;
+          this.schedulePreview();
+        });
+        const del = row.createEl("button", { text: "\u{1F5D1}", cls: "mailer-yougile-refresh-btn" });
+        del.style.cssText = "font-size:10px;";
+        del.addEventListener("click", () => {
+          slide.bullets = (slide.bullets || []).filter((_, j) => j !== i);
+          rebuild();
+          this.schedulePreview();
+        });
+      });
+    };
+    rebuild();
+    const add = this.fieldsEl.createEl("button", { text: "+ \u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u043F\u0443\u043D\u043A\u0442", cls: "mailer-yougile-refresh-btn" });
+    add.style.cssText = "margin-top:6px;";
+    add.addEventListener("click", () => {
+      if (!slide.bullets) slide.bullets = [];
+      slide.bullets.push("");
+      rebuild();
+      this.schedulePreview();
+    });
+  }
+  renderCards(slide) {
+    const head = this.fieldsEl.createDiv();
+    head.style.cssText = "font-weight:600;font-size:12px;margin-top:12px;";
+    head.setText("\u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0438");
+    const list = this.fieldsEl.createDiv();
+    const rebuild = () => {
+      list.empty();
+      (slide.cards || []).forEach((card, i) => {
+        const box = list.createDiv();
+        box.style.cssText = "border:1px solid var(--background-modifier-border);border-radius:6px;padding:6px;margin-top:6px;";
+        box.createEl("label", { text: "\u0417\u0430\u0433\u043E\u043B\u043E\u0432\u043E\u043A" }).style.cssText = "font-size:10px;color:var(--text-muted);display:block;";
+        const tInput = box.createEl("input", { attr: { type: "text" } });
+        tInput.style.cssText = "width:100%;";
+        tInput.value = card.title;
+        tInput.addEventListener("input", () => {
+          card.title = tInput.value;
+          this.schedulePreview();
+        });
+        box.createEl("label", { text: "\u0422\u0435\u043A\u0441\u0442" }).style.cssText = "font-size:10px;color:var(--text-muted);display:block;margin-top:4px;";
+        const bInput = box.createEl("textarea");
+        bInput.style.cssText = "width:100%;min-height:36px;";
+        bInput.value = card.body;
+        bInput.addEventListener("input", () => {
+          card.body = bInput.value;
+          this.schedulePreview();
+        });
+        const del = box.createEl("button", { text: "\u{1F5D1} \u0423\u0434\u0430\u043B\u0438\u0442\u044C \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
+        del.style.cssText = "font-size:10px;margin-top:4px;";
+        del.addEventListener("click", () => {
+          slide.cards = (slide.cards || []).filter((_, j) => j !== i);
+          rebuild();
+          this.schedulePreview();
+        });
+      });
+    };
+    rebuild();
+    const add = this.fieldsEl.createEl("button", { text: "+ \u0414\u043E\u0431\u0430\u0432\u0438\u0442\u044C \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443", cls: "mailer-yougile-refresh-btn" });
+    add.style.cssText = "margin-top:6px;";
+    add.addEventListener("click", () => {
+      if (!slide.cards) slide.cards = [];
+      slide.cards.push({ title: "\u041D\u043E\u0432\u0430\u044F \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430", body: "" });
+      rebuild();
+      this.schedulePreview();
+    });
+  }
+  renderTable(slide) {
+    if (!slide.table) slide.table = { headers: ["\u041A\u043E\u043B\u043E\u043D\u043A\u0430 1"], rows: [[""]] };
+    const t = slide.table;
+    const head = this.fieldsEl.createDiv();
+    head.style.cssText = "font-weight:600;font-size:12px;margin-top:12px;";
+    head.setText("\u0422\u0430\u0431\u043B\u0438\u0446\u0430");
+    const headerRow = this.fieldsEl.createDiv();
+    headerRow.style.cssText = "display:flex;gap:4px;margin-top:6px;";
+    t.headers.forEach((h, ci) => {
+      const cell = headerRow.createDiv();
+      cell.style.cssText = "flex:1;display:flex;gap:2px;align-items:center;";
+      const inp = cell.createEl("input", { attr: { type: "text" } });
+      inp.style.cssText = "flex:1;font-weight:600;";
+      inp.value = h;
+      inp.addEventListener("input", () => {
+        t.headers[ci] = inp.value;
+        this.schedulePreview();
+      });
+      const del = cell.createEl("button", { text: "\u2715", cls: "mailer-yougile-refresh-btn" });
+      del.style.cssText = "font-size:10px;";
+      del.addEventListener("click", () => {
+        t.headers.splice(ci, 1);
+        for (const r of t.rows) r.splice(ci, 1);
+        if (t.headers.length === 0) t.headers.push("");
+        this.renderFields();
+        this.schedulePreview();
+      });
+    });
+    const rowsEl = this.fieldsEl.createDiv();
+    const rebuildRows = () => {
+      rowsEl.empty();
+      t.rows.forEach((r, ri) => {
+        const row = rowsEl.createDiv();
+        row.style.cssText = "display:flex;gap:4px;margin-top:4px;";
+        r.forEach((cellVal, ci) => {
+          const inp = row.createEl("input", { attr: { type: "text" } });
+          inp.style.cssText = "flex:1;";
+          inp.value = cellVal;
+          inp.addEventListener("input", () => {
+            t.rows[ri][ci] = inp.value;
+            this.schedulePreview();
+          });
+        });
+        const del = row.createEl("button", { text: "\u{1F5D1}", cls: "mailer-yougile-refresh-btn" });
+        del.style.cssText = "font-size:10px;";
+        del.addEventListener("click", () => {
+          t.rows.splice(ri, 1);
+          if (t.rows.length === 0) t.rows.push(Array(t.headers.length).fill(""));
+          rebuildRows();
+          this.schedulePreview();
+        });
+      });
+    };
+    rebuildRows();
+    const btnRow = this.fieldsEl.createDiv();
+    btnRow.style.cssText = "display:flex;gap:6px;margin-top:6px;";
+    const addRow = btnRow.createEl("button", { text: "+ \u0421\u0442\u0440\u043E\u043A\u0430", cls: "mailer-yougile-refresh-btn" });
+    addRow.addEventListener("click", () => {
+      t.rows.push(Array(t.headers.length).fill(""));
+      rebuildRows();
+      this.schedulePreview();
+    });
+    const addCol = btnRow.createEl("button", { text: "+ \u0421\u0442\u043E\u043B\u0431\u0435\u0446", cls: "mailer-yougile-refresh-btn" });
+    addCol.addEventListener("click", () => {
+      t.headers.push("");
+      for (const r of t.rows) r.push("");
+      this.renderFields();
+      this.schedulePreview();
+    });
+  }
+  // ---------- Превью и сохранение ----------
+  schedulePreview() {
+    if (this.previewTimer !== null) clearTimeout(this.previewTimer);
+    this.previewTimer = window.setTimeout(() => {
+      this.previewTimer = null;
+      void this.rebuildPreview();
+    }, 250);
+  }
+  async rebuildPreview() {
+    try {
+      const tpl = this.plugin.presentationTemplates.getTemplate(this.item.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
+      if (!tpl) return;
+      const html = await buildPresentationHtml(this.plugin.app, tpl, this.item, this.working);
+      this.previewFrame.setAttr("srcdoc", html);
+    } catch (e) {
+    }
+  }
+  async save() {
+    try {
+      const tpl = this.plugin.presentationTemplates.getTemplate(this.item.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
+      if (!tpl) throw new Error("\u0428\u0430\u0431\u043B\u043E\u043D \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D");
+      this.item.generation = this.working;
+      this.item.renderVersion = PRESENTATION_RENDER_VERSION;
+      this.item.templateVersion = this.plugin.presentationTemplates.getTemplateVersion(this.item.templateId);
+      this.item.html = await buildPresentationHtml(this.plugin.app, tpl, this.item, this.working);
+      await this.plugin.presentationsDb.update(this.item.id, {
+        generation: this.working,
+        html: this.item.html,
+        renderVersion: this.item.renderVersion,
+        templateVersion: this.item.templateVersion
+      });
+      new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E");
+      this.onSaved();
+      this.close();
+    } catch (e) {
+      new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+};
+
 // src/ui/presentations-view.ts
 var PRESENTATIONS_VIEW_TYPE = "yougile-presentations";
 var EXPORT_DIR = "\u042D\u043A\u0441\u043F\u043E\u0440\u0442/\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438";
@@ -73190,7 +73683,7 @@ function sanitize(name2) {
 function escapeHtmlAttr(s) {
   return String(s != null ? s : "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
-var PresentationsView = class extends import_obsidian19.ItemView {
+var PresentationsView = class extends import_obsidian20.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.selectedModel = "";
@@ -73295,11 +73788,11 @@ var PresentationsView = class extends import_obsidian19.ItemView {
   }
   async retryDraft(draft) {
     try {
-      new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u0430\u044F \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
+      new import_obsidian20.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u0430\u044F \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
       const designRules = await this.plugin.presentationTemplates.readDesignRules();
       await this.doGenerate(draft.questionaire, designRules, draft.id);
     } catch (e) {
-      new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
+      new import_obsidian20.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   reopenQuestionnaire(draft) {
@@ -73370,6 +73863,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     }
     meta.setText(`\u0421\u043E\u0437\u0434\u0430\u043D\u043E: ${created} \xB7 \u0421\u043B\u0430\u0439\u0434\u043E\u0432: ${item.generation.slides.length} \xB7 \u0428\u0430\u0431\u043B\u043E\u043D: ${(_c = tpl == null ? void 0 : tpl.name) != null ? _c : item.templateId} \xB7 \u041A\u0430\u0440\u0442\u0438\u043D\u043E\u043A: ${Object.keys(item.images).length}`);
     btn("\u{1F441} \u041F\u0440\u0435\u0434\u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440", () => this.preview(item));
+    btn("\u270F\uFE0F \u0421\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435", () => this.openEditor(item));
     btn("\u{1F5A8} PDF", () => this.preview(item, true));
     btn("\u{1F4F7} \u0418\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F", () => this.openImages(item));
     btn("\u2699 \u041F\u043E\u043A\u0430\u0437", () => this.showSettings(item));
@@ -73378,44 +73872,12 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     btn("\u{1F4E4} \u0412 \u0447\u0430\u0442 YouGile", () => void this.sendToYougileChat(item));
     btn("\u{1F5D1} \u0423\u0434\u0430\u043B\u0438\u0442\u044C", () => this.deleteItem(item));
   }
+  openEditor(item) {
+    new PresentationEditorModal(this.plugin, item, () => this.render()).open();
+  }
   async generateHtml(item) {
     const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
-    const q = item.questionaire;
-    const illustrations = {};
-    for (const ill of (q == null ? void 0 : q.illustrations) || []) {
-      if (ill.uri) {
-        const resolved = await resolveImageDataUri(this.plugin.app, ill.uri);
-        if (resolved) illustrations[ill.path] = resolved;
-      }
-    }
-    const images = {};
-    for (const [key, ref] of Object.entries(item.images)) {
-      const resolved = await resolveImageDataUri(this.plugin.app, ref);
-      if (resolved) images[key] = resolved;
-    }
-    let qrDataUri;
-    const vcard = this.buildVCard(q);
-    if (vcard) {
-      try {
-        const QRCode2 = (await Promise.resolve().then(() => __toESM(require_browser2()))).default;
-        qrDataUri = await QRCode2.toDataURL(vcard, { width: 250, margin: 2, color: { dark: "#FF0000", light: "#FFFFFF" } });
-      } catch (e) {
-      }
-    }
-    return renderPresentationHtml(item.generation, tpl, images, {
-      title: item.title,
-      date: q == null ? void 0 : q.date,
-      presenter: q == null ? void 0 : q.presenter,
-      phone: q == null ? void 0 : q.presenterPhone,
-      email: q == null ? void 0 : q.presenterEmail,
-      qrDataUri,
-      illustrations,
-      bgDarken: item.bgDarken,
-      slideIntervalSeconds: item.slideIntervalSeconds,
-      slideTransition: item.slideTransition,
-      slideLoop: item.slideLoop,
-      showProgress: item.showProgress
-    });
+    return buildPresentationHtml(this.plugin.app, tpl, item, item.generation);
   }
   showSettings(item) {
     const tpl = this.plugin.presentationTemplates.getTemplate(item.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
@@ -73441,20 +73903,9 @@ var PresentationsView = class extends import_obsidian19.ItemView {
         renderVersion: item.renderVersion,
         templateVersion: item.templateVersion
       });
-      new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E\u043A\u0430\u0437\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u044B");
+      new import_obsidian20.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u043E\u043A\u0430\u0437\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u044B");
       this.render();
     }).open();
-  }
-  buildVCard(q) {
-    if (!(q == null ? void 0 : q.presenterPhone) && !(q == null ? void 0 : q.presenterEmail)) return null;
-    return [
-      "BEGIN:VCARD",
-      "VERSION:3.0",
-      `FN:${q.presenter || ""}`,
-      `TEL:${q.presenterPhone || ""}`,
-      `EMAIL:${q.presenterEmail || ""}`,
-      "END:VCARD"
-    ].join("\n");
   }
   newPresentation() {
     new QuestionnaireModal(this.plugin, async (q) => {
@@ -73484,7 +73935,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     }).open();
   }
   async doGenerate(q, designRules, draftId) {
-    new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
+    new import_obsidian20.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
     const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
     const item = {
       id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -73516,14 +73967,14 @@ var PresentationsView = class extends import_obsidian19.ItemView {
         templateVersion: item.templateVersion
       });
       if (draftId) await this.plugin.presentationsDb.deleteDraft(draftId);
-      new import_obsidian19.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \xAB${item.title}\xBB \u0441\u043E\u0437\u0434\u0430\u043D\u0430 (${generation.slides.length} \u0441\u043B\u0430\u0439\u0434\u043E\u0432)`);
+      new import_obsidian20.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \xAB${item.title}\xBB \u0441\u043E\u0437\u0434\u0430\u043D\u0430 (${generation.slides.length} \u0441\u043B\u0430\u0439\u0434\u043E\u0432)`);
       this.render();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       item.status = "error";
       item.error = msg;
       await this.plugin.presentationsDb.update(item.id, { status: "error", error: msg });
-      new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438: ${msg}. \u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u2014 \u043C\u043E\u0436\u043D\u043E \u043F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C \u0431\u0435\u0437 \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0433\u043E \u0432\u0432\u043E\u0434\u0430.`);
+      new import_obsidian20.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438: ${msg}. \u0427\u0435\u0440\u043D\u043E\u0432\u0438\u043A \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u2014 \u043C\u043E\u0436\u043D\u043E \u043F\u043E\u0432\u0442\u043E\u0440\u0438\u0442\u044C \u0431\u0435\u0437 \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u043E\u0433\u043E \u0432\u0432\u043E\u0434\u0430.`);
       if (draftId) {
         const draft = this.plugin.presentationsDb.getDraftById(draftId);
         if (draft) {
@@ -73536,9 +73987,10 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     }
   }
   regenerate(item) {
+    new import_obsidian20.Notice("\u041F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F \u0437\u0430\u043C\u0435\u043D\u0438\u0442 \u0442\u0435\u043A\u0443\u0449\u0435\u0435 \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438 (\u0432\u043A\u043B\u044E\u0447\u0430\u044F \u0440\u0443\u0447\u043D\u044B\u0435 \u043F\u0440\u0430\u0432\u043A\u0438).");
     new QuestionnaireModal(this.plugin, async (q) => {
       try {
-        new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
+        new import_obsidian20.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F...");
         const tpl = this.plugin.presentationTemplates.getTemplate(q.templateId) || this.plugin.presentationTemplates.getTemplate("technonicol");
         const designRules = await this.plugin.presentationTemplates.readDesignRules();
         item.status = "generating";
@@ -73565,14 +74017,14 @@ var PresentationsView = class extends import_obsidian19.ItemView {
           renderVersion: item.renderVersion,
           templateVersion: item.templateVersion
         });
-        new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E");
+        new import_obsidian20.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E");
         this.render();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         item.status = "error";
         item.error = msg;
         await this.plugin.presentationsDb.update(item.id, { status: "error", error: msg });
-        new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438: ${msg}`);
+        new import_obsidian20.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438: ${msg}`);
         this.render();
       }
     }, item.questionaire).open();
@@ -73597,7 +74049,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
     const modal = new PresentationPreviewModal(this.plugin.app, html);
     modal.open();
     if (focusPdf) {
-      new import_obsidian19.Notice("\u0412 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u{1F5A8} \u041F\u0435\u0447\u0430\u0442\u044C / PDF\xBB \u0438 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \xAB\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u0430\u043A PDF\xBB");
+      new import_obsidian20.Notice("\u0412 \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u{1F5A8} \u041F\u0435\u0447\u0430\u0442\u044C / PDF\xBB \u0438 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \xAB\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u043A\u0430\u043A PDF\xBB");
     }
   }
   openImages(item) {
@@ -73619,7 +74071,7 @@ var PresentationsView = class extends import_obsidian19.ItemView {
           renderVersion: item.renderVersion,
           templateVersion: item.templateVersion
         });
-        new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u044B");
+        new import_obsidian20.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u044B");
         this.render();
       }
     ).open();
@@ -73633,16 +74085,16 @@ var PresentationsView = class extends import_obsidian19.ItemView {
       }
       const path3 = `${EXPORT_DIR}/${sanitize(item.title)}.html`;
       await adapter.write(path3, html);
-      new import_obsidian19.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E ${path3}`);
+      new import_obsidian20.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E ${path3}`);
     } catch (e) {
-      new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0430: ${e instanceof Error ? e.message : String(e)}`);
+      new import_obsidian20.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0430: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   /** Отправка презентации в чат задачи YouGile: загрузка HTML-файла → ссылка → сообщение <a>Название слайдов</a>. */
   async sendToYougileChat(item) {
     const tasks = this.plugin.db.getTasks().sort((a, b) => a.title.localeCompare(b.title));
     if (tasks.length === 0) {
-      new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043A\u044D\u0448 \u0437\u0430\u0434\u0430\u0447 \u043F\u0443\u0441\u0442. \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0439\u0442\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 YouGile.");
+      new import_obsidian20.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043A\u044D\u0448 \u0437\u0430\u0434\u0430\u0447 \u043F\u0443\u0441\u0442. \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0439\u0442\u0435 \u0437\u0430\u0434\u0430\u0447\u0438 YouGile.");
       return;
     }
     new TaskPickModal(this.plugin, tasks, async (task) => {
@@ -73652,21 +74104,21 @@ var PresentationsView = class extends import_obsidian19.ItemView {
         const result = await this.plugin.client.uploadFile(buffer, `${sanitize(item.title)}.html`);
         const link = `<a href="${result.fullUrl}">${escapeHtmlAttr(item.title)}</a>`;
         await this.plugin.client.sendMessage(task.id, link);
-        new import_obsidian19.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \xAB${item.title}\xBB \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 \u0447\u0430\u0442 \u0437\u0430\u0434\u0430\u0447\u0438`);
+        new import_obsidian20.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \xAB${item.title}\xBB \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 \u0447\u0430\u0442 \u0437\u0430\u0434\u0430\u0447\u0438`);
       } catch (e) {
-        new import_obsidian19.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u2014 ${e instanceof Error ? e.message : String(e)}`);
+        new import_obsidian20.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u2014 ${e instanceof Error ? e.message : String(e)}`);
       }
     }).open();
   }
   async deleteItem(item) {
     await this.plugin.presentationsDb.delete(item.id);
-    new import_obsidian19.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0443\u0434\u0430\u043B\u0435\u043D\u043E");
+    new import_obsidian20.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0443\u0434\u0430\u043B\u0435\u043D\u043E");
     this.render();
   }
 };
 
 // src/commands.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 init_sync_logger();
 function registerCommands(plugin) {
   plugin.addCommand({
@@ -73674,7 +74126,7 @@ function registerCommands(plugin) {
     name: "\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0437\u0430\u0434\u0430\u0447\u0443",
     callback: () => {
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian21.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian22.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return;
       }
       plugin.activateView();
@@ -73698,7 +74150,7 @@ function registerCommands(plugin) {
       const view = leaf == null ? void 0 : leaf.view;
       if (view instanceof TasksView) {
         view.syncAndRender();
-        new import_obsidian21.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
+        new import_obsidian22.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
       }
     }
   });
@@ -73717,7 +74169,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleDocumentsEnabled) return false;
       if (!plugin.settings.apiKeySecret || !plugin.getSecretValue(plugin.settings.apiKeySecret)) {
-        new import_obsidian21.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
+        new import_obsidian22.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return false;
       }
       if (checking) return true;
@@ -74541,7 +74993,7 @@ var PresentationsDatabase = class {
 };
 
 // src/services/llm-service.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 init_presentation_generator();
 var LLMService = class {
   constructor(plugin) {
@@ -74660,7 +75112,7 @@ var LLMService = class {
     let timer;
     try {
       const response = await Promise.race([
-        (0, import_obsidian22.requestUrl)({ ...param, throw: false }),
+        (0, import_obsidian23.requestUrl)({ ...param, throw: false }),
         new Promise((_, reject) => {
           timer = window.setTimeout(
             () => reject(new Error(`Timeout: LLM \u043D\u0435 \u043E\u0442\u0432\u0435\u0442\u0438\u043B \u0437\u0430 ${Math.round(timeoutMs / 1e3)} \u0441\u0435\u043A`)),
@@ -74890,7 +75342,7 @@ ${question}
 ## \u041E\u0422\u0412\u0415\u0422\u042C:`;
     return this.retryWithBackoff(async () => {
       var _a, _b, _c;
-      const response = await (0, import_obsidian22.requestUrl)({
+      const response = await (0, import_obsidian23.requestUrl)({
         url: llmApiUrl || "https://ask.chadgpt.ru/api/v1/chat/completions",
         method: "POST",
         headers: {
@@ -74915,7 +75367,7 @@ ${question}
 };
 
 // src/services/presentation-templates.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 var TEMPLATES_DIR = "yourbase/presentation_templates";
 var RULES_DIR = "yourbase/presentation_rules";
 var DESIGN_RULES_FILE = `${RULES_DIR}/design_rules.md`;
@@ -75187,9 +75639,9 @@ var PresentationTemplatesService = class {
     try {
       await this.app.vault.adapter.write(`${TEMPLATES_DIR}/${safeId}.json`, JSON.stringify(spec, null, 2));
       await this.loadCustomTemplates();
-      new import_obsidian23.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0448\u0430\u0431\u043B\u043E\u043D \xAB${spec.name}\xBB \u0441\u043E\u0437\u0434\u0430\u043D`);
+      new import_obsidian24.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0448\u0430\u0431\u043B\u043E\u043D \xAB${spec.name}\xBB \u0441\u043E\u0437\u0434\u0430\u043D`);
     } catch (e) {
-      new import_obsidian23.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u0448\u0430\u0431\u043B\u043E\u043D\u0430: ${e instanceof Error ? e.message : String(e)}`);
+      new import_obsidian24.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u0448\u0430\u0431\u043B\u043E\u043D\u0430: ${e instanceof Error ? e.message : String(e)}`);
       throw e;
     }
     return spec;
@@ -75200,6 +75652,12 @@ var PresentationTemplatesService = class {
 init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.8.8": [
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043D\u043E\u0432\u044B\u0439 WYSIWYG-\u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u044F (\u043A\u043D\u043E\u043F\u043A\u0430 \xAB\u270F\uFE0F \u0421\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435\xBB) \u2014 \u043F\u0440\u0430\u0432\u043A\u0430 \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u043E\u0432, \u0442\u0435\u043A\u0441\u0442\u043E\u0432, \u043C\u0430\u0440\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0445 \u0441\u043F\u0438\u0441\u043A\u043E\u0432 (\u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u0435/\u0443\u0434\u0430\u043B\u0435\u043D\u0438\u0435 \u043F\u0443\u043D\u043A\u0442\u043E\u0432), \u043A\u0430\u0440\u0442\u043E\u0447\u0435\u043A \u0438 \u0442\u0430\u0431\u043B\u0438\u0446 (\u0441\u0442\u0440\u043E\u043A\u0438/\u0441\u0442\u043E\u043B\u0431\u0446\u044B); \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u0435, \u0443\u0434\u0430\u043B\u0435\u043D\u0438\u0435 \u0438 \u043F\u0435\u0440\u0435\u043C\u0435\u0449\u0435\u043D\u0438\u0435 \u0441\u043B\u0430\u0439\u0434\u043E\u0432; \u0441\u043C\u0435\u043D\u0430 \u043C\u0430\u043A\u0435\u0442\u0430 \u0441 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435\u043C \u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u044B\u0445 \u043F\u043E\u043B\u0435\u0439; \u0436\u0438\u0432\u043E\u0435 \u043F\u0440\u0435\u0432\u044C\u044E \u043E\u0431\u043D\u043E\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0432 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0435\u0434\u0438\u043D\u0430\u044F \u0441\u0431\u043E\u0440\u043A\u0430 HTML \u0432\u044B\u043D\u0435\u0441\u0435\u043D\u0430 \u0432 buildPresentationHtml() \u2014 \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440, \u044D\u043A\u0441\u043F\u043E\u0440\u0442 \u0438 \u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u044E\u0442 \u043E\u0431\u0449\u0438\u0439 \u043A\u043E\u0434",
+    "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0440\u0438 \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438 \u043F\u043E\u043A\u0430\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u043F\u0440\u0435\u0434\u0443\u043F\u0440\u0435\u0436\u0434\u0435\u043D\u0438\u0435, \u0447\u0442\u043E \u0440\u0443\u0447\u043D\u044B\u0435 \u043F\u0440\u0430\u0432\u043A\u0438 \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u044F \u0431\u0443\u0434\u0443\u0442 \u043F\u043E\u0442\u0435\u0440\u044F\u043D\u044B",
+    "\u0422\u0438\u043F\u044B: \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0430 \u0434\u0435\u043A\u043B\u0430\u0440\u0430\u0446\u0438\u044F qrcode.d.ts \u2014 \u0443\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u044B 2 \u043E\u0448\u0438\u0431\u043A\u0438 \u0442\u0438\u043F\u043E\u0432 (tsc 48 \u2192 46)"
+  ],
   "0.8.7": [
     "\u041F\u0438\u0441\u044C\u043C\u0430: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile \u2014 \u0438\u0437 syncAndRender \u0443\u0431\u0440\u0430\u043D \u0432\u044B\u0437\u043E\u0432 emailDb.init() \u043F\u043E\u0441\u043B\u0435 syncFromTasks, \u043A\u043E\u0442\u043E\u0440\u044B\u0439 \u043F\u0435\u0440\u0435\u0447\u0438\u0442\u044B\u0432\u0430\u043B mailer_data.json \u0441 \u0434\u0438\u0441\u043A\u0430 \u0438 \u0437\u0430\u0442\u0438\u0440\u0430\u043B \u0442\u043E\u043B\u044C\u043A\u043E \u0447\u0442\u043E \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435 (save() \u043D\u0435 \u0434\u043E\u0436\u0438\u0434\u0430\u043B\u0441\u044F \u2014 \u0433\u043E\u043D\u043A\u0430). syncFromTasks \u0441\u0442\u0430\u043B async \u0438 \u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u043E \u0441\u043E\u0445\u0440\u0430\u043D\u044F\u0435\u0442 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442",
     "\u041F\u0438\u0441\u044C\u043C\u0430: \u0432\u044C\u044E\u0445\u0430 \u0442\u0435\u043F\u0435\u0440\u044C \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u043F\u0440\u0438 \u043E\u0442\u043A\u0440\u044B\u0442\u0438\u0438 (onOpen), \u0430 \u043D\u0435 \u0442\u043E\u043B\u044C\u043A\u043E \u043F\u043E \u043A\u043D\u043E\u043F\u043A\u0435 \xAB\u{1F504}\xBB; \u043E\u0448\u0438\u0431\u043A\u0438 db.sync() \u043F\u0435\u0440\u0435\u0445\u0432\u0430\u0442\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u0441 \u0443\u0432\u0435\u0434\u043E\u043C\u043B\u0435\u043D\u0438\u0435\u043C, \u0430 \u043D\u0435 \u043C\u043E\u043B\u0447\u0430 \u043E\u0431\u0440\u044B\u0432\u0430\u044E\u0442 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0435 \u0441\u043F\u0438\u0441\u043A\u0430",
@@ -75483,7 +75941,7 @@ var CHANGELOG = {
     'LPI: type \u0432 description \u0437\u0430\u0434\u0430\u0447 \u0438\u0437\u043C\u0435\u043D\u0451\u043D \u043D\u0430 "lpi_data" (\u0435\u0434\u0438\u043D\u044B\u0439 \u0442\u0438\u043F \u0434\u043B\u044F \u0432\u0441\u0435\u0445 LPI-\u0437\u0430\u0434\u0430\u0447)'
   ]
 };
-var ChangelogModal = class extends import_obsidian24.Modal {
+var ChangelogModal = class extends import_obsidian25.Modal {
   constructor(app, version, changes) {
     super(app);
     this.version = version;
@@ -75498,14 +75956,14 @@ var ChangelogModal = class extends import_obsidian24.Modal {
       list.createEl("li", { text: change });
     }
     contentEl.createEl("hr");
-    new import_obsidian24.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
+    new import_obsidian25.Setting(contentEl).addButton((btn) => btn.setButtonText("OK").setCta().onClick(() => this.close()));
   }
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
   }
 };
-var YouGilePlugin = class extends import_obsidian24.Plugin {
+var YouGilePlugin = class extends import_obsidian25.Plugin {
   async onload() {
     await this.loadSettings();
     this.client = new YouGileClient();
@@ -75702,7 +76160,7 @@ var YouGilePlugin = class extends import_obsidian24.Plugin {
     this.saveSecret(secretName, key);
     this.settings.apiKeySecret = secretName;
     await this.saveSettings();
-    new import_obsidian24.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
+    new import_obsidian25.Notice("YouGile: API \u043A\u043B\u044E\u0447 \u043F\u043E\u043B\u0443\u0447\u0435\u043D \u0438 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u0437\u0430\u0449\u0438\u0449\u0451\u043D\u043D\u043E");
   }
   async activateView() {
     var _a;
