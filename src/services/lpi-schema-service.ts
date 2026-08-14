@@ -1,7 +1,9 @@
 import initSqlJs from 'sql.js';
+import type { Database, SqlJsStatic, SqlValue } from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 import { requestUrl } from 'obsidian';
+import { errorMessage } from '../utils/errors';
 
 export interface ColumnDef {
   cid: number;
@@ -35,6 +37,17 @@ export interface SchemaDb {
   byName: Map<string, TableDef>;
 }
 
+/** Приводит значение ячейки PRAGMA к числу (0, если значение не числовое). */
+function asNumber(v: SqlValue): number {
+  return typeof v === 'number' ? v : Number(v ?? 0) || 0;
+}
+
+/** Приводит значение ячейки PRAGMA к строке (пустая строка для NULL). */
+function asText(v: SqlValue): string {
+  if (v === null || v === undefined) return '';
+  return typeof v === 'string' ? v : String(v);
+}
+
 export class LpiSchemaService {
   private wasmBinary: ArrayBuffer | null = null;
 
@@ -49,12 +62,16 @@ export class LpiSchemaService {
       const url = 'https://raw.githubusercontent.com/Epyur/yougile-tntn/main/sql-wasm.wasm';
       const resp = await requestUrl({ url });
       this.wasmBinary = resp.arrayBuffer;
-      try { fs.writeFileSync(wasmPath, Buffer.from(resp.arrayBuffer)); } catch {}
+      try {
+        fs.writeFileSync(wasmPath, Buffer.from(resp.arrayBuffer));
+      } catch (e: unknown) {
+        console.error('LPI Schema: не удалось закэшировать sql-wasm.wasm:', errorMessage(e));
+      }
       return this.wasmBinary;
     }
   }
 
-  async openDb(dbPath: string): Promise<any> {
+  async openDb(dbPath: string): Promise<{ db: Database; SQL: SqlJsStatic }> {
     const wasmBinary = await this.getWasmBinary();
     const SQL = await initSqlJs({ wasmBinary: wasmBinary.slice(0) });
     const dbBuf = fs.readFileSync(dbPath);
@@ -73,25 +90,25 @@ export class LpiSchemaService {
         const name = row[0] as string;
         const sqlCreate = (row[1] as string) || '';
         const colsResult = db.exec(`PRAGMA table_info('${name.replace(/'/g, "''")}')`);
-        const columns: ColumnDef[] = (colsResult[0]?.values || []).map((col: any[]) => ({
-          cid: col[0] as number,
-          name: col[1] as string,
-          type: col[2] as string,
+        const columns: ColumnDef[] = (colsResult[0]?.values || []).map(col => ({
+          cid: asNumber(col[0]),
+          name: asText(col[1]),
+          type: asText(col[2]),
           notnull: col[3] === 1,
-          dflt_value: col[4] as string | null,
+          dflt_value: typeof col[4] === 'string' ? col[4] : null,
           pk: col[5] === 1,
         }));
 
         const fkResult = db.exec(`PRAGMA foreign_key_list('${name.replace(/'/g, "''")}')`);
-        const foreignKeys: ForeignKeyDef[] = (fkResult[0]?.values || []).map((fk: any[]) => ({
-          id: fk[0] as number,
-          seq: fk[1] as number,
-          table: fk[2] as string,
-          from: fk[3] as string,
-          to: fk[4] as string,
-          on_update: fk[5] as string,
-          on_delete: fk[6] as string,
-          match: fk[7] as string,
+        const foreignKeys: ForeignKeyDef[] = (fkResult[0]?.values || []).map(fk => ({
+          id: asNumber(fk[0]),
+          seq: asNumber(fk[1]),
+          table: asText(fk[2]),
+          from: asText(fk[3]),
+          to: asText(fk[4]),
+          on_update: asText(fk[5]),
+          on_delete: asText(fk[6]),
+          match: asText(fk[7]),
         }));
 
         const td: TableDef = { name, sql: sqlCreate, columns, foreignKeys };
@@ -104,7 +121,7 @@ export class LpiSchemaService {
     }
   }
 
-  async runQuery(dbPath: string, sql: string): Promise<{ columns: string[]; rows: any[][] }> {
+  async runQuery(dbPath: string, sql: string): Promise<{ columns: string[]; rows: SqlValue[][] }> {
     const { db } = await this.openDb(dbPath);
     try {
       const result = db.exec(sql);

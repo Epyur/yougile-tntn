@@ -2,6 +2,7 @@ import { App } from 'obsidian';
 import { CacheData, CachedTask, CachedProject, CachedBoard, CachedColumn, OfflineAction, CachedSubtask } from '../types/cache';
 import type { YouGileUser } from '../types/yougile';
 import type YouGilePlugin from '../main';
+import { errorMessage } from '../utils/errors';
 
 const DATA_FILE = 'yourbase/yougile_cache.json';
 
@@ -42,17 +43,19 @@ export class LocalDatabase {
         };
       }
       this.initialized = true;
-    } catch {
+    } catch (e: unknown) {
+      console.error('YouGile: failed to load cache:', errorMessage(e));
       this.initialized = true;
     }
   }
 
+  /** Пишет кэш на диск. Никогда не отклоняет промис — ошибки логируются. */
   private async save(): Promise<void> {
     if (!this.initialized) return;
     try {
       await this.app.vault.adapter.write(DATA_FILE, JSON.stringify(this.data, null, 2));
-    } catch {
-      console.error('YouGile: failed to save cache');
+    } catch (e: unknown) {
+      console.error('YouGile: failed to save cache:', errorMessage(e));
     }
   }
 
@@ -112,20 +115,20 @@ export class LocalDatabase {
       synced: false,
     };
     this.data.offlineQueue.push(entry);
-    this.save();
+    void this.save();
   }
 
   markOfflineSynced(id: string): void {
     const idx = this.data.offlineQueue.findIndex(a => a.id === id);
     if (idx !== -1) {
       this.data.offlineQueue[idx].synced = true;
-      this.save();
+      void this.save();
     }
   }
 
   removeOfflineAction(id: string): void {
     this.data.offlineQueue = this.data.offlineQueue.filter(a => a.id !== id);
-    this.save();
+    void this.save();
   }
 
   hasUnsynchronizedActions(): boolean {
@@ -365,9 +368,9 @@ export class LocalDatabase {
               } else {
                 stillMissing.push(t.id);
               }
-            } catch (err) {
+            } catch (err: unknown) {
               stillMissing.push(t.id);
-              console.log(`YouGile backfill: error for ${t.id}: ${err instanceof Error ? err.message : String(err)}`);
+              console.log(`YouGile backfill: error for ${t.id}: ${errorMessage(err)}`);
             }
           }));
         }

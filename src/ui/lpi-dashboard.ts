@@ -1,5 +1,7 @@
 import type { LpiItem } from '../types/lpi';
 import ApexCharts from 'apexcharts';
+import type { ApexOptions } from 'apexcharts';
+import { errorMessage } from '../utils/errors';
 import type { LpiView } from './lpi-view';
 import { ProductFilterModal, MethodFilterModal } from './lpi-modals';
 import { isCompleted, getMethodDisplayName, toMonthKey } from './lpi-utils';
@@ -201,13 +203,15 @@ export class LpiDashboard {
 
     this.dashboardTimer = window.setTimeout(() => {
       for (const chart of this.charts) {
-        try { chart.render(); } catch {}
+        chart.render().catch((e: unknown) => {
+          console.error('LPI дашборд: ошибка отрисовки графика:', errorMessage(e));
+        });
       }
     }, 100);
   }
 
   private createChart(container: HTMLElement, options: Record<string, unknown>): ApexCharts {
-    const chart = new ApexCharts(container, options as any);
+    const chart = new ApexCharts(container, options as ApexOptions);
     this.charts.push(chart);
     return chart;
   }

@@ -4,6 +4,7 @@ import type { PresentationDraft, PresentationItem, PresentationQuestionaire } fr
 import { buildPresentationHtml, PRESENTATION_RENDER_VERSION } from '../services/presentation-generator';
 import { QuestionnaireModal, BrainstormModal, PresentationPreviewModal, NewTemplateModal, ImageUploadModal, TaskPickModal, ShowSettingsModal, SlideTransition } from './presentation-modals';
 import { PresentationEditorModal } from './presentation-editor';
+import { errorMessage } from '../utils/errors';
 
 export const PRESENTATIONS_VIEW_TYPE = 'yougile-presentations';
 
@@ -144,8 +145,8 @@ export class PresentationsView extends ItemView {
       new Notice('Презентации: повторная генерация...');
       const designRules = await this.plugin.presentationTemplates.readDesignRules();
       await this.doGenerate(draft.questionaire, designRules, draft.id);
-    } catch (e) {
-      new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
+    } catch (e: unknown) {
+      new Notice(`Ошибка: ${errorMessage(e)}`);
     }
   }
 
@@ -331,8 +332,8 @@ export class PresentationsView extends ItemView {
       if (draftId) await this.plugin.presentationsDb.deleteDraft(draftId);
       new Notice(`Презентации: «${item.title}» создана (${generation.slides.length} слайдов)`);
       this.render();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+    } catch (e: unknown) {
+      const msg = errorMessage(e);
       item.status = 'error';
       item.error = msg;
       await this.plugin.presentationsDb.update(item.id, { status: 'error', error: msg });
@@ -377,8 +378,8 @@ export class PresentationsView extends ItemView {
         });
         new Notice('Презентации: перегенерировано');
         this.render();
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+      } catch (e: unknown) {
+        const msg = errorMessage(e);
         item.status = 'error';
         item.error = msg;
         await this.plugin.presentationsDb.update(item.id, { status: 'error', error: msg });
@@ -442,8 +443,8 @@ export class PresentationsView extends ItemView {
       const path = `${EXPORT_DIR}/${sanitize(item.title)}.html`;
       await adapter.write(path, html);
       new Notice(`Презентации: сохранено ${path}`);
-    } catch (e) {
-      new Notice(`Ошибка экспорта: ${e instanceof Error ? e.message : String(e)}`);
+    } catch (e: unknown) {
+      new Notice(`Ошибка экспорта: ${errorMessage(e)}`);
     }
   }
 
@@ -462,8 +463,8 @@ export class PresentationsView extends ItemView {
         const link = `<a href="${result.fullUrl}">${escapeHtmlAttr(item.title)}</a>`;
         await this.plugin.client.sendMessage(task.id, link);
         new Notice(`Презентации: «${item.title}» отправлена в чат задачи`);
-      } catch (e) {
-        new Notice(`Презентации: ошибка отправки — ${e instanceof Error ? e.message : String(e)}`);
+      } catch (e: unknown) {
+        new Notice(`Презентации: ошибка отправки — ${errorMessage(e)}`);
       }
     }).open();
   }

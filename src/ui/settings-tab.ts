@@ -204,7 +204,7 @@ export class YouGileSettingTab extends PluginSettingTab {
             const secretName = 'yougile-llm';
             this.plugin.saveSecret(secretName, value);
             this.plugin.settings.llmApiKeySecret = secretName;
-            this.plugin.saveSettings();
+            void this.plugin.saveSettings();
             console.log('[YouGile LLM] сохранён ключ (длина ' + value.length + ').'); // DEBUG-отладка
           });
         return text;
@@ -286,7 +286,7 @@ export class YouGileSettingTab extends PluginSettingTab {
           .onClick(() => {
             const modal = new DocxTemplateSuggestModal(this.app, this.plugin, (path) => {
               this.plugin.settings.docxTemplatePath = path;
-              this.plugin.saveSettings();
+              void this.plugin.saveSettings();
               this.display();
             });
             modal.open();
@@ -335,7 +335,7 @@ export class YouGileSettingTab extends PluginSettingTab {
         .addButton(btn => btn
           .setButtonText('Открыть дашборд')
           .onClick(() => {
-            this.plugin.activateDashboardView();
+            void this.plugin.activateDashboardView();
           }));
     });
 
@@ -347,7 +347,7 @@ export class YouGileSettingTab extends PluginSettingTab {
         .addButton(btn => btn
           .setButtonText('Открыть')
           .onClick(() => {
-            this.plugin.activateLpiView();
+            void this.plugin.activateLpiView();
           }));
       const projectSetting = new Setting(body).setName('Проект').setDesc('Проект для заявок ЛПИ');
       const projectSelect = projectSetting.descEl.parentElement!.createEl('select');
@@ -413,7 +413,8 @@ export class YouGileSettingTab extends PluginSettingTab {
             fallback.addEventListener('change', async () => {
               const file = fallback.files?.[0];
               if (file) {
-                const p = (file as any).path;
+                // Electron расширяет File полем `path` с абсолютным путём.
+                const p = (file as File & { path?: string }).path;
                 if (p) {
                   this.plugin.settings.lpiDbPath = p.replace(/\\/g, '/');
                   await this.plugin.saveSettings();
@@ -450,7 +451,7 @@ export class YouGileSettingTab extends PluginSettingTab {
         .addButton(btn => btn
           .setButtonText('Открыть')
           .onClick(() => {
-            this.plugin.activatePresentationsView();
+            void this.plugin.activatePresentationsView();
           }));
 
       new Setting(body)

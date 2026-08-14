@@ -130,7 +130,7 @@ export class EmailsView extends ItemView {
             this.selectedColumnIds.delete(col.id);
           }
           this.plugin.settings.emailSelectedColumnIds = [...this.selectedColumnIds].join(',');
-          this.plugin.saveSettings();
+          void this.plugin.saveSettings();
           this.renderView();
         });
         const dirName = this.getDirectionName(col.id);

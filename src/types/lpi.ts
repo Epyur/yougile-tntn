@@ -64,3 +64,27 @@ export interface LpiItem {
   updatedAt?: string;
   updatedBy?: string;
 }
+
+/**
+ * Содержимое поля `description` LPI-задачи YouGile (результат `LpiView.buildFullJson`).
+ * Все поля заявки опциональны, т.к. описание может быть создано более старой версией плагина.
+ */
+export interface LpiTaskDescription extends Partial<LpiItem> {
+  type?: string;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+/** Поля заявки, которые сравниваются при синхронизации (SQLite ⇄ плагин ⇄ YouGile). */
+export type LpiComparableField =
+  | 'protocol_date'
+  | 'agg_gen_group_complience'
+  | 'agg_gen_group'
+  | 'product_name';
+
+export const LPI_COMPARE_FIELDS: { key: LpiComparableField; label: string }[] = [
+  { key: 'protocol_date', label: 'Дата протокола' },
+  { key: 'agg_gen_group_complience', label: 'Оценка соответствия' },
+  { key: 'agg_gen_group', label: 'Результат испытания' },
+  { key: 'product_name', label: 'Материал' },
+];

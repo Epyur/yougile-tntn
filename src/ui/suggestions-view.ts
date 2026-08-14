@@ -79,7 +79,7 @@ export class SuggestionsView extends ItemView {
     this.renderView();
   }
 
-  onClose(): void {
+  async onClose(): Promise<void> {
     // no-op
   }
 
@@ -251,7 +251,7 @@ export class SuggestionsView extends ItemView {
         };
         await this.plugin.client.createTask(payload);
         new Notice('Предложение создано');
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -264,7 +264,7 @@ export class SuggestionsView extends ItemView {
             },
           });
           new Notice('Нет соединения. Предложение будет создано позже.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText('✅ Создать');
@@ -327,7 +327,7 @@ export class SuggestionsView extends ItemView {
           completed: !item.completed,
         });
         new Notice(item.completed ? 'Предложение открыто заново' : 'Предложение завершено');
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -335,7 +335,7 @@ export class SuggestionsView extends ItemView {
             payload: { id: item.taskId, completed: !item.completed },
           });
           new Notice('Нет соединения. Изменения будут сохранены позже.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           completeBtn.setText(item.completed ? '🔄 Открыть заново' : '✅ Завершить');
@@ -440,7 +440,7 @@ export class SuggestionsView extends ItemView {
         // Show server response to user (only author/admin can edit)
         const responseStr = typeof response === 'string' ? response : JSON.stringify(response);
         new Notice(`Ответ сервера: ${responseStr}`);
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -454,7 +454,7 @@ export class SuggestionsView extends ItemView {
             },
           });
           new Notice('Нет соединения. Изменения будут сохранены позже.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           const msg = e instanceof Error ? e.message : String(e);
           new Notice(`Ответ сервера: ${msg}`);

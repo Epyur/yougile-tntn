@@ -181,7 +181,7 @@ export class ScheduleView extends ItemView {
         : this.plugin.settings.calendarSelectedColumnIds;
       this.selectedColumnIds = new Set((ids || '').split(',').filter(Boolean));
       this.renderCalendar();
-      this.syncAndRender();
+      void this.syncAndRender();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('ScheduleView onOpen error:', msg, e);
@@ -373,7 +373,7 @@ export class ScheduleView extends ItemView {
           this.selectedColumnIds.delete(col.id);
         }
         this.plugin.settings[settingKey] = Array.from(this.selectedColumnIds).join(',');
-        this.plugin.saveSettings();
+        void this.plugin.saveSettings();
         this.renderCalendar();
       });
     }
@@ -508,7 +508,7 @@ export class ScheduleView extends ItemView {
         try {
           await this.plugin.client.updateTask(ev.taskId, { completed: false });
           new Notice('Мероприятие возобновлено');
-          this.syncAndRender();
+          void this.syncAndRender();
         } catch (e: unknown) {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -684,7 +684,7 @@ export class ScheduleView extends ItemView {
         }
 
         new Notice('Мероприятие создано');
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           const offlinePayload: Record<string, unknown> = {
@@ -705,7 +705,7 @@ export class ScheduleView extends ItemView {
             });
           }
           new Notice('Нет соединения. Мероприятие будет создано позже.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText('Создать');
@@ -807,7 +807,7 @@ export class ScheduleView extends ItemView {
           deadline: { deadline: deadlineMs, withTime: true },
         });
         new Notice('Мероприятие обновлено');
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -822,7 +822,7 @@ export class ScheduleView extends ItemView {
             },
           });
           new Notice('Нет соединения. Изменения будут сохранены позже.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           saveBtn.setText('💾 Сохранить');
@@ -952,7 +952,7 @@ export class ScheduleView extends ItemView {
         }
 
         new Notice('Мероприятие завершено');
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -970,7 +970,7 @@ export class ScheduleView extends ItemView {
             });
           }
           new Notice('Нет соединения. Отчёт будет сохранён позже.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText('✅ Завершить');
@@ -1020,7 +1020,7 @@ export class ScheduleView extends ItemView {
       const leaf = this.plugin.app.workspace.getLeavesOfType(TASKS_VIEW_TYPE).first();
       const view = leaf?.view;
       if (view instanceof TasksView) {
-        view.openTaskDetail(taskId);
+        void view.openTaskDetail(taskId);
       }
     }, 300);
   }

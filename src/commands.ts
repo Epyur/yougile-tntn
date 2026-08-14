@@ -20,7 +20,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
         new Notice('YouGile: Сначала настройте API ключ в настройках плагина');
         return;
       }
-      plugin.activateView();
+      void plugin.activateView();
       window.setTimeout(() => {
         const leaf = plugin.app.workspace.getLeavesOfType(TASKS_VIEW_TYPE).first();
         const view = leaf?.view;
@@ -41,7 +41,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
       }
       const view = leaf?.view;
       if (view instanceof TasksView) {
-        view.syncAndRender();
+        void view.syncAndRender();
         new Notice('YouGile: Список задач обновлён');
       }
     },
@@ -53,7 +53,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
     checkCallback: (checking: boolean) => {
       if (!plugin.settings.moduleCalendarEnabled) return false;
       if (checking) return true;
-      plugin.activateScheduleView();
+      void plugin.activateScheduleView();
     },
   });
 
@@ -67,7 +67,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
         return false;
       }
       if (checking) return true;
-      plugin.activateDocumentsView();
+      void plugin.activateDocumentsView();
     },
   });
 
@@ -77,7 +77,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
     checkCallback: (checking: boolean) => {
       if (!plugin.settings.moduleEmailsEnabled) return false;
       if (checking) return true;
-      plugin.activateEmailsView();
+      void plugin.activateEmailsView();
     },
   });
 
@@ -87,7 +87,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
     checkCallback: (checking: boolean) => {
       if (!plugin.settings.moduleDashboardEnabled) return false;
       if (checking) return true;
-      plugin.activateDashboardView();
+      void plugin.activateDashboardView();
     },
   });
 
@@ -96,7 +96,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
     name: 'Открыть предложения',
     checkCallback: (checking: boolean) => {
       if (checking) return true;
-      plugin.activateSuggestionsView();
+      void plugin.activateSuggestionsView();
     },
   });
 
@@ -106,7 +106,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
     checkCallback: (checking: boolean) => {
       if (!plugin.settings.moduleContactsEnabled) return false;
       if (checking) return true;
-      plugin.activateContactsView();
+      void plugin.activateContactsView();
     },
   });
 
@@ -116,7 +116,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
     checkCallback: (checking: boolean) => {
       if (!plugin.settings.moduleLpiEnabled) return false;
       if (checking) return true;
-      plugin.activateLpiView();
+      void plugin.activateLpiView();
     },
   });
 
@@ -126,7 +126,7 @@ export function registerCommands(plugin: YouGilePlugin): void {
     checkCallback: (checking: boolean) => {
       if (!plugin.settings.modulePresentationsEnabled) return false;
       if (checking) return true;
-      plugin.activatePresentationsView();
+      void plugin.activatePresentationsView();
     },
   });
 

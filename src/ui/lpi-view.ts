@@ -8,7 +8,8 @@ import { LpiSync } from './lpi-sync';
 import { LpiDashboard } from './lpi-dashboard';
 import { LpiDetail } from './lpi-detail';
 import { YougileSyncModal } from './lpi-modals';
-import { isCompleted, statusDisplay, getProtocolDate, getMethodDisplayName } from './lpi-utils';
+import { isCompleted, statusDisplay, getProtocolDate } from './lpi-utils';
+import { errorMessage } from '../utils/errors';
 import fs from 'fs';
 
 const CONFIG_PATH = 'yourbase/lpi_view_config.json';
@@ -70,7 +71,11 @@ export class LpiView extends ItemView {
     this.items = await this.sync.loadData();
     await this.loadViewConfig();
     // Ensure reference data (projects, boards, columns) is loaded
-    try { await this.plugin.db.sync(); } catch {}
+    try {
+      await this.plugin.db.sync();
+    } catch (e: unknown) {
+      console.error('LPI: не удалось синхронизировать справочные данные:', errorMessage(e));
+    }
     const syncResult = await this.sync.syncFromTasks(this.items);
     console.log(`YouGile LPI onOpen: hasChanges=${syncResult.hasChanges}, items=${this.items.length}`);
     if (syncResult.hasChanges) {
@@ -227,8 +232,8 @@ export class LpiView extends ItemView {
         } else {
           new Notice('Новых заявок не найдено');
         }
-      } catch (e: any) {
-        new Notice('Ошибка: ' + e.message);
+      } catch (e: unknown) {
+        new Notice('Ошибка: ' + errorMessage(e));
       }
       sqlBtn.disabled = false;
       sqlBtn.textContent = '📥 SQL → Локально';
@@ -386,7 +391,7 @@ export class LpiView extends ItemView {
 
     for (const item of filtered) {
       const row = tbody.createEl('tr', { cls: 'mailer-clickable mailer-row-hover' });
-      const rowClick = () => { this.detail.render(this.containerElContent, item); };
+      const rowClick = () => { void this.detail.render(this.containerElContent, item); };
       row.addEventListener('click', rowClick);
       const dotCell = row.createEl('td', { cls: 'mailer-td' });
       dotCell.style.width = '24px';
@@ -451,8 +456,8 @@ export class LpiView extends ItemView {
           await this.sync.syncItemToYougile(item);
           await this.saveData();
           new Notice(`Заявка №${item.application_external_id} отправлена в YouGile`);
-        } catch (e: any) {
-          new Notice('Ошибка: ' + e.message);
+        } catch (e: unknown) {
+          new Notice('Ошибка: ' + errorMessage(e));
         }
         rowSendBtn.disabled = false;
         rowSendBtn.textContent = '📤';

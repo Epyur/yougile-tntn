@@ -43,7 +43,7 @@ export class ContactsView extends ItemView {
     await this.syncAndRender();
   }
 
-  onClose(): void {
+  async onClose(): Promise<void> {
     // no-op
   }
 
@@ -127,7 +127,7 @@ export class ContactsView extends ItemView {
             this.selectedColumnIds.delete(col.id);
           }
           this.plugin.settings.contactSelectedColumnIds = Array.from(this.selectedColumnIds).join(',');
-          this.plugin.saveSettings();
+          void this.plugin.saveSettings();
           this.renderView();
         });
       }
@@ -257,7 +257,7 @@ export class ContactsView extends ItemView {
         contact.sync_status = 'synced';
         this.plugin.contactDb.addContact(contact);
         new Notice('Контакт создан');
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.contactDb.addContact(contact);
@@ -271,7 +271,7 @@ export class ContactsView extends ItemView {
             },
           });
           new Notice('Нет соединения. Контакт сохранён локально, будет синхронизирован позже.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText('✅ Создать');
@@ -447,7 +447,7 @@ export class ContactsView extends ItemView {
         }
         this.plugin.contactDb.updateContact(contact.id, updated);
         new Notice('Контакт обновлён');
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.contactDb.updateContact(contact.id, updated);
@@ -463,7 +463,7 @@ export class ContactsView extends ItemView {
             });
           }
           new Notice('Нет соединения. Изменения сохранены локально.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           saveBtn.setText('💾 Сохранить');

@@ -7363,183 +7363,6 @@ var init_presentation_generator = __esm({
   }
 });
 
-// src/services/sync-logger.ts
-var sync_logger_exports = {};
-__export(sync_logger_exports, {
-  SyncLogModal: () => SyncLogModal,
-  SyncLogger: () => SyncLogger
-});
-var import_obsidian21, LOG_PATH, MAX_ENTRIES, SyncLogger, SyncLogModal;
-var init_sync_logger = __esm({
-  "src/services/sync-logger.ts"() {
-    "use strict";
-    import_obsidian21 = require("obsidian");
-    LOG_PATH = "yourbase/sync_log.json";
-    MAX_ENTRIES = 2e3;
-    SyncLogger = class {
-      constructor(app) {
-        this.data = { entries: [] };
-        this.initialized = false;
-        this.app = app;
-      }
-      async init() {
-        try {
-          const adapter = this.app.vault.adapter;
-          const exists = await adapter.exists(LOG_PATH);
-          if (exists) {
-            const content = await adapter.read(LOG_PATH);
-            const parsed = JSON.parse(content);
-            this.data = {
-              entries: Array.isArray(parsed.entries) ? parsed.entries : []
-            };
-          }
-          this.initialized = true;
-        } catch (e) {
-          this.initialized = true;
-        }
-      }
-      async log(entry) {
-        const fullEntry = {
-          ...entry,
-          timestamp: (/* @__PURE__ */ new Date()).toISOString()
-        };
-        this.data.entries.unshift(fullEntry);
-        if (this.data.entries.length > MAX_ENTRIES) {
-          this.data.entries = this.data.entries.slice(0, MAX_ENTRIES);
-        }
-        await this.save();
-      }
-      getAll() {
-        return this.data.entries;
-      }
-      async clear() {
-        this.data.entries = [];
-        await this.save();
-      }
-      async save() {
-        if (!this.initialized) return;
-        try {
-          await this.app.vault.adapter.write(LOG_PATH, JSON.stringify(this.data, null, 2));
-        } catch (e) {
-          console.error("YouGile: failed to save sync log");
-        }
-      }
-    };
-    SyncLogModal = class extends import_obsidian21.Modal {
-      constructor(app, logger) {
-        super(app);
-        this.filterModule = "";
-        this.filterDirection = "";
-        this.filterStatus = "";
-        this.logger = logger;
-      }
-      onOpen() {
-        this.render();
-      }
-      render() {
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.createEl("h2", { text: "\u{1F4CB} \u0416\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
-        const all = this.logger.getAll();
-        const filtered = all.filter((e) => {
-          if (this.filterModule && e.module !== this.filterModule) return false;
-          if (this.filterDirection && e.direction !== this.filterDirection) return false;
-          if (this.filterStatus && e.status !== this.filterStatus) return false;
-          return true;
-        });
-        const filterRow = contentEl.createDiv({ cls: "mailer-filter-row" });
-        filterRow.style.display = "flex";
-        filterRow.style.gap = "8px";
-        filterRow.style.marginBottom = "12px";
-        filterRow.style.flexWrap = "wrap";
-        filterRow.style.alignItems = "center";
-        const modules = [...new Set(all.map((e) => e.module))].sort();
-        const moduleSel = filterRow.createEl("select");
-        moduleSel.createEl("option", { text: "\u0412\u0441\u0435 \u043C\u043E\u0434\u0443\u043B\u0438", value: "" });
-        for (const m of modules) {
-          moduleSel.createEl("option", { text: m, value: m });
-        }
-        moduleSel.value = this.filterModule;
-        moduleSel.addEventListener("change", () => {
-          this.filterModule = moduleSel.value;
-          this.render();
-        });
-        const dirSel = filterRow.createEl("select");
-        dirSel.createEl("option", { text: "\u0412\u0441\u0435 \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F", value: "" });
-        dirSel.createEl("option", { text: "\u2192 YouGile", value: "to-yougile" });
-        dirSel.createEl("option", { text: "\u2190 YouGile", value: "from-yougile" });
-        dirSel.createEl("option", { text: "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E", value: "local" });
-        dirSel.value = this.filterDirection;
-        dirSel.addEventListener("change", () => {
-          this.filterDirection = dirSel.value;
-          this.render();
-        });
-        const statusSel = filterRow.createEl("select");
-        statusSel.createEl("option", { text: "\u0412\u0441\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u044B", value: "" });
-        statusSel.createEl("option", { text: "\u2705 \u0423\u0441\u043F\u0435\u0445", value: "success" });
-        statusSel.createEl("option", { text: "\u274C \u041E\u0448\u0438\u0431\u043A\u0430", value: "error" });
-        statusSel.createEl("option", { text: "\u23ED \u041F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u043E", value: "skipped" });
-        statusSel.value = this.filterStatus;
-        statusSel.addEventListener("change", () => {
-          this.filterStatus = statusSel.value;
-          this.render();
-        });
-        const clearBtn = filterRow.createEl("button", { text: "\u{1F5D1} \u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C \u0436\u0443\u0440\u043D\u0430\u043B" });
-        clearBtn.style.marginLeft = "auto";
-        clearBtn.addEventListener("click", async () => {
-          await this.logger.clear();
-          this.render();
-        });
-        const info = contentEl.createDiv();
-        info.style.marginBottom = "8px";
-        info.style.color = "var(--text-muted)";
-        info.style.fontSize = "12px";
-        info.textContent = `\u0412\u0441\u0435\u0433\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439: ${all.length} | \u041E\u0442\u0444\u0438\u043B\u044C\u0442\u0440\u043E\u0432\u0430\u043D\u043E: ${filtered.length}`;
-        if (filtered.length === 0) {
-          contentEl.createEl("p", { text: "\u041D\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u0435\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438." });
-          return;
-        }
-        const table = contentEl.createEl("table");
-        table.style.width = "100%";
-        table.style.borderCollapse = "collapse";
-        table.style.fontSize = "11px";
-        const thead = table.createEl("thead");
-        const hr = thead.createEl("tr");
-        for (const h of ["\u0412\u0440\u0435\u043C\u044F", "\u041C\u043E\u0434\u0443\u043B\u044C", "\u041D\u0430\u043F\u0440.", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435", "ID", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0435\u0442\u0430\u043B\u0438"]) {
-          hr.createEl("th", { text: h }).style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:4px 6px;text-align:left;white-space:nowrap;";
-        }
-        const tbody = table.createEl("tbody");
-        for (const entry of filtered) {
-          const row = tbody.createEl("tr");
-          const timeStr = new Date(entry.timestamp).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-          const dirLabel = entry.direction === "to-yougile" ? "\u2191" : entry.direction === "from-yougile" ? "\u2193" : "\u21BB";
-          const statusLabel = entry.status === "success" ? "\u2705" : entry.status === "error" ? "\u274C" : "\u23ED";
-          row.createEl("td", { text: timeStr }).style.cssText = "padding:2px 6px;white-space:nowrap;";
-          row.createEl("td", { text: entry.module }).style.cssText = "padding:2px 6px;white-space:nowrap;";
-          const dirTd = row.createEl("td");
-          dirTd.textContent = dirLabel;
-          dirTd.style.cssText = "padding:2px 6px;text-align:center;";
-          dirTd.title = entry.direction === "to-yougile" ? "\u0412 YouGile" : entry.direction === "from-yougile" ? "\u0418\u0437 YouGile" : "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E";
-          row.createEl("td", { text: entry.action }).style.cssText = "padding:2px 6px;white-space:nowrap;";
-          row.createEl("td", { text: entry.itemId }).style.cssText = "padding:2px 6px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;";
-          row.createEl("td", { text: entry.itemTitle || "" }).style.cssText = "padding:2px 6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;";
-          row.createEl("td", { text: statusLabel }).style.cssText = "padding:2px 6px;text-align:center;";
-          const detailTd = row.createEl("td");
-          detailTd.textContent = entry.details || entry.error || "";
-          detailTd.style.cssText = "padding:2px 6px;max-width:300px;overflow:hidden;text-overflow:ellipsis;";
-          if (entry.status === "error") {
-            detailTd.style.color = "var(--text-error)";
-          }
-        }
-      }
-      onClose() {
-        const { contentEl } = this;
-        contentEl.empty();
-      }
-    };
-  }
-});
-
 // src/main.ts
 var main_exports = {};
 __export(main_exports, {
@@ -7591,6 +7414,17 @@ var DEFAULT_SETTINGS = {
   lpiColumnTitle: "\u0417\u0430\u044F\u0432\u043A\u0438",
   lpiViewConfigSource: "file"
 };
+
+// src/utils/errors.ts
+function errorMessage(e) {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  if (e && typeof e === "object" && "message" in e) {
+    const m = e.message;
+    if (typeof m === "string") return m;
+  }
+  return String(e);
+}
 
 // src/api/client.ts
 var import_obsidian = require("obsidian");
@@ -7676,29 +7510,22 @@ var YouGileClient = class {
     }
     return allTasks;
   }
-  async getTasksByProject(projectId) {
+  /** Собирает id колонок, принадлежащих указанному проекту. */
+  async getProjectColumnIds(projectId) {
     const boards = await this.getBoards();
     const projectBoardIds = new Set(boards.filter((b) => b.projectId === projectId).map((b) => b.id));
     const allCols = await this.getColumns();
-    const projectColumnIds = new Set(allCols.filter((c) => projectBoardIds.has(c.boardId)).map((c) => c.id));
+    return new Set(allCols.filter((c) => projectBoardIds.has(c.boardId)).map((c) => c.id));
+  }
+  async getTasksByProject(projectId) {
+    const projectColumnIds = await this.getProjectColumnIds(projectId);
     const all = await this.getTasks();
-    return all.filter((t) => {
-      const col = t.columnId;
-      if (!col) return false;
-      return projectColumnIds.has(col);
-    });
+    return all.filter((t) => t.columnId ? projectColumnIds.has(t.columnId) : false);
   }
   async getTasksExcludingProject(projectId) {
-    const boards = await this.getBoards();
-    const projectBoardIds = new Set(boards.filter((b) => b.projectId === projectId).map((b) => b.id));
-    const allCols = await this.getColumns();
-    const projectColumnIds = new Set(allCols.filter((c) => projectBoardIds.has(c.boardId)).map((c) => c.id));
+    const projectColumnIds = await this.getProjectColumnIds(projectId);
     const all = await this.getTasks();
-    return all.filter((t) => {
-      const col = t.columnId;
-      if (!col) return true;
-      return !projectColumnIds.has(col);
-    });
+    return all.filter((t) => t.columnId ? !projectColumnIds.has(t.columnId) : true);
   }
   async createTask(payload) {
     return this.request("POST", "/tasks", payload);
@@ -7959,7 +7786,7 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
           const secretName = "yougile-llm";
           this.plugin.saveSecret(secretName, value);
           this.plugin.settings.llmApiKeySecret = secretName;
-          this.plugin.saveSettings();
+          void this.plugin.saveSettings();
           console.log("[YouGile LLM] \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u043A\u043B\u044E\u0447 (\u0434\u043B\u0438\u043D\u0430 " + value.length + ").");
         });
         return text;
@@ -8002,7 +7829,7 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
       })).addButton((btn) => btn.setButtonText("\u041E\u0431\u0437\u043E\u0440...").onClick(() => {
         const modal = new DocxTemplateSuggestModal(this.app, this.plugin, (path3) => {
           this.plugin.settings.docxTemplatePath = path3;
-          this.plugin.saveSettings();
+          void this.plugin.saveSettings();
           this.display();
         });
         modal.open();
@@ -8033,12 +7860,12 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
     });
     this.renderCollapsibleBlock(containerEl, "\u041C\u043E\u0434\u0443\u043B\u044C \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0430", false, true, (body) => {
       new import_obsidian2.Setting(body).setName("\u0414\u0430\u0448\u0431\u043E\u0440\u0434").setDesc("\u041F\u0430\u043D\u0435\u043B\u044C \u043C\u0435\u0442\u0440\u0438\u043A \u0438 \u0433\u0440\u0430\u0444\u0438\u043A\u043E\u0432 ApexCharts. \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043D\u0435 \u0442\u0440\u0435\u0431\u0443\u044E\u0442\u0441\u044F.").addButton((btn) => btn.setButtonText("\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0434\u0430\u0448\u0431\u043E\u0440\u0434").onClick(() => {
-        this.plugin.activateDashboardView();
+        void this.plugin.activateDashboardView();
       }));
     });
     this.renderCollapsibleBlock(containerEl, "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", true, true, (body) => {
       new import_obsidian2.Setting(body).setName("\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439").setDesc("\u041F\u0440\u043E\u0441\u043C\u043E\u0442\u0440 \u0437\u0430\u044F\u0432\u043E\u043A \u0438 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u043E\u0432 \u043B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u0438 \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439. \u041F\u0440\u043E\u0435\u043A\u0442, \u0434\u043E\u0441\u043A\u0430 \u0438 \u043A\u043E\u043B\u043E\u043D\u043A\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D\u044B \u0436\u0451\u0441\u0442\u043A\u043E.").addButton((btn) => btn.setButtonText("\u041E\u0442\u043A\u0440\u044B\u0442\u044C").onClick(() => {
-        this.plugin.activateLpiView();
+        void this.plugin.activateLpiView();
       }));
       const projectSetting = new import_obsidian2.Setting(body).setName("\u041F\u0440\u043E\u0435\u043A\u0442").setDesc("\u041F\u0440\u043E\u0435\u043A\u0442 \u0434\u043B\u044F \u0437\u0430\u044F\u0432\u043E\u043A \u041B\u041F\u0418");
       const projectSelect = projectSetting.descEl.parentElement.createEl("select");
@@ -8115,7 +7942,7 @@ var YouGileSettingTab = class extends import_obsidian2.PluginSettingTab {
     }, true);
     this.renderCollapsibleBlock(containerEl, "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438", true, true, (body) => {
       new import_obsidian2.Setting(body).setName("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438").setDesc("\u0421\u043E\u0437\u0434\u0430\u043D\u0438\u0435 HTML-\u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0439 \u0438\u0437 \u0430\u043D\u043A\u0435\u0442\u044B \u0447\u0435\u0440\u0435\u0437 LLM, \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0439, \u044D\u043A\u0441\u043F\u043E\u0440\u0442 \u0432 PDF \u0447\u0435\u0440\u0435\u0437 \u043F\u0435\u0447\u0430\u0442\u044C Chromium.").addButton((btn) => btn.setButtonText("\u041E\u0442\u043A\u0440\u044B\u0442\u044C").onClick(() => {
-        this.plugin.activatePresentationsView();
+        void this.plugin.activatePresentationsView();
       }));
       new import_obsidian2.Setting(body).setName("\u0428\u0430\u0431\u043B\u043E\u043D \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E").setDesc("\u0428\u0430\u0431\u043B\u043E\u043D \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u044F, \u0432\u044B\u0431\u0438\u0440\u0430\u0435\u043C\u044B\u0439 \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E \u0432 \u0430\u043D\u043A\u0435\u0442\u0435").addDropdown((drop) => {
         const templates = this.plugin.presentationTemplates.getAllTemplates();
@@ -8382,7 +8209,7 @@ var TasksView = class extends import_obsidian3.ItemView {
     this.selectProject.addClass("dropdown");
     this.selectProject.addEventListener("change", () => {
       this.plugin.settings.selectedProjectId = this.selectProject.value;
-      this.plugin.saveSettings();
+      void this.plugin.saveSettings();
       this.populateFilters();
       this.renderFromCache();
     });
@@ -9138,7 +8965,7 @@ var TasksView = class extends import_obsidian3.ItemView {
         await this.plugin.client.createTask(payload);
         new import_obsidian3.Notice("\u0417\u0430\u0434\u0430\u0447\u0430 \u0441\u043E\u0437\u0434\u0430\u043D\u0430");
         this.createViewActive = false;
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -9491,7 +9318,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
       const ids = this.filterMode === "docs" ? this.plugin.settings.docsSelectedColumnIds : this.plugin.settings.calendarSelectedColumnIds;
       this.selectedColumnIds = new Set((ids || "").split(",").filter(Boolean));
       this.renderCalendar();
-      this.syncAndRender();
+      void this.syncAndRender();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("ScheduleView onOpen error:", msg, e);
@@ -9661,7 +9488,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
           this.selectedColumnIds.delete(col.id);
         }
         this.plugin.settings[settingKey] = Array.from(this.selectedColumnIds).join(",");
-        this.plugin.saveSettings();
+        void this.plugin.saveSettings();
         this.renderCalendar();
       });
     }
@@ -9772,7 +9599,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
         try {
           await this.plugin.client.updateTask(ev.taskId, { completed: false });
           new import_obsidian4.Notice("\u041C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435 \u0432\u043E\u0437\u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E");
-          this.syncAndRender();
+          void this.syncAndRender();
         } catch (e) {
           new import_obsidian4.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -9926,7 +9753,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
           }
         }
         new import_obsidian4.Notice("\u041C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435 \u0441\u043E\u0437\u0434\u0430\u043D\u043E");
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError2(e)) {
           const offlinePayload = {
@@ -9947,7 +9774,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
             });
           }
           new import_obsidian4.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u041C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435 \u0431\u0443\u0434\u0435\u0442 \u0441\u043E\u0437\u0434\u0430\u043D\u043E \u043F\u043E\u0437\u0436\u0435.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new import_obsidian4.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText("\u0421\u043E\u0437\u0434\u0430\u0442\u044C");
@@ -10037,7 +9864,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
           deadline: { deadline: deadlineMs, withTime: true }
         });
         new import_obsidian4.Notice("\u041C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E");
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError2(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -10052,7 +9879,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
             }
           });
           new import_obsidian4.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0431\u0443\u0434\u0443\u0442 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B \u043F\u043E\u0437\u0436\u0435.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new import_obsidian4.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
           saveBtn.setText("\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C");
@@ -10160,7 +9987,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
           }
         }
         new import_obsidian4.Notice("\u041C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E");
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError2(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -10179,7 +10006,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
             });
           }
           new import_obsidian4.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u041E\u0442\u0447\u0451\u0442 \u0431\u0443\u0434\u0435\u0442 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u043F\u043E\u0437\u0436\u0435.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new import_obsidian4.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText("\u2705 \u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C");
@@ -10224,7 +10051,7 @@ var ScheduleView = class extends import_obsidian4.ItemView {
       const leaf = this.plugin.app.workspace.getLeavesOfType(TASKS_VIEW_TYPE).first();
       const view = leaf == null ? void 0 : leaf.view;
       if (view instanceof TasksView) {
-        view.openTaskDetail(taskId);
+        void view.openTaskDetail(taskId);
       }
     }, 300);
   }
@@ -10399,7 +10226,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
             this.selectedColumnIds.delete(col.id);
           }
           this.plugin.settings.docsSelectedColumnIds = Array.from(this.selectedColumnIds).join(",");
-          this.plugin.saveSettings();
+          void this.plugin.saveSettings();
           this.renderView();
         });
       }
@@ -10586,7 +10413,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
         try {
           await this.plugin.client.updateTask(doc.taskId, { completed: false });
           new import_obsidian5.Notice("\u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442 \u0432\u043E\u0437\u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
-          this.syncAndRender();
+          void this.syncAndRender();
         } catch (e) {
           new import_obsidian5.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -10597,7 +10424,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
         try {
           await this.plugin.client.updateTask(doc.taskId, { completed: true });
           new import_obsidian5.Notice("\u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442 \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D");
-          this.syncAndRender();
+          void this.syncAndRender();
         } catch (e) {
           new import_obsidian5.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -10690,7 +10517,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
         };
         await this.plugin.client.createTask(payload);
         new import_obsidian5.Notice("\u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442 \u0441\u043E\u0437\u0434\u0430\u043D");
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError3(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -10704,7 +10531,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
             }
           });
           new import_obsidian5.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442 \u0431\u0443\u0434\u0435\u0442 \u0441\u043E\u0437\u0434\u0430\u043D \u043F\u043E\u0437\u0436\u0435.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new import_obsidian5.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText("\u2705 \u0421\u043E\u0437\u0434\u0430\u0442\u044C");
@@ -10792,7 +10619,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
         };
         await this.plugin.client.createTask(payload);
         new import_obsidian5.Notice("\u0421\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0439 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442 \u0441\u043E\u0437\u0434\u0430\u043D");
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError3(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -10806,7 +10633,7 @@ var DocumentsView = class extends import_obsidian5.ItemView {
             }
           });
           new import_obsidian5.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u0421\u0432\u044F\u0437\u0430\u043D\u043D\u044B\u0439 \u0434\u043E\u043A\u0443\u043C\u0435\u043D\u0442 \u0431\u0443\u0434\u0435\u0442 \u0441\u043E\u0437\u0434\u0430\u043D \u043F\u043E\u0437\u0436\u0435.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new import_obsidian5.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText("\u2705 \u0421\u043E\u0437\u0434\u0430\u0442\u044C");
@@ -29931,7 +29758,7 @@ var EmailsView = class extends import_obsidian7.ItemView {
             this.selectedColumnIds.delete(col.id);
           }
           this.plugin.settings.emailSelectedColumnIds = [...this.selectedColumnIds].join(",");
-          this.plugin.saveSettings();
+          void this.plugin.saveSettings();
           this.renderView();
         });
         const dirName = this.getDirectionName(col.id);
@@ -68882,7 +68709,7 @@ var DashboardView = class extends import_obsidian8.ItemView {
     this.containerElContent = container.createDiv();
     this.renderView();
   }
-  onClose() {
+  async onClose() {
     this.cancelRender();
     this.destroyCharts();
   }
@@ -69191,8 +69018,7 @@ var DashboardView = class extends import_obsidian8.ItemView {
     const deadlineAnnotations = [...deadlineDates].map((d) => ({
       x: d,
       strokeDashArray: 4,
-      borderColor: "#e74c3c",
-      label: { show: false }
+      borderColor: "#e74c3c"
     }));
     const c3 = this.chartBox(grid, "\u0414\u0438\u043D\u0430\u043C\u0438\u043A\u0430 \u043E\u0437\u0430\u0434\u0430\u0447\u0438\u0432\u0430\u043D\u0438\u044F");
     const dt = tasks.filter((t) => t.deadline);
@@ -69273,6 +69099,10 @@ var DashboardView = class extends import_obsidian8.ItemView {
   async exportSingleChart(chart, name2) {
     try {
       const result = await chart.dataURI({ scale: 5 });
+      if (!("imgURI" in result)) {
+        new import_obsidian8.Notice("\u274C \u0413\u0440\u0430\u0444\u0438\u043A \u0432\u0435\u0440\u043D\u0443\u043B \u043D\u0435\u043F\u043E\u0434\u0434\u0435\u0440\u0436\u0438\u0432\u0430\u0435\u043C\u044B\u0439 \u0444\u043E\u0440\u043C\u0430\u0442 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F");
+        return;
+      }
       const pngData = result.imgURI;
       const img = new Image();
       img.onload = async () => {
@@ -69296,8 +69126,7 @@ var DashboardView = class extends import_obsidian8.ItemView {
       };
       img.src = pngData;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      new import_obsidian8.Notice(`\u274C \u041E\u0448\u0438\u0431\u043A\u0430 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0430: ${msg}`);
+      new import_obsidian8.Notice(`\u274C \u041E\u0448\u0438\u0431\u043A\u0430 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0430: ${errorMessage(e)}`);
     }
   }
   async exportAllCharts() {
@@ -69355,7 +69184,7 @@ var DashboardView = class extends import_obsidian8.ItemView {
     await adapter.writeBinary(filePath, data.buffer);
     new import_obsidian8.Notice(`\u2705 CSV \u044D\u043A\u0441\u043F\u043E\u0440\u0442: ${filePath}`);
     const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
-    if (file) {
+    if (file instanceof import_obsidian8.TFile) {
       await this.plugin.app.workspace.getLeaf().openFile(file);
     }
   }
@@ -69365,7 +69194,7 @@ var DashboardView = class extends import_obsidian8.ItemView {
       return;
     }
     await this.plugin.db.sync();
-    this.plugin.emailDb.syncFromTasks(this.plugin.db.getTasks());
+    await this.plugin.emailDb.syncFromTasks(this.plugin.db.getTasks());
     this.renderView();
   }
 };
@@ -69428,7 +69257,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
     this.containerElContent = container.createDiv();
     this.renderView();
   }
-  onClose() {
+  async onClose() {
   }
   getBoardId() {
     const boards = this.plugin.db.getBoards();
@@ -69580,7 +69409,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
         };
         await this.plugin.client.createTask(payload);
         new import_obsidian9.Notice("\u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0441\u043E\u0437\u0434\u0430\u043D\u043E");
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError5(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -69593,7 +69422,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
             }
           });
           new import_obsidian9.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0431\u0443\u0434\u0435\u0442 \u0441\u043E\u0437\u0434\u0430\u043D\u043E \u043F\u043E\u0437\u0436\u0435.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new import_obsidian9.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText("\u2705 \u0421\u043E\u0437\u0434\u0430\u0442\u044C");
@@ -69648,7 +69477,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
           completed: !item.completed
         });
         new import_obsidian9.Notice(item.completed ? "\u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u043E\u0442\u043A\u0440\u044B\u0442\u043E \u0437\u0430\u043D\u043E\u0432\u043E" : "\u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u043E");
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError5(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -69656,7 +69485,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
             payload: { id: item.taskId, completed: !item.completed }
           });
           new import_obsidian9.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0431\u0443\u0434\u0443\u0442 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B \u043F\u043E\u0437\u0436\u0435.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new import_obsidian9.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
           completeBtn.setText(item.completed ? "\u{1F504} \u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0437\u0430\u043D\u043E\u0432\u043E" : "\u2705 \u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044C");
@@ -69749,7 +69578,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
         });
         const responseStr = typeof response === "string" ? response : JSON.stringify(response);
         new import_obsidian9.Notice(`\u041E\u0442\u0432\u0435\u0442 \u0441\u0435\u0440\u0432\u0435\u0440\u0430: ${responseStr}`);
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError5(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -69763,7 +69592,7 @@ var SuggestionsView = class extends import_obsidian9.ItemView {
             }
           });
           new import_obsidian9.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0431\u0443\u0434\u0443\u0442 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B \u043F\u043E\u0437\u0436\u0435.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           const msg = e instanceof Error ? e.message : String(e);
           new import_obsidian9.Notice(`\u041E\u0442\u0432\u0435\u0442 \u0441\u0435\u0440\u0432\u0435\u0440\u0430: ${msg}`);
@@ -69829,7 +69658,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
     this.selectedColumnIds = new Set(this.plugin.settings.contactSelectedColumnIds.split(",").filter(Boolean));
     await this.syncAndRender();
   }
-  onClose() {
+  async onClose() {
   }
   getColumnTitle(columnId) {
     const col = this.plugin.db.getColumns().find((c) => c.id === columnId);
@@ -69902,7 +69731,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
             this.selectedColumnIds.delete(col.id);
           }
           this.plugin.settings.contactSelectedColumnIds = Array.from(this.selectedColumnIds).join(",");
-          this.plugin.saveSettings();
+          void this.plugin.saveSettings();
           this.renderView();
         });
       }
@@ -70018,7 +69847,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
         contact.sync_status = "synced";
         this.plugin.contactDb.addContact(contact);
         new import_obsidian10.Notice("\u041A\u043E\u043D\u0442\u0430\u043A\u0442 \u0441\u043E\u0437\u0434\u0430\u043D");
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError6(e)) {
           this.plugin.contactDb.addContact(contact);
@@ -70032,7 +69861,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
             }
           });
           new import_obsidian10.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u041A\u043E\u043D\u0442\u0430\u043A\u0442 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E, \u0431\u0443\u0434\u0435\u0442 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D \u043F\u043E\u0437\u0436\u0435.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new import_obsidian10.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText("\u2705 \u0421\u043E\u0437\u0434\u0430\u0442\u044C");
@@ -70187,7 +70016,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
         }
         this.plugin.contactDb.updateContact(contact.id, updated);
         new import_obsidian10.Notice("\u041A\u043E\u043D\u0442\u0430\u043A\u0442 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e) {
         if (isNetworkError6(e)) {
           this.plugin.contactDb.updateContact(contact.id, updated);
@@ -70203,7 +70032,7 @@ var ContactsView = class extends import_obsidian10.ItemView {
             });
           }
           new import_obsidian10.Notice("\u041D\u0435\u0442 \u0441\u043E\u0435\u0434\u0438\u043D\u0435\u043D\u0438\u044F. \u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u044B \u043B\u043E\u043A\u0430\u043B\u044C\u043D\u043E.");
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new import_obsidian10.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
           saveBtn.setText("\u{1F4BE} \u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C");
@@ -70363,6 +70192,13 @@ var import_sql = __toESM(require_sql_wasm_browser());
 var import_fs = __toESM(require("fs"));
 var import_path = __toESM(require("path"));
 var import_obsidian11 = require("obsidian");
+function asNumber(v) {
+  return typeof v === "number" ? v : Number(v != null ? v : 0) || 0;
+}
+function asText(v) {
+  if (v === null || v === void 0) return "";
+  return typeof v === "string" ? v : String(v);
+}
 var LpiSchemaService = class {
   constructor() {
     this.wasmBinary = null;
@@ -70381,6 +70217,7 @@ var LpiSchemaService = class {
       try {
         import_fs.default.writeFileSync(wasmPath, Buffer.from(resp.arrayBuffer));
       } catch (e2) {
+        console.error("LPI Schema: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u043A\u044D\u0448\u0438\u0440\u043E\u0432\u0430\u0442\u044C sql-wasm.wasm:", errorMessage(e2));
       }
       return this.wasmBinary;
     }
@@ -70404,23 +70241,23 @@ var LpiSchemaService = class {
         const sqlCreate = row[1] || "";
         const colsResult = db.exec(`PRAGMA table_info('${name2.replace(/'/g, "''")}')`);
         const columns = (((_b = colsResult[0]) == null ? void 0 : _b.values) || []).map((col) => ({
-          cid: col[0],
-          name: col[1],
-          type: col[2],
+          cid: asNumber(col[0]),
+          name: asText(col[1]),
+          type: asText(col[2]),
           notnull: col[3] === 1,
-          dflt_value: col[4],
+          dflt_value: typeof col[4] === "string" ? col[4] : null,
           pk: col[5] === 1
         }));
         const fkResult = db.exec(`PRAGMA foreign_key_list('${name2.replace(/'/g, "''")}')`);
         const foreignKeys = (((_c = fkResult[0]) == null ? void 0 : _c.values) || []).map((fk) => ({
-          id: fk[0],
-          seq: fk[1],
-          table: fk[2],
-          from: fk[3],
-          to: fk[4],
-          on_update: fk[5],
-          on_delete: fk[6],
-          match: fk[7]
+          id: asNumber(fk[0]),
+          seq: asNumber(fk[1]),
+          table: asText(fk[2]),
+          from: asText(fk[3]),
+          to: asText(fk[4]),
+          on_update: asText(fk[5]),
+          on_delete: asText(fk[6]),
+          match: asText(fk[7])
         }));
         const td = { name: name2, sql: sqlCreate, columns, foreignKeys };
         tables.push(td);
@@ -70471,7 +70308,7 @@ var LpiSchemaModal = class extends import_obsidian12.Modal {
       loading.remove();
       this.render();
     } catch (e) {
-      loading.textContent = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0441\u0445\u0435\u043C\u044B: " + e.message;
+      loading.textContent = "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0441\u0445\u0435\u043C\u044B: " + errorMessage(e);
       loading.style.color = "var(--text-error)";
     }
   }
@@ -70632,11 +70469,43 @@ LIMIT 100`;
 
 // src/ui/lpi-sync.ts
 var import_obsidian13 = require("obsidian");
+
+// src/types/lpi.ts
+var LPI_COMPARE_FIELDS = [
+  { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
+  { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
+  { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" },
+  { key: "product_name", label: "\u041C\u0430\u0442\u0435\u0440\u0438\u0430\u043B" }
+];
+
+// src/ui/lpi-sync.ts
 var import_sql2 = __toESM(require_sql_wasm_browser());
 var import_fs2 = __toESM(require("fs"));
 var import_path2 = __toESM(require("path"));
 
 // src/ui/lpi-utils.ts
+function parseLpiDescription(description) {
+  if (!description) return null;
+  try {
+    const parsed = JSON.parse(description);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+function isLpiTaskDescription(desc) {
+  return !!desc && (desc.type === "lpi_data" || desc.type === "lpi_completed");
+}
+function getLpiField(item, key) {
+  const value = item[key];
+  if (value === null || value === void 0) return value;
+  if (typeof value === "string" || typeof value === "number") return value;
+  return String(value);
+}
+function setLpiField(item, key, value) {
+  item[key] = value;
+}
 function isCompleted(item) {
   return !!item.protocol_date && item.protocol_date.trim() !== "" && item.protocol_date !== "\u2014";
 }
@@ -70681,9 +70550,11 @@ var LpiSync = class {
       const exists = await this.view.app.vault.adapter.exists(DB_PATH);
       if (exists) {
         const content = await this.view.app.vault.adapter.read(DB_PATH);
-        return JSON.parse(content);
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
+      console.error("LPI loadData error:", errorMessage(e));
     }
     return [];
   }
@@ -70691,6 +70562,7 @@ var LpiSync = class {
     try {
       await this.view.app.vault.adapter.write(DB_PATH, JSON.stringify(items, null, 2));
     } catch (e) {
+      console.error("LPI saveData error:", errorMessage(e));
     }
   }
   async getWasmBinary() {
@@ -70707,24 +70579,23 @@ var LpiSync = class {
       try {
         import_fs2.default.writeFileSync(wasmPath, Buffer.from(resp.arrayBuffer));
       } catch (e2) {
+        console.error("LPI: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u043A\u044D\u0448\u0438\u0440\u043E\u0432\u0430\u0442\u044C sql-wasm.wasm:", errorMessage(e2));
       }
       return this.wasmBinary;
     }
   }
-  getAllYougileExtIds() {
-    return this.view.plugin.client.getTasks().then((tasks) => {
-      const ids = /* @__PURE__ */ new Set();
-      for (const t of tasks) {
-        try {
-          const desc = JSON.parse(t.description || "{}");
-          if (desc.type === "lpi_data" || desc.type === "lpi_completed") {
-            if (desc.application_external_id) ids.add(desc.application_external_id);
-          }
-        } catch (e) {
-        }
+  async getAllYougileExtIds() {
+    const client = this.view.plugin.client;
+    if (!client) return /* @__PURE__ */ new Set();
+    const tasks = await client.getTasks();
+    const ids = /* @__PURE__ */ new Set();
+    for (const t of tasks) {
+      const desc = parseLpiDescription(t.description);
+      if (isLpiTaskDescription(desc) && desc.application_external_id) {
+        ids.add(desc.application_external_id);
       }
-      return ids;
-    });
+    }
+    return ids;
   }
   async readSqliteItems() {
     let dbPath = this.view.plugin.settings.lpiDbPath;
@@ -70740,13 +70611,16 @@ var LpiSync = class {
     const stmt = db.prepare(sql);
     const sqliteItems = [];
     while (stmt.step()) {
-      const obj = stmt.getAsObject();
-      obj.thickness = obj.thickness !== null ? Number(obj.thickness) : null;
-      obj.source_series_count = null;
-      obj.source_series_range = null;
-      obj.calculation_type = null;
-      obj.result_data = null;
-      sqliteItems.push(obj);
+      const row = stmt.getAsObject();
+      const item = {
+        ...row,
+        thickness: row.thickness !== null && row.thickness !== void 0 ? Number(row.thickness) : null,
+        source_series_count: null,
+        source_series_range: null,
+        calculation_type: null,
+        result_data: null
+      };
+      sqliteItems.push(item);
     }
     stmt.free();
     db.close();
@@ -70762,6 +70636,7 @@ var LpiSync = class {
       try {
         yougileExtIds = await this.getAllYougileExtIds();
       } catch (e) {
+        console.error("LPI: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0441\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u044F\u0432\u043E\u043A \u0438\u0437 YouGile:", errorMessage(e));
       }
       const newItems = [...items];
       let added = 0;
@@ -70794,7 +70669,7 @@ var LpiSync = class {
         action: "load-sql-new",
         itemId: "",
         status: "error",
-        error: e instanceof Error ? e.message : String(e)
+        error: errorMessage(e)
       });
       throw e;
     }
@@ -70811,13 +70686,7 @@ var LpiSync = class {
       }
       const { taskId } = item;
       const changes = [];
-      const compareFields = [
-        { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
-        { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
-        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" },
-        { key: "product_name", label: "\u041C\u0430\u0442\u0435\u0440\u0438\u0430\u043B" }
-      ];
-      for (const cf of compareFields) {
+      for (const cf of LPI_COMPARE_FIELDS) {
         const oldVal = String((_a = item[cf.key]) != null ? _a : "");
         const newVal = String((_b = sqliteItem[cf.key]) != null ? _b : "");
         if (oldVal !== newVal && newVal) {
@@ -70835,12 +70704,12 @@ var LpiSync = class {
       }
       return true;
     } catch (e) {
-      new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u0438\u0437 SQLite: " + e.message);
+      new import_obsidian13.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u044F \u0438\u0437 SQLite: " + errorMessage(e));
       return false;
     }
   }
   async syncFromTasks(items) {
-    var _a, _b;
+    var _a, _b, _c, _d, _e;
     const plugin = this.view.plugin;
     if (!plugin.client) return { items, hasChanges: false };
     let lpiProjectId;
@@ -70852,24 +70721,22 @@ var LpiSync = class {
         if (match) lpiProjectId = match.id;
       }
     } catch (e) {
+      console.error("LPI: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0438\u0442\u044C \u043F\u0440\u043E\u0435\u043A\u0442 LPI:", errorMessage(e));
     }
     const tasks = lpiProjectId ? await plugin.client.getTasksByProject(lpiProjectId) : await plugin.client.getTasks();
-    const lpiTasks = tasks.filter((t) => {
-      try {
-        const desc = JSON.parse(t.description || "{}");
-        return desc.type === "lpi_completed" || desc.type === "lpi_data";
-      } catch (e) {
-        return false;
-      }
-    });
+    const lpiTasks = [];
+    for (const t of tasks) {
+      const desc = parseLpiDescription(t.description);
+      if (isLpiTaskDescription(desc)) lpiTasks.push({ task: t, desc });
+    }
     if (lpiTasks.length > 0) {
-      console.log("YouGile LPI sample:", lpiTasks.slice(0, 3).map((t) => {
+      console.log("YouGile LPI sample:", lpiTasks.slice(0, 3).map(({ task }) => {
         var _a2;
         return {
-          id: t.id,
-          title: t.title,
-          completed: t.completed,
-          desc: (_a2 = t.description) == null ? void 0 : _a2.slice(0, 200)
+          id: task.id,
+          title: task.title,
+          completed: task.completed,
+          desc: (_a2 = task.description) == null ? void 0 : _a2.slice(0, 200)
         };
       }));
     }
@@ -70880,12 +70747,16 @@ var LpiSync = class {
     const newItems = [...items];
     const existingExtIds = new Set(newItems.filter((i) => i.application_external_id).map((i) => i.application_external_id));
     const pendingChanges = [];
-    for (const task of lpiTasks) {
-      const desc = JSON.parse(task.description || "{}");
+    for (const { task, desc } of lpiTasks) {
       const extId = String(desc.application_external_id || "");
       if (!extId) continue;
       if (!existingExtIds.has(extId)) {
-        const newItem = { ...desc, taskId: task.id, updatedAt: task.updatedAt || desc.updated_at || "", updatedBy: desc.updated_by || "" };
+        const newItem = {
+          ...desc,
+          taskId: task.id,
+          updatedAt: task.updatedAt || desc.updated_at || "",
+          updatedBy: desc.updated_by || ""
+        };
         newItems.push(newItem);
         existingExtIds.add(extId);
         imported++;
@@ -70908,13 +70779,7 @@ var LpiSync = class {
         changed = true;
       }
       const changes = [];
-      const compareFields = [
-        { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
-        { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
-        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" },
-        { key: "product_name", label: "\u041C\u0430\u0442\u0435\u0440\u0438\u0430\u043B" }
-      ];
-      for (const cf of compareFields) {
+      for (const cf of LPI_COMPARE_FIELDS) {
         const lv = String((_a = existing[cf.key]) != null ? _a : "");
         const rv = String((_b = desc[cf.key]) != null ? _b : "");
         if (lv !== rv) {
@@ -70940,16 +70805,18 @@ var LpiSync = class {
           desc,
           changes,
           taskId: task.id,
-          completed: task.completed
+          completed: !!task.completed
         });
       }
     }
     console.log(`YouGile LPI sync: \u0438\u0442\u043E\u0433 \u2014 \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E=${updated}, \u0438\u043C\u043F\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u043D\u043E=${imported}, pending=${pendingChanges.length}`);
     for (const pc of pendingChanges) {
       for (const ch of pc.changes) {
-        if (ch.field !== "_status") {
-          pc.existing[ch.field] = pc.desc[ch.field];
-        }
+        if (ch.field === "_status") continue;
+        if (ch.field === "protocol_date") pc.existing.protocol_date = (_c = pc.desc.protocol_date) != null ? _c : null;
+        else if (ch.field === "agg_gen_group") pc.existing.agg_gen_group = (_d = pc.desc.agg_gen_group) != null ? _d : null;
+        else if (ch.field === "agg_gen_group_complience") pc.existing.agg_gen_group_complience = (_e = pc.desc.agg_gen_group_complience) != null ? _e : null;
+        else if (ch.field === "product_name" && pc.desc.product_name) pc.existing.product_name = pc.desc.product_name;
       }
       if (pc.desc.protocol_date) pc.existing.protocol_date = pc.desc.protocol_date;
       if (pc.desc.updated_at) pc.existing.updatedAt = pc.desc.updated_at;
@@ -70980,6 +70847,8 @@ var LpiSync = class {
   }
   async syncItemToYougile(item) {
     const plugin = this.view.plugin;
+    const client = plugin.client;
+    if (!client) throw new Error("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
     const completed = isCompleted(item);
     const fullJson = this.view.buildFullJson(item);
     const desc = JSON.stringify(fullJson);
@@ -70989,7 +70858,7 @@ var LpiSync = class {
       const payload = { description: desc };
       if (completed) payload.completed = true;
       try {
-        await plugin.client.updateTask(item.taskId, payload);
+        await client.updateTask(item.taskId, payload);
         await plugin.syncLogger.log({
           module: "lpi",
           direction: "to-yougile",
@@ -71008,13 +70877,13 @@ var LpiSync = class {
           itemId,
           itemTitle,
           status: "error",
-          error: e instanceof Error ? e.message : String(e)
+          error: errorMessage(e)
         });
         throw e;
       }
     } else {
       try {
-        const result = await plugin.client.createTask({
+        const result = await client.createTask({
           title: `LPI: ${item.application_external_id} \u2014 ${item.product_name}`,
           description: desc,
           columnId: this.view.getLpiColumnId()
@@ -71022,7 +70891,7 @@ var LpiSync = class {
         if (result == null ? void 0 : result.id) {
           item.taskId = result.id;
           if (completed) {
-            await plugin.client.updateTask(result.id, { completed: true });
+            await client.updateTask(result.id, { completed: true });
           }
           await plugin.syncLogger.log({
             module: "lpi",
@@ -71044,7 +70913,7 @@ var LpiSync = class {
           itemId,
           itemTitle,
           status: "error",
-          error: e instanceof Error ? e.message : String(e)
+          error: errorMessage(e)
         });
         throw e;
       }
@@ -71219,7 +71088,7 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
     this.choices = /* @__PURE__ */ new Map();
   }
   async onOpen() {
-    var _a;
+    var _a, _b;
     const { contentEl } = this;
     contentEl.addClass("mailer-yougile-container");
     contentEl.createEl("h2", { text: "\u{1F504} \u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F \u0441 YouGile" });
@@ -71231,19 +71100,15 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
     }
     contentEl.createEl("p", { text: "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0437\u0430\u0434\u0430\u0447 \u0438\u0437 YouGile..." });
     const tasks = await this.plugin.client.getTasks();
-    const lpiTasks = tasks.filter((t) => {
-      try {
-        const desc = JSON.parse(t.description || "{}");
-        return desc.type === "lpi_completed" || desc.type === "lpi_data";
-      } catch (e) {
-        return false;
-      }
-    });
+    const lpiTasks = [];
+    for (const t of tasks) {
+      const desc = parseLpiDescription(t.description);
+      if (isLpiTaskDescription(desc)) lpiTasks.push({ task: t, desc });
+    }
     const items = this.view.items;
     const matchingDiffs = [];
     const imported = [];
-    for (const task of lpiTasks) {
-      const desc = JSON.parse(task.description || "{}");
+    for (const { task, desc } of lpiTasks) {
       const extId = desc.application_external_id || "";
       let localItem = items.find((i) => i.taskId === task.id);
       if (!localItem && extId) localItem = items.find((i) => i.application_external_id === extId);
@@ -71256,13 +71121,7 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
         localItem.taskId = task.id;
       }
       const diffs = [];
-      const compareFields = [
-        { key: "protocol_date", label: "\u0414\u0430\u0442\u0430 \u043F\u0440\u043E\u0442\u043E\u043A\u043E\u043B\u0430" },
-        { key: "agg_gen_group_complience", label: "\u041E\u0446\u0435\u043D\u043A\u0430 \u0441\u043E\u043E\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044F" },
-        { key: "agg_gen_group", label: "\u0420\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u044F" },
-        { key: "product_name", label: "\u041C\u0430\u0442\u0435\u0440\u0438\u0430\u043B" }
-      ];
-      for (const { key, label } of compareFields) {
+      for (const { key, label } of LPI_COMPARE_FIELDS) {
         const lv = String((_a = localItem[key]) != null ? _a : "");
         const rawYv = desc[key];
         const yv = String(rawYv != null ? rawYv : "");
@@ -71272,7 +71131,8 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
         }
       }
       const lc = isCompleted(localItem) ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
-      const yc = isCompleted({ ...localItem, ...desc }) ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
+      const merged = { ...localItem, protocol_date: (_b = desc.protocol_date) != null ? _b : localItem.protocol_date };
+      const yc = isCompleted(merged) ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430" : "\u0410\u043A\u0442\u0438\u0432\u043D\u0430";
       if (lc !== yc) diffs.push({ label: "\u0421\u0442\u0430\u0442\u0443\u0441", local: lc, yougile: yc });
       if (diffs.length > 0) {
         matchingDiffs.push({ item: localItem, task, yougileDesc: desc, diffs });
@@ -71389,28 +71249,30 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
       cls: "mailer-yougile-refresh-btn"
     });
     applyAllBtn.addEventListener("click", async () => {
-      var _a2, _b;
+      var _a2, _b2;
       applyAllBtn.disabled = true;
       applyAllBtn.setText("\u23F3 \u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u0438\u0435...");
       let count = 0;
+      const client = this.plugin.client;
       for (let idx = 0; idx < matchingDiffs.length; idx++) {
         const md = matchingDiffs[idx];
         const choice = this.choices.get(idx) || "local";
         try {
+          if (!client) throw new Error("\u041D\u0435\u0442 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0435\u043D\u0438\u044F \u043A YouGile");
           const fullJson = this.view.buildFullJson(md.item);
           if (choice === "local") {
-            await this.plugin.client.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
+            await client.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
             if (isCompleted(md.item) && !md.task.completed) {
-              await this.plugin.client.updateTask(md.task.id, { completed: true });
+              await client.updateTask(md.task.id, { completed: true });
             }
             if (!md.item.taskId) md.item.taskId = md.task.id;
           } else {
             console.log(`YouGile sync apply yougile: extId=${md.item.application_external_id}, before protocol_date=${md.item.protocol_date}, yougile protocol_date=${md.yougileDesc.protocol_date}`);
-            for (const key of Object.keys(md.yougileDesc)) {
+            for (const [key, yv] of Object.entries(md.yougileDesc)) {
               if (key === "type" || key === "aggregate_id") continue;
-              const yv = md.yougileDesc[key];
-              if (yv !== void 0) {
-                md.item[key] = yv;
+              if (yv === void 0) continue;
+              if (yv === null || typeof yv === "string" || typeof yv === "number") {
+                setLpiField(md.item, key, yv);
               }
             }
             if (md.task.completed && !md.item.protocol_date) {
@@ -71421,10 +71283,10 @@ var YougileSyncModal = class extends import_obsidian14.Modal {
           }
           count++;
         } catch (e) {
-          new import_obsidian14.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E \u2116${md.item.application_external_id}: ${e.message}`);
+          new import_obsidian14.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E \u2116${md.item.application_external_id}: ${errorMessage(e)}`);
         }
       }
-      console.log(`YouGile sync applied: ${count} items, sample item after: extId=${(_a2 = matchingDiffs[0]) == null ? void 0 : _a2.item.application_external_id}, protocol_date=${(_b = matchingDiffs[0]) == null ? void 0 : _b.item.protocol_date}`);
+      console.log(`YouGile sync applied: ${count} items, sample item after: extId=${(_a2 = matchingDiffs[0]) == null ? void 0 : _a2.item.application_external_id}, protocol_date=${(_b2 = matchingDiffs[0]) == null ? void 0 : _b2.item.protocol_date}`);
       await this.view.saveData();
       new import_obsidian14.Notice(`\u041F\u0440\u0438\u043C\u0435\u043D\u0435\u043D\u043E: ${count} \u0437\u0430\u044F\u0432\u043E\u043A`);
       this.close();
@@ -71468,7 +71330,7 @@ var LpiConfigEditorModal = class extends import_obsidian14.Modal {
         new import_obsidian14.Notice("\u041A\u043E\u043D\u0444\u0438\u0433 \u0441\u043E\u0445\u0440\u0430\u043D\u0451\u043D");
         this.close();
       } catch (e) {
-        new import_obsidian14.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u0432 JSON: " + e.message);
+        new import_obsidian14.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u0432 JSON: " + errorMessage(e));
       }
     });
     const resetBtn = btnRow.createEl("button", { text: "\u21BA \u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u043D\u0430 \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044F", cls: "mailer-yougile-refresh-btn" });
@@ -71691,10 +71553,9 @@ var LpiDashboard = class {
     this.createChart(c6, this.buildTestResultSeries(items));
     this.dashboardTimer = window.setTimeout(() => {
       for (const chart of this.charts) {
-        try {
-          chart.render();
-        } catch (e) {
-        }
+        chart.render().catch((e) => {
+          console.error("LPI \u0434\u0430\u0448\u0431\u043E\u0440\u0434: \u043E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u0440\u0438\u0441\u043E\u0432\u043A\u0438 \u0433\u0440\u0430\u0444\u0438\u043A\u0430:", errorMessage(e));
+        });
       }
     }, 100);
   }
@@ -71908,7 +71769,7 @@ var LpiDetail = class {
         await this.view.saveData();
         new import_obsidian15.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
       } catch (e) {
-        new import_obsidian15.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
+        new import_obsidian15.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + errorMessage(e));
       }
       sendBtn.disabled = false;
       sendBtn.textContent = "\u{1F4E4} \u041E\u0442\u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0432 YouGile";
@@ -71927,11 +71788,11 @@ var LpiDetail = class {
       meta.createEl("h4", { text: section.title, cls: "mailer-mt-8" });
       for (const f of section.fields) {
         if (f.visibleIf) {
-          const targetVal = item[f.visibleIf.field];
+          const targetVal = getLpiField(item, f.visibleIf.field);
           if (f.visibleIf.notNull && (targetVal === null || targetVal === void 0 || targetVal === "")) continue;
           if (f.visibleIf.equals !== void 0 && String(targetVal) !== f.visibleIf.equals) continue;
         }
-        const raw = item[f.field];
+        const raw = getLpiField(item, f.field);
         const isMissing = raw === null || raw === void 0 || raw === "";
         let display = isMissing ? "\u2014" : String(raw);
         if (f.format && !isMissing && f.field !== "protocol_date") display = f.format.replace("{value}", display);
@@ -71971,7 +71832,7 @@ var LpiDetail = class {
       if (!fs4.existsSync(dbPath)) return;
       let query = section.query;
       for (const key of section.dependsOn) {
-        const val = item[key];
+        const val = getLpiField(item, key);
         if (val !== null && val !== void 0) query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(val));
       }
       try {
@@ -71997,6 +71858,7 @@ var LpiDetail = class {
           }
         }
       } catch (e) {
+        console.error(`LPI: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0432\u044B\u043F\u043E\u043B\u043D\u0438\u0442\u044C \u043F\u043E\u0434\u0437\u0430\u043F\u0440\u043E\u0441 \u0441\u0435\u043A\u0446\u0438\u0438 \xAB${section.title}\xBB:`, errorMessage(e));
       }
     };
     for (const section of this.view.viewConfig.detailSections) {
@@ -72019,8 +71881,8 @@ var LpiDetail = class {
       cancelEditBtn.style.display = enable ? "" : "none";
     };
     editBtn.addEventListener("click", () => toggleEdit(true));
-    cancelEditBtn.addEventListener("click", async () => {
-      this.render(container, item);
+    cancelEditBtn.addEventListener("click", () => {
+      void this.render(container, item);
     });
     saveBtn.addEventListener("click", async () => {
       var _a;
@@ -72029,13 +71891,13 @@ var LpiDetail = class {
         const inp = inputs[ef.key];
         if (!inp) continue;
         let newVal = inp.value.trim();
-        const oldVal = String((_a = item[ef.key]) != null ? _a : "");
+        const oldVal = String((_a = getLpiField(item, ef.key)) != null ? _a : "");
         if (ef.type === "date" && newVal) {
           const m = newVal.match(/(\d{4})-(\d{2})-(\d{2})/);
           if (m) newVal = `${m[3]}.${m[2]}.${m[1]}`;
         }
         if (newVal !== oldVal) {
-          item[ef.key] = newVal || null;
+          setLpiField(item, ef.key, newVal || null);
           changedKeys.push(ef.label);
         }
       }
@@ -72052,9 +71914,9 @@ var LpiDetail = class {
         await this.view.saveData();
         new import_obsidian15.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id}: \u0438\u0437\u043C\u0435\u043D\u0435\u043D\u043E ${changedKeys.length} \u043F\u043E\u043B\u0435\u0439`);
       } catch (e) {
-        new import_obsidian15.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F: " + e.message);
+        new import_obsidian15.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F: " + errorMessage(e));
       }
-      this.render(container, item);
+      void this.render(container, item);
     });
   }
   createInput(ef, value, readOnly) {
@@ -72110,7 +71972,8 @@ var LpiDetail = class {
     tableSel.createEl("option", { text: "\u2014 \u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u0430\u0431\u043B\u0438\u0446\u0443 \u2014", value: "" });
     this.view.schemaService.loadSchema(dbPath).then((schema) => {
       for (const table of schema.tables) tableSel.createEl("option", { text: table.name, value: table.name });
-    }).catch(() => {
+    }).catch((e) => {
+      console.error("LPI: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044C \u0441\u043F\u0438\u0441\u043E\u043A \u0442\u0430\u0431\u043B\u0438\u0446:", errorMessage(e));
     });
     const autoBtn = tableSelRow.createEl("button", { text: "\u{1F504} \u0410\u0432\u0442\u043E", cls: "mailer-yougile-refresh-btn" });
     autoBtn.style.fontSize = "11px";
@@ -72149,7 +72012,8 @@ LIMIT 50`;
 FROM ${tableName}
 LIMIT 100`;
         sqlInput.value = query;
-      }).catch(() => {
+      }).catch((e) => {
+        console.error("LPI: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0437\u0430\u043F\u0440\u043E\u0441:", errorMessage(e));
       });
     });
     const runBtn = qContainer.createEl("button", { text: "\u25B6 \u0412\u044B\u043F\u043E\u043B\u043D\u0438\u0442\u044C", cls: "mailer-yougile-refresh-btn", attr: { style: "margin-top:6px" } });
@@ -72158,7 +72022,7 @@ LIMIT 100`;
     runBtn.addEventListener("click", async () => {
       let query = sqlInput.value;
       for (const key of ["aggregate_id", "application_id", "application_external_id", "product_name"]) {
-        const val = item[key];
+        const val = getLpiField(item, key);
         if (val !== null && val !== void 0) query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), String(val));
       }
       resultDiv.empty();
@@ -72192,7 +72056,7 @@ LIMIT 100`;
           this.view.viewConfig.detailSections.push(newSection);
         };
       } catch (e) {
-        resultDiv.textContent = "\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message;
+        resultDiv.textContent = "\u041E\u0448\u0438\u0431\u043A\u0430: " + errorMessage(e);
         saveSectionBtn.style.display = "none";
       }
       runBtn.textContent = "\u25B6 \u0412\u044B\u043F\u043E\u043B\u043D\u0438\u0442\u044C";
@@ -72251,6 +72115,7 @@ var LpiView = class extends import_obsidian16.ItemView {
     try {
       await this.plugin.db.sync();
     } catch (e) {
+      console.error("LPI: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0441\u043F\u0440\u0430\u0432\u043E\u0447\u043D\u044B\u0435 \u0434\u0430\u043D\u043D\u044B\u0435:", errorMessage(e));
     }
     const syncResult = await this.sync.syncFromTasks(this.items);
     console.log(`YouGile LPI onOpen: hasChanges=${syncResult.hasChanges}, items=${this.items.length}`);
@@ -72430,7 +72295,7 @@ var LpiView = class extends import_obsidian16.ItemView {
           new import_obsidian16.Notice("\u041D\u043E\u0432\u044B\u0445 \u0437\u0430\u044F\u0432\u043E\u043A \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E");
         }
       } catch (e) {
-        new import_obsidian16.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e.message);
+        new import_obsidian16.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + errorMessage(e));
       }
       sqlBtn.disabled = false;
       sqlBtn.textContent = "\u{1F4E5} SQL \u2192 \u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E";
@@ -72580,7 +72445,7 @@ var LpiView = class extends import_obsidian16.ItemView {
     for (const item of filtered) {
       const row = tbody.createEl("tr", { cls: "mailer-clickable mailer-row-hover" });
       const rowClick = () => {
-        this.detail.render(this.containerElContent, item);
+        void this.detail.render(this.containerElContent, item);
       };
       row.addEventListener("click", rowClick);
       const dotCell = row.createEl("td", { cls: "mailer-td" });
@@ -72643,7 +72508,7 @@ var LpiView = class extends import_obsidian16.ItemView {
           await this.saveData();
           new import_obsidian16.Notice(`\u0417\u0430\u044F\u0432\u043A\u0430 \u2116${item.application_external_id} \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 YouGile`);
         } catch (e2) {
-          new import_obsidian16.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + e2.message);
+          new import_obsidian16.Notice("\u041E\u0448\u0438\u0431\u043A\u0430: " + errorMessage(e2));
         }
         rowSendBtn.disabled = false;
         rowSendBtn.textContent = "\u{1F4E4}";
@@ -72804,7 +72669,7 @@ var QuestionnaireModal = class extends import_obsidian18.Modal {
           saveIllToQ();
           renderIll();
         } catch (err) {
-          new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${err instanceof Error ? err.message : String(err)}`);
+          new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${errorMessage(err)}`);
         }
       }
       illFile.value = "";
@@ -72893,7 +72758,7 @@ var NewTemplateModal = class extends import_obsidian18.Modal {
         await this.plugin.presentationTemplates.createTemplateFromExample(example, name2, this.model);
         this.close();
       } catch (e) {
-        new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
+        new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${errorMessage(e)}`);
         b.setDisabled(false).setButtonText("\u0421\u043E\u0437\u0434\u0430\u0442\u044C \u0448\u0430\u0431\u043B\u043E\u043D");
       }
     })).addButton((b) => b.setButtonText("\u041E\u0442\u043C\u0435\u043D\u0430").onClick(() => this.close()));
@@ -72984,8 +72849,9 @@ var BrainstormModal = class extends import_obsidian18.Modal {
         this.skipBtnEl.setText("\u23ED \u0421\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0441\u0435\u0439\u0447\u0430\u0441");
       }
     } catch (e) {
-      this.appendMessage("assistant", "\u26A0\uFE0F \u041E\u0448\u0438\u0431\u043A\u0430: " + (e instanceof Error ? e.message : String(e)));
-      new import_obsidian18.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043C\u043E\u0437\u0433\u043E\u0432\u043E\u0433\u043E \u0448\u0442\u0443\u0440\u043C\u0430: " + (e instanceof Error ? e.message : String(e)));
+      const msg = errorMessage(e);
+      this.appendMessage("assistant", "\u26A0\uFE0F \u041E\u0448\u0438\u0431\u043A\u0430: " + msg);
+      new import_obsidian18.Notice("\u041E\u0448\u0438\u0431\u043A\u0430 \u043C\u043E\u0437\u0433\u043E\u0432\u043E\u0433\u043E \u0448\u0442\u0443\u0440\u043C\u0430: " + msg);
     } finally {
       this.setBusy(false);
     }
@@ -73093,7 +72959,7 @@ var ImageUploadModal = class extends import_obsidian18.Modal {
           const uri = await Promise.resolve().then(() => (init_presentation_generator(), presentation_generator_exports)).then((m) => m.saveImageToVault(this.plugin.app, file, m.PRESENTATION_PICS_DIR));
           addToPool(file.name, uri);
         } catch (err) {
-          new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${err instanceof Error ? err.message : String(err)}`);
+          new import_obsidian18.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${errorMessage(err)}`);
         }
       }
       fileInput.value = "";
@@ -73669,7 +73535,7 @@ var PresentationEditorModal = class extends import_obsidian19.Modal {
       this.onSaved();
       this.close();
     } catch (e) {
-      new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F: ${e instanceof Error ? e.message : String(e)}`);
+      new import_obsidian19.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F: ${errorMessage(e)}`);
     }
   }
 };
@@ -73792,7 +73658,7 @@ var PresentationsView = class extends import_obsidian20.ItemView {
       const designRules = await this.plugin.presentationTemplates.readDesignRules();
       await this.doGenerate(draft.questionaire, designRules, draft.id);
     } catch (e) {
-      new import_obsidian20.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${e instanceof Error ? e.message : String(e)}`);
+      new import_obsidian20.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430: ${errorMessage(e)}`);
     }
   }
   reopenQuestionnaire(draft) {
@@ -73970,7 +73836,7 @@ var PresentationsView = class extends import_obsidian20.ItemView {
       new import_obsidian20.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \xAB${item.title}\xBB \u0441\u043E\u0437\u0434\u0430\u043D\u0430 (${generation.slides.length} \u0441\u043B\u0430\u0439\u0434\u043E\u0432)`);
       this.render();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = errorMessage(e);
       item.status = "error";
       item.error = msg;
       await this.plugin.presentationsDb.update(item.id, { status: "error", error: msg });
@@ -74020,7 +73886,7 @@ var PresentationsView = class extends import_obsidian20.ItemView {
         new import_obsidian20.Notice("\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043F\u0435\u0440\u0435\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u043D\u043E");
         this.render();
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+        const msg = errorMessage(e);
         item.status = "error";
         item.error = msg;
         await this.plugin.presentationsDb.update(item.id, { status: "error", error: msg });
@@ -74087,7 +73953,7 @@ var PresentationsView = class extends import_obsidian20.ItemView {
       await adapter.write(path3, html);
       new import_obsidian20.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E ${path3}`);
     } catch (e) {
-      new import_obsidian20.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0430: ${e instanceof Error ? e.message : String(e)}`);
+      new import_obsidian20.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u044D\u043A\u0441\u043F\u043E\u0440\u0442\u0430: ${errorMessage(e)}`);
     }
   }
   /** Отправка презентации в чат задачи YouGile: загрузка HTML-файла → ссылка → сообщение <a>Название слайдов</a>. */
@@ -74106,7 +73972,7 @@ var PresentationsView = class extends import_obsidian20.ItemView {
         await this.plugin.client.sendMessage(task.id, link);
         new import_obsidian20.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \xAB${item.title}\xBB \u043E\u0442\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0430 \u0432 \u0447\u0430\u0442 \u0437\u0430\u0434\u0430\u0447\u0438`);
       } catch (e) {
-        new import_obsidian20.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u2014 ${e instanceof Error ? e.message : String(e)}`);
+        new import_obsidian20.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043E\u0448\u0438\u0431\u043A\u0430 \u043E\u0442\u043F\u0440\u0430\u0432\u043A\u0438 \u2014 ${errorMessage(e)}`);
       }
     }).open();
   }
@@ -74119,7 +73985,174 @@ var PresentationsView = class extends import_obsidian20.ItemView {
 
 // src/commands.ts
 var import_obsidian22 = require("obsidian");
-init_sync_logger();
+
+// src/services/sync-logger.ts
+var import_obsidian21 = require("obsidian");
+var LOG_PATH = "yourbase/sync_log.json";
+var MAX_ENTRIES = 2e3;
+var SyncLogger = class {
+  constructor(app) {
+    this.data = { entries: [] };
+    this.initialized = false;
+    this.app = app;
+  }
+  async init() {
+    try {
+      const adapter = this.app.vault.adapter;
+      const exists = await adapter.exists(LOG_PATH);
+      if (exists) {
+        const content = await adapter.read(LOG_PATH);
+        const parsed = JSON.parse(content);
+        this.data = {
+          entries: Array.isArray(parsed.entries) ? parsed.entries : []
+        };
+      }
+      this.initialized = true;
+    } catch (e) {
+      this.initialized = true;
+    }
+  }
+  async log(entry) {
+    const fullEntry = {
+      ...entry,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    this.data.entries.unshift(fullEntry);
+    if (this.data.entries.length > MAX_ENTRIES) {
+      this.data.entries = this.data.entries.slice(0, MAX_ENTRIES);
+    }
+    await this.save();
+  }
+  getAll() {
+    return this.data.entries;
+  }
+  async clear() {
+    this.data.entries = [];
+    await this.save();
+  }
+  async save() {
+    if (!this.initialized) return;
+    try {
+      await this.app.vault.adapter.write(LOG_PATH, JSON.stringify(this.data, null, 2));
+    } catch (e) {
+      console.error("YouGile: failed to save sync log");
+    }
+  }
+};
+var SyncLogModal = class extends import_obsidian21.Modal {
+  constructor(app, logger) {
+    super(app);
+    this.filterModule = "";
+    this.filterDirection = "";
+    this.filterStatus = "";
+    this.logger = logger;
+  }
+  onOpen() {
+    this.render();
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "\u{1F4CB} \u0416\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438" });
+    const all = this.logger.getAll();
+    const filtered = all.filter((e) => {
+      if (this.filterModule && e.module !== this.filterModule) return false;
+      if (this.filterDirection && e.direction !== this.filterDirection) return false;
+      if (this.filterStatus && e.status !== this.filterStatus) return false;
+      return true;
+    });
+    const filterRow = contentEl.createDiv({ cls: "mailer-filter-row" });
+    filterRow.style.display = "flex";
+    filterRow.style.gap = "8px";
+    filterRow.style.marginBottom = "12px";
+    filterRow.style.flexWrap = "wrap";
+    filterRow.style.alignItems = "center";
+    const modules = [...new Set(all.map((e) => e.module))].sort();
+    const moduleSel = filterRow.createEl("select");
+    moduleSel.createEl("option", { text: "\u0412\u0441\u0435 \u043C\u043E\u0434\u0443\u043B\u0438", value: "" });
+    for (const m of modules) {
+      moduleSel.createEl("option", { text: m, value: m });
+    }
+    moduleSel.value = this.filterModule;
+    moduleSel.addEventListener("change", () => {
+      this.filterModule = moduleSel.value;
+      this.render();
+    });
+    const dirSel = filterRow.createEl("select");
+    dirSel.createEl("option", { text: "\u0412\u0441\u0435 \u043D\u0430\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u0438\u044F", value: "" });
+    dirSel.createEl("option", { text: "\u2192 YouGile", value: "to-yougile" });
+    dirSel.createEl("option", { text: "\u2190 YouGile", value: "from-yougile" });
+    dirSel.createEl("option", { text: "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E", value: "local" });
+    dirSel.value = this.filterDirection;
+    dirSel.addEventListener("change", () => {
+      this.filterDirection = dirSel.value;
+      this.render();
+    });
+    const statusSel = filterRow.createEl("select");
+    statusSel.createEl("option", { text: "\u0412\u0441\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u044B", value: "" });
+    statusSel.createEl("option", { text: "\u2705 \u0423\u0441\u043F\u0435\u0445", value: "success" });
+    statusSel.createEl("option", { text: "\u274C \u041E\u0448\u0438\u0431\u043A\u0430", value: "error" });
+    statusSel.createEl("option", { text: "\u23ED \u041F\u0440\u043E\u043F\u0443\u0449\u0435\u043D\u043E", value: "skipped" });
+    statusSel.value = this.filterStatus;
+    statusSel.addEventListener("change", () => {
+      this.filterStatus = statusSel.value;
+      this.render();
+    });
+    const clearBtn = filterRow.createEl("button", { text: "\u{1F5D1} \u041E\u0447\u0438\u0441\u0442\u0438\u0442\u044C \u0436\u0443\u0440\u043D\u0430\u043B" });
+    clearBtn.style.marginLeft = "auto";
+    clearBtn.addEventListener("click", async () => {
+      await this.logger.clear();
+      this.render();
+    });
+    const info = contentEl.createDiv();
+    info.style.marginBottom = "8px";
+    info.style.color = "var(--text-muted)";
+    info.style.fontSize = "12px";
+    info.textContent = `\u0412\u0441\u0435\u0433\u043E \u0437\u0430\u043F\u0438\u0441\u0435\u0439: ${all.length} | \u041E\u0442\u0444\u0438\u043B\u044C\u0442\u0440\u043E\u0432\u0430\u043D\u043E: ${filtered.length}`;
+    if (filtered.length === 0) {
+      contentEl.createEl("p", { text: "\u041D\u0435\u0442 \u0437\u0430\u043F\u0438\u0441\u0435\u0439 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438." });
+      return;
+    }
+    const table = contentEl.createEl("table");
+    table.style.width = "100%";
+    table.style.borderCollapse = "collapse";
+    table.style.fontSize = "11px";
+    const thead = table.createEl("thead");
+    const hr = thead.createEl("tr");
+    for (const h of ["\u0412\u0440\u0435\u043C\u044F", "\u041C\u043E\u0434\u0443\u043B\u044C", "\u041D\u0430\u043F\u0440.", "\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435", "ID", "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435", "\u0421\u0442\u0430\u0442\u0443\u0441", "\u0414\u0435\u0442\u0430\u043B\u0438"]) {
+      hr.createEl("th", { text: h }).style.cssText = "border-bottom:1px solid var(--background-modifier-border);padding:4px 6px;text-align:left;white-space:nowrap;";
+    }
+    const tbody = table.createEl("tbody");
+    for (const entry of filtered) {
+      const row = tbody.createEl("tr");
+      const timeStr = new Date(entry.timestamp).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const dirLabel = entry.direction === "to-yougile" ? "\u2191" : entry.direction === "from-yougile" ? "\u2193" : "\u21BB";
+      const statusLabel = entry.status === "success" ? "\u2705" : entry.status === "error" ? "\u274C" : "\u23ED";
+      row.createEl("td", { text: timeStr }).style.cssText = "padding:2px 6px;white-space:nowrap;";
+      row.createEl("td", { text: entry.module }).style.cssText = "padding:2px 6px;white-space:nowrap;";
+      const dirTd = row.createEl("td");
+      dirTd.textContent = dirLabel;
+      dirTd.style.cssText = "padding:2px 6px;text-align:center;";
+      dirTd.title = entry.direction === "to-yougile" ? "\u0412 YouGile" : entry.direction === "from-yougile" ? "\u0418\u0437 YouGile" : "\u041B\u043E\u043A\u0430\u043B\u044C\u043D\u043E";
+      row.createEl("td", { text: entry.action }).style.cssText = "padding:2px 6px;white-space:nowrap;";
+      row.createEl("td", { text: entry.itemId }).style.cssText = "padding:2px 6px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;";
+      row.createEl("td", { text: entry.itemTitle || "" }).style.cssText = "padding:2px 6px;max-width:200px;overflow:hidden;text-overflow:ellipsis;";
+      row.createEl("td", { text: statusLabel }).style.cssText = "padding:2px 6px;text-align:center;";
+      const detailTd = row.createEl("td");
+      detailTd.textContent = entry.details || entry.error || "";
+      detailTd.style.cssText = "padding:2px 6px;max-width:300px;overflow:hidden;text-overflow:ellipsis;";
+      if (entry.status === "error") {
+        detailTd.style.color = "var(--text-error)";
+      }
+    }
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+
+// src/commands.ts
 function registerCommands(plugin) {
   plugin.addCommand({
     id: "create-task",
@@ -74129,7 +74162,7 @@ function registerCommands(plugin) {
         new import_obsidian22.Notice("YouGile: \u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 API \u043A\u043B\u044E\u0447 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445 \u043F\u043B\u0430\u0433\u0438\u043D\u0430");
         return;
       }
-      plugin.activateView();
+      void plugin.activateView();
       window.setTimeout(() => {
         const leaf = plugin.app.workspace.getLeavesOfType(TASKS_VIEW_TYPE).first();
         const view = leaf == null ? void 0 : leaf.view;
@@ -74149,7 +74182,7 @@ function registerCommands(plugin) {
       }
       const view = leaf == null ? void 0 : leaf.view;
       if (view instanceof TasksView) {
-        view.syncAndRender();
+        void view.syncAndRender();
         new import_obsidian22.Notice("YouGile: \u0421\u043F\u0438\u0441\u043E\u043A \u0437\u0430\u0434\u0430\u0447 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D");
       }
     }
@@ -74160,7 +74193,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleCalendarEnabled) return false;
       if (checking) return true;
-      plugin.activateScheduleView();
+      void plugin.activateScheduleView();
     }
   });
   plugin.addCommand({
@@ -74173,7 +74206,7 @@ function registerCommands(plugin) {
         return false;
       }
       if (checking) return true;
-      plugin.activateDocumentsView();
+      void plugin.activateDocumentsView();
     }
   });
   plugin.addCommand({
@@ -74182,7 +74215,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleEmailsEnabled) return false;
       if (checking) return true;
-      plugin.activateEmailsView();
+      void plugin.activateEmailsView();
     }
   });
   plugin.addCommand({
@@ -74191,7 +74224,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleDashboardEnabled) return false;
       if (checking) return true;
-      plugin.activateDashboardView();
+      void plugin.activateDashboardView();
     }
   });
   plugin.addCommand({
@@ -74199,7 +74232,7 @@ function registerCommands(plugin) {
     name: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044F",
     checkCallback: (checking) => {
       if (checking) return true;
-      plugin.activateSuggestionsView();
+      void plugin.activateSuggestionsView();
     }
   });
   plugin.addCommand({
@@ -74208,7 +74241,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleContactsEnabled) return false;
       if (checking) return true;
-      plugin.activateContactsView();
+      void plugin.activateContactsView();
     }
   });
   plugin.addCommand({
@@ -74217,7 +74250,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.moduleLpiEnabled) return false;
       if (checking) return true;
-      plugin.activateLpiView();
+      void plugin.activateLpiView();
     }
   });
   plugin.addCommand({
@@ -74226,7 +74259,7 @@ function registerCommands(plugin) {
     checkCallback: (checking) => {
       if (!plugin.settings.modulePresentationsEnabled) return false;
       if (checking) return true;
-      plugin.activatePresentationsView();
+      void plugin.activatePresentationsView();
     }
   });
   plugin.addCommand({
@@ -74276,15 +74309,17 @@ var LocalDatabase = class {
       }
       this.initialized = true;
     } catch (e) {
+      console.error("YouGile: failed to load cache:", errorMessage(e));
       this.initialized = true;
     }
   }
+  /** Пишет кэш на диск. Никогда не отклоняет промис — ошибки логируются. */
   async save() {
     if (!this.initialized) return;
     try {
       await this.app.vault.adapter.write(DATA_FILE, JSON.stringify(this.data, null, 2));
     } catch (e) {
-      console.error("YouGile: failed to save cache");
+      console.error("YouGile: failed to save cache:", errorMessage(e));
     }
   }
   getTasks() {
@@ -74334,18 +74369,18 @@ var LocalDatabase = class {
       synced: false
     };
     this.data.offlineQueue.push(entry);
-    this.save();
+    void this.save();
   }
   markOfflineSynced(id) {
     const idx = this.data.offlineQueue.findIndex((a) => a.id === id);
     if (idx !== -1) {
       this.data.offlineQueue[idx].synced = true;
-      this.save();
+      void this.save();
     }
   }
   removeOfflineAction(id) {
     this.data.offlineQueue = this.data.offlineQueue.filter((a) => a.id !== id);
-    this.save();
+    void this.save();
   }
   hasUnsynchronizedActions() {
     return this.data.offlineQueue.some((a) => !a.synced);
@@ -74565,7 +74600,7 @@ var LocalDatabase = class {
               }
             } catch (err) {
               stillMissing.push(t.id);
-              console.log(`YouGile backfill: error for ${t.id}: ${err instanceof Error ? err.message : String(err)}`);
+              console.log(`YouGile backfill: error for ${t.id}: ${errorMessage(err)}`);
             }
           }));
         }
@@ -74646,11 +74681,12 @@ var EmailDatabase = class {
     } catch (e) {
     }
   }
+  /** Пишет БД писем на диск. Никогда не отклоняет промис — ошибки логируются. */
   async save() {
     try {
       await this.app.vault.adapter.write(DB_PATH2, JSON.stringify(this.data, null, 2));
     } catch (e) {
-      console.error("YouGile: failed to save email db");
+      console.error("YouGile: failed to save email db:", errorMessage(e));
     }
   }
   getAllEmails() {
@@ -74669,18 +74705,18 @@ var EmailDatabase = class {
     } else {
       this.data.emails.push(email);
     }
-    this.save();
+    void this.save();
   }
   updateEmail(id, updates) {
     const idx = this.data.emails.findIndex((e) => e.id === id);
     if (idx !== -1) {
       this.data.emails[idx] = { ...this.data.emails[idx], ...updates };
-      this.save();
+      void this.save();
     }
   }
   deleteEmail(id) {
     this.data.emails = this.data.emails.filter((e) => e.id !== id);
-    this.save();
+    void this.save();
   }
   getDirections() {
     return this.data.directions;
@@ -74696,7 +74732,7 @@ var EmailDatabase = class {
     } else {
       this.data.directions.push(dir);
     }
-    this.save();
+    void this.save();
   }
   async syncFromTasks(tasks) {
     var _a, _b, _c, _d, _e;
@@ -74760,25 +74796,23 @@ var EmailDatabase = class {
     }
     if (changed) {
       await this.save();
-      this.logSync(syncedCount);
+      await this.logSync(syncedCount);
     }
   }
-  logSync(count) {
-    if (!this.app) return;
+  async logSync(count) {
     try {
-      const { SyncLogger: SyncLogger2 } = (init_sync_logger(), __toCommonJS(sync_logger_exports));
-      const logger = new SyncLogger2(this.app);
-      logger.init().then(() => {
-        logger.log({
-          module: "emails",
-          direction: "from-yougile",
-          action: "sync-complete",
-          itemId: "",
-          status: "success",
-          details: `\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u043F\u0438\u0441\u0435\u043C \u0438\u0437 YouGile: ${count}`
-        });
+      const logger = new SyncLogger(this.app);
+      await logger.init();
+      await logger.log({
+        module: "emails",
+        direction: "from-yougile",
+        action: "sync-complete",
+        itemId: "",
+        status: "success",
+        details: `\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u043F\u0438\u0441\u0435\u043C \u0438\u0437 YouGile: ${count}`
       });
     } catch (e) {
+      console.error("YouGile: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u0436\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u043F\u0438\u0441\u0435\u043C:", errorMessage(e));
     }
   }
   hashTaskId(id) {
@@ -74812,11 +74846,12 @@ var ContactDatabase = class {
     } catch (e) {
     }
   }
+  /** Пишет БД контактов на диск. Никогда не отклоняет промис — ошибки логируются. */
   async save() {
     try {
       await this.app.vault.adapter.write(DB_PATH3, JSON.stringify(this.data, null, 2));
     } catch (e) {
-      console.error("YouGile: failed to save contact db");
+      console.error("YouGile: failed to save contact db:", errorMessage(e));
     }
   }
   getAllContacts() {
@@ -74827,18 +74862,18 @@ var ContactDatabase = class {
   }
   addContact(contact) {
     this.data.contacts.push(contact);
-    this.save();
+    void this.save();
   }
   updateContact(id, updates) {
     const idx = this.data.contacts.findIndex((c) => c.id === id);
     if (idx !== -1) {
       this.data.contacts[idx] = { ...this.data.contacts[idx], ...updates };
-      this.save();
+      void this.save();
     }
   }
   deleteContact(id) {
     this.data.contacts = this.data.contacts.filter((c) => c.id !== id);
-    this.save();
+    void this.save();
   }
   async syncFromTasks(tasks) {
     const contactTasks = tasks.filter((t) => {
@@ -74888,25 +74923,23 @@ var ContactDatabase = class {
     }
     await this.save();
     if (contactTasks.length > 0) {
-      this.logSync(addedCount, updatedCount);
+      await this.logSync(addedCount, updatedCount);
     }
   }
-  logSync(added, updated) {
-    if (!this.app) return;
+  async logSync(added, updated) {
     try {
-      const { SyncLogger: SyncLogger2 } = (init_sync_logger(), __toCommonJS(sync_logger_exports));
-      const logger = new SyncLogger2(this.app);
-      logger.init().then(() => {
-        logger.log({
-          module: "contacts",
-          direction: "from-yougile",
-          action: "sync-complete",
-          itemId: "",
-          status: "success",
-          details: `\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile. \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: ${added}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}`
-        });
+      const logger = new SyncLogger(this.app);
+      await logger.init();
+      await logger.log({
+        module: "contacts",
+        direction: "from-yougile",
+        action: "sync-complete",
+        itemId: "",
+        status: "success",
+        details: `\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0438\u0437 YouGile. \u0414\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u043E: ${added}, \u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u043E: ${updated}`
       });
     } catch (e) {
+      console.error("YouGile: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0437\u0430\u043F\u0438\u0441\u0430\u0442\u044C \u0436\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u043E\u0432:", errorMessage(e));
     }
   }
 };
@@ -75201,6 +75234,7 @@ ${illList}
     try {
       parsed = this.extractJsonBlock(text);
     } catch (firstErr) {
+      console.warn("LLM: \u043F\u0435\u0440\u0432\u044B\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0435 JSON, \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u044B\u0439 \u0437\u0430\u043F\u0440\u043E\u0441:", errorMessage(firstErr));
       const retry = await this.complete(system, "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0435 \u0431\u044B\u043B \u0432\u0430\u043B\u0438\u0434\u043D\u044B\u043C JSON. \u0412\u0435\u0440\u043D\u0438 \u0422\u041E\u041B\u042C\u041A\u041E JSON \u043F\u043E \u0442\u043E\u0439 \u0436\u0435 \u0441\u0445\u0435\u043C\u0435.", model);
       parsed = this.extractJsonBlock(retry);
     }
@@ -75303,6 +75337,7 @@ ${example.substring(0, 2e4)}
     try {
       parsed = this.extractJsonBlock(text);
     } catch (firstErr) {
+      console.warn("LLM: \u043F\u0435\u0440\u0432\u044B\u0439 \u043E\u0442\u0432\u0435\u0442 (TemplateSpec) \u043D\u0435 JSON, \u043F\u043E\u0432\u0442\u043E\u0440\u043D\u044B\u0439 \u0437\u0430\u043F\u0440\u043E\u0441:", errorMessage(firstErr));
       const retry = await this.complete(templateRules, "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0438\u0439 \u043E\u0442\u0432\u0435\u0442 \u043D\u0435 \u0431\u044B\u043B \u0432\u0430\u043B\u0438\u0434\u043D\u044B\u043C JSON. \u0412\u0435\u0440\u043D\u0438 \u0422\u041E\u041B\u042C\u041A\u041E JSON TemplateSpec \u0431\u0435\u0437 \u043F\u043E\u044F\u0441\u043D\u0435\u043D\u0438\u0439.", model);
       parsed = this.extractJsonBlock(retry);
     }
@@ -75564,7 +75599,7 @@ var PresentationTemplatesService = class {
         }
       }
     } catch (e) {
-      console.error("YouGile: presentation templates seed error", e);
+      console.error("YouGile: presentation templates seed error", errorMessage(e));
     }
     await this.loadCustomTemplates();
   }
@@ -75582,11 +75617,12 @@ var PresentationTemplatesService = class {
           if (tpl && tpl.id && tpl.name) {
             this.customTemplates.push(tpl);
             const tf = this.app.vault.getAbstractFileByPath(file);
-            if (tf && "stat" in tf) {
+            if (tf instanceof import_obsidian24.TFile) {
               this.templateMtimes.set(tpl.id, tf.stat.mtime);
             }
           }
         } catch (e) {
+          console.warn(`YouGile: \u043F\u0440\u043E\u043F\u0443\u0449\u0435\u043D \u043F\u043E\u0432\u0440\u0435\u0436\u0434\u0451\u043D\u043D\u044B\u0439 \u0448\u0430\u0431\u043B\u043E\u043D \u043F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438 ${file}:`, errorMessage(e));
         }
       }
     } catch (e) {
@@ -75641,7 +75677,7 @@ var PresentationTemplatesService = class {
       await this.loadCustomTemplates();
       new import_obsidian24.Notice(`\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0448\u0430\u0431\u043B\u043E\u043D \xAB${spec.name}\xBB \u0441\u043E\u0437\u0434\u0430\u043D`);
     } catch (e) {
-      new import_obsidian24.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u0448\u0430\u0431\u043B\u043E\u043D\u0430: ${e instanceof Error ? e.message : String(e)}`);
+      new import_obsidian24.Notice(`\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F \u0448\u0430\u0431\u043B\u043E\u043D\u0430: ${errorMessage(e)}`);
       throw e;
     }
     return spec;
@@ -75649,9 +75685,18 @@ var PresentationTemplatesService = class {
 };
 
 // src/main.ts
-init_sync_logger();
 var PASSWORD_SECRET_ID = "yougile-password";
 var CHANGELOG = {
+  "0.9.0": [
+    "\u0420\u0435\u0444\u0430\u043A\u0442\u043E\u0440\u0438\u043D\u0433 \u043F\u043E .rules: \u043F\u043E\u043B\u043D\u043E\u0441\u0442\u044C\u044E \u0443\u0441\u0442\u0440\u0430\u043D\u0451\u043D \u0442\u0438\u043F any \u0432 \u0438\u0441\u0445\u043E\u0434\u043D\u0438\u043A\u0430\u0445 (~50 \u043C\u0435\u0441\u0442) \u2014 \u0432\u043C\u0435\u0441\u0442\u043E \u0442\u043E\u0447\u0435\u0447\u043D\u044B\u0445 \u043F\u0440\u0438\u0432\u0435\u0434\u0435\u043D\u0438\u0439 \u0432\u0432\u0435\u0434\u0435\u043D\u044B \u0442\u0438\u043F\u044B LpiTaskDescription, LPI_COMPARE_FIELDS, SqlValue \u0438 \u0445\u0435\u043B\u043F\u0435\u0440\u044B getLpiField/setLpiField",
+    "\u0420\u0435\u0444\u0430\u043A\u0442\u043E\u0440\u0438\u043D\u0433 \u043F\u043E .rules: \u0432\u0441\u0435 25 \u043D\u0435\u0431\u0435\u0437\u043E\u043F\u0430\u0441\u043D\u044B\u0445 catch \u043F\u0435\u0440\u0435\u0432\u0435\u0434\u0435\u043D\u044B \u043D\u0430 catch (e: unknown); \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0435\u0434\u0438\u043D\u044B\u0439 \u0445\u0435\u043B\u043F\u0435\u0440 errorMessage() \u0432 src/utils/errors.ts \u0432\u043C\u0435\u0441\u0442\u043E ~30 \u043A\u043E\u043F\u0438\u0439 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0438 instanceof Error",
+    "\u041D\u0430\u0434\u0451\u0436\u043D\u043E\u0441\u0442\u044C: 8 \u043C\u0435\u0441\u0442, \u0433\u0434\u0435 \u043E\u0448\u0438\u0431\u043A\u0430 \u043C\u043E\u043B\u0447\u0430 \u043F\u0440\u043E\u0433\u043B\u0430\u0442\u044B\u0432\u0430\u043B\u0430\u0441\u044C (\u0447\u0442\u0435\u043D\u0438\u0435 \u0438 \u0437\u0430\u043F\u0438\u0441\u044C \u0411\u0414 LPI, \u043A\u044D\u0448\u0430 \u0437\u0430\u0434\u0430\u0447, \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u0441\u0445\u0435\u043C\u044B SQLite), \u0442\u0435\u043F\u0435\u0440\u044C \u043B\u043E\u0433\u0438\u0440\u0443\u044E\u0442 \u043F\u0440\u0438\u0447\u0438\u043D\u0443 \u0432 \u043A\u043E\u043D\u0441\u043E\u043B\u044C",
+    "\u041D\u0430\u0434\u0451\u0436\u043D\u043E\u0441\u0442\u044C: \u0432\u043E\u0441\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D \u043F\u043E\u0442\u0435\u0440\u044F\u043D\u043D\u044B\u0439 try-catch \u0432 safeRegisterView \u2014 \u0431\u0435\u0437 \u043D\u0435\u0433\u043E \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0441\u043A \u043F\u043B\u0430\u0433\u0438\u043D\u0430 \u0447\u0435\u0440\u0435\u0437 updater \u043F\u0430\u0434\u0430\u043B \u0441 \u043E\u0448\u0438\u0431\u043A\u043E\u0439 \xABAttempting to register an existing view type\xBB",
+    "\u041D\u0430\u0434\u0451\u0436\u043D\u043E\u0441\u0442\u044C: \u0436\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438 \u0432 \u043F\u0438\u0441\u044C\u043C\u0430\u0445 \u0438 \u043A\u043E\u043D\u0442\u0430\u043A\u0442\u0430\u0445 \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0430\u0435\u0442\u0441\u044F \u0447\u0435\u0440\u0435\u0437 \u0440\u0430\u043D\u0442\u0430\u0439\u043C-require \u0441 \u043F\u0440\u043E\u0433\u043B\u0430\u0442\u044B\u0432\u0430\u043D\u0438\u0435\u043C \u043E\u0448\u0438\u0431\u043E\u043A \u2014 \u043E\u0431\u044B\u0447\u043D\u044B\u0439 \u0438\u043C\u043F\u043E\u0440\u0442 \u0438 await",
+    "\u041D\u0430\u0434\u0451\u0436\u043D\u043E\u0441\u0442\u044C: ~60 \u043D\u0435\u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043D\u043D\u044B\u0445 \u043F\u0440\u043E\u043C\u0438\u0441\u043E\u0432 (\u043E\u0442\u043A\u0440\u044B\u0442\u0438\u0435 \u0432\u044C\u044E\u0445, \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F, \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043A \u0438 \u0411\u0414) \u043F\u043E\u043C\u0435\u0447\u0435\u043D\u044B void \u0438\u043B\u0438 await \u2014 \u043E\u0448\u0438\u0431\u043A\u0438 \u0431\u043E\u043B\u044C\u0448\u0435 \u043D\u0435 \u0442\u0435\u0440\u044F\u044E\u0442\u0441\u044F \u043C\u043E\u043B\u0447\u0430",
+    "API-\u043A\u043B\u0438\u0435\u043D\u0442: \u0443\u0441\u0442\u0440\u0430\u043D\u0435\u043D\u043E \u0434\u0443\u0431\u043B\u0438\u0440\u043E\u0432\u0430\u043D\u0438\u0435 \u0444\u0438\u043B\u044C\u0442\u0440\u0430\u0446\u0438\u0438 \u0437\u0430\u0434\u0430\u0447 \u043F\u043E \u043F\u0440\u043E\u0435\u043A\u0442\u0443 (\u043D\u043E\u0432\u044B\u0439 \u043F\u0440\u0438\u0432\u0430\u0442\u043D\u044B\u0439 getProjectColumnIds)",
+    "\u0422\u0438\u043F\u044B: \u0438\u0441\u043F\u0440\u0430\u0432\u043B\u0435\u043D\u043E 10 \u043E\u0448\u0438\u0431\u043E\u043A \u0442\u0438\u043F\u0438\u0437\u0430\u0446\u0438\u0438 (tsc 46 \u2192 36) \u2014 \u0441\u0438\u0433\u043D\u0430\u0442\u0443\u0440\u044B onClose \u0432 \u0442\u0440\u0451\u0445 \u0432\u044C\u044E\u0445\u0430\u0445, \u0442\u0438\u043F\u044B \u0433\u0440\u0430\u0444\u0438\u043A\u043E\u0432 ApexCharts \u043D\u0430 \u0434\u0430\u0448\u0431\u043E\u0440\u0434\u0435, \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 TFile \u043F\u0440\u0438 \u043E\u0442\u043A\u0440\u044B\u0442\u0438\u0438 CSV, \u043F\u043E\u043B\u0435 updatedAt \u0432 YouGileTaskFull"
+  ],
   "0.8.8": [
     "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u043D\u043E\u0432\u044B\u0439 WYSIWYG-\u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u0441\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u044F (\u043A\u043D\u043E\u043F\u043A\u0430 \xAB\u270F\uFE0F \u0421\u043E\u0434\u0435\u0440\u0436\u0430\u043D\u0438\u0435\xBB) \u2014 \u043F\u0440\u0430\u0432\u043A\u0430 \u0437\u0430\u0433\u043E\u043B\u043E\u0432\u043A\u043E\u0432, \u0442\u0435\u043A\u0441\u0442\u043E\u0432, \u043C\u0430\u0440\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0445 \u0441\u043F\u0438\u0441\u043A\u043E\u0432 (\u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u0435/\u0443\u0434\u0430\u043B\u0435\u043D\u0438\u0435 \u043F\u0443\u043D\u043A\u0442\u043E\u0432), \u043A\u0430\u0440\u0442\u043E\u0447\u0435\u043A \u0438 \u0442\u0430\u0431\u043B\u0438\u0446 (\u0441\u0442\u0440\u043E\u043A\u0438/\u0441\u0442\u043E\u043B\u0431\u0446\u044B); \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u0435, \u0443\u0434\u0430\u043B\u0435\u043D\u0438\u0435 \u0438 \u043F\u0435\u0440\u0435\u043C\u0435\u0449\u0435\u043D\u0438\u0435 \u0441\u043B\u0430\u0439\u0434\u043E\u0432; \u0441\u043C\u0435\u043D\u0430 \u043C\u0430\u043A\u0435\u0442\u0430 \u0441 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u0435\u043C \u0441\u043E\u0432\u043C\u0435\u0441\u0442\u0438\u043C\u044B\u0445 \u043F\u043E\u043B\u0435\u0439; \u0436\u0438\u0432\u043E\u0435 \u043F\u0440\u0435\u0432\u044C\u044E \u043E\u0431\u043D\u043E\u0432\u043B\u044F\u0435\u0442\u0441\u044F \u0432 \u0440\u0435\u0430\u043B\u044C\u043D\u043E\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438",
     "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438: \u0435\u0434\u0438\u043D\u0430\u044F \u0441\u0431\u043E\u0440\u043A\u0430 HTML \u0432\u044B\u043D\u0435\u0441\u0435\u043D\u0430 \u0432 buildPresentationHtml() \u2014 \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440, \u044D\u043A\u0441\u043F\u043E\u0440\u0442 \u0438 \u0440\u0435\u0434\u0430\u043A\u0442\u043E\u0440 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u044E\u0442 \u043E\u0431\u0449\u0438\u0439 \u043A\u043E\u0434",
@@ -76019,44 +76064,44 @@ var YouGilePlugin = class extends import_obsidian25.Plugin {
       this.safeRegisterView(PRESENTATIONS_VIEW_TYPE, (leaf) => new PresentationsView(leaf, this));
     }
     this.addRibbonIcon("list-todo", "YouGile", () => {
-      this.activateView();
+      void this.activateView();
     });
     if (this.settings.moduleCalendarEnabled) {
       this.addRibbonIcon("calendar", "\u0420\u0430\u0441\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043C\u0435\u0440\u043E\u043F\u0440\u0438\u044F\u0442\u0438\u0439", () => {
-        this.activateScheduleView();
+        void this.activateScheduleView();
       });
     }
     if (this.settings.moduleDocumentsEnabled) {
       this.addRibbonIcon("file-text", "\u0414\u043E\u043A\u0443\u043C\u0435\u043D\u0442\u044B", () => {
-        this.activateDocumentsView();
+        void this.activateDocumentsView();
       });
     }
     if (this.settings.moduleEmailsEnabled) {
       this.addRibbonIcon("mail", "\u041F\u0438\u0441\u044C\u043C\u0430", () => {
-        this.activateEmailsView();
+        void this.activateEmailsView();
       });
     }
     if (this.settings.moduleDashboardEnabled) {
       this.addRibbonIcon("bar-chart", "\u0414\u0430\u0448\u0431\u043E\u0440\u0434", () => {
-        this.activateDashboardView();
+        void this.activateDashboardView();
       });
     }
     this.addRibbonIcon("lightbulb", "\u041F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044F", () => {
-      this.activateSuggestionsView();
+      void this.activateSuggestionsView();
     });
     if (this.settings.moduleContactsEnabled) {
       this.addRibbonIcon("user", "\u041A\u043E\u043D\u0442\u0430\u043A\u0442\u044B", () => {
-        this.activateContactsView();
+        void this.activateContactsView();
       });
     }
     if (this.settings.moduleLpiEnabled) {
       this.addRibbonIcon("flame", "\u041B\u0430\u0431\u043E\u0440\u0430\u0442\u043E\u0440\u0438\u044F \u043F\u043E\u0436\u0430\u0440\u043D\u044B\u0445 \u0438\u0441\u043F\u044B\u0442\u0430\u043D\u0438\u0439", () => {
-        this.activateLpiView();
+        void this.activateLpiView();
       });
     }
     if (this.settings.modulePresentationsEnabled) {
       this.addRibbonIcon("presentation", "\u041F\u0440\u0435\u0437\u0435\u043D\u0442\u0430\u0446\u0438\u0438", () => {
-        this.activatePresentationsView();
+        void this.activatePresentationsView();
       });
     }
     this.addRibbonIcon("history", "\u0416\u0443\u0440\u043D\u0430\u043B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u0438", () => {
@@ -76064,8 +76109,16 @@ var YouGilePlugin = class extends import_obsidian25.Plugin {
     });
     registerCommands(this);
   }
+  /**
+   * Обёртка над `registerView()`: при перезапуске плагина через updater типы вьюх
+   * не очищаются из реестра Obsidian, и повторная регистрация бросает исключение.
+   */
   safeRegisterView(type, viewCreator) {
-    this.registerView(type, viewCreator);
+    try {
+      this.registerView(type, viewCreator);
+    } catch (e) {
+      console.warn(`YouGile: view-\u0442\u0438\u043F \xAB${type}\xBB \u0443\u0436\u0435 \u0437\u0430\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0438\u0440\u043E\u0432\u0430\u043D:`, errorMessage(e));
+    }
   }
   onunload() {
     this.app.workspace.detachLeavesOfType(TASKS_VIEW_TYPE);
@@ -76129,6 +76182,7 @@ var YouGilePlugin = class extends import_obsidian25.Plugin {
     try {
       return (_b = (_a = this.app.secretStorage) == null ? void 0 : _a.getSecret(secretName)) != null ? _b : null;
     } catch (e) {
+      console.error(`YouGile: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u043E\u0447\u0438\u0442\u0430\u0442\u044C \u0441\u0435\u043A\u0440\u0435\u0442 \xAB${secretName}\xBB:`, errorMessage(e));
       return null;
     }
   }
@@ -76137,7 +76191,7 @@ var YouGilePlugin = class extends import_obsidian25.Plugin {
     try {
       (_a = this.app.secretStorage) == null ? void 0 : _a.setSecret(secretName, value);
     } catch (e) {
-      console.error("YouGile: Failed to save secret", secretName);
+      console.error(`YouGile: \u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0441\u0435\u043A\u0440\u0435\u0442 \xAB${secretName}\xBB:`, errorMessage(e));
     }
   }
   getPassword() {

@@ -95,6 +95,7 @@ export interface YouGileTaskFull {
   color?: string;
   createdAt?: string;
   createdBy?: string;
+  updatedAt?: string;
   archived?: boolean;
   archivedTimestamp?: number;
   completed?: boolean;

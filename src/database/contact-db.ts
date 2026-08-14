@@ -1,6 +1,8 @@
 import { App } from 'obsidian';
 import type { ContactItem, ContactDbData } from '../types/contacts';
 import type { CachedTask } from '../types/cache';
+import { SyncLogger } from '../services/sync-logger';
+import { errorMessage } from '../utils/errors';
 
 const DB_PATH = 'yourbase/contacts_data.json';
 
@@ -28,11 +30,12 @@ export class ContactDatabase {
     }
   }
 
+  /** Пишет БД контактов на диск. Никогда не отклоняет промис — ошибки логируются. */
   private async save(): Promise<void> {
     try {
       await this.app.vault.adapter.write(DB_PATH, JSON.stringify(this.data, null, 2));
-    } catch {
-      console.error('YouGile: failed to save contact db');
+    } catch (e: unknown) {
+      console.error('YouGile: failed to save contact db:', errorMessage(e));
     }
   }
 
@@ -46,20 +49,20 @@ export class ContactDatabase {
 
   addContact(contact: ContactItem): void {
     this.data.contacts.push(contact);
-    this.save();
+    void this.save();
   }
 
   updateContact(id: string, updates: Partial<ContactItem>): void {
     const idx = this.data.contacts.findIndex(c => c.id === id);
     if (idx !== -1) {
       this.data.contacts[idx] = { ...this.data.contacts[idx], ...updates };
-      this.save();
+      void this.save();
     }
   }
 
   deleteContact(id: string): void {
     this.data.contacts = this.data.contacts.filter(c => c.id !== id);
-    this.save();
+    void this.save();
   }
 
   async syncFromTasks(tasks: CachedTask[]): Promise<void> {
@@ -111,25 +114,24 @@ export class ContactDatabase {
     }
     await this.save();
     if (contactTasks.length > 0) {
-      this.logSync(addedCount, updatedCount);
+      await this.logSync(addedCount, updatedCount);
     }
   }
 
-  private logSync(added: number, updated: number): void {
-    if (!this.app) return;
+  private async logSync(added: number, updated: number): Promise<void> {
     try {
-      const { SyncLogger } = require('../services/sync-logger');
       const logger = new SyncLogger(this.app);
-      logger.init().then(() => {
-        logger.log({
-          module: 'contacts',
-          direction: 'from-yougile',
-          action: 'sync-complete',
-          itemId: '',
-          status: 'success',
-          details: `Синхронизировано из YouGile. Добавлено: ${added}, обновлено: ${updated}`,
-        });
+      await logger.init();
+      await logger.log({
+        module: 'contacts',
+        direction: 'from-yougile',
+        action: 'sync-complete',
+        itemId: '',
+        status: 'success',
+        details: `Синхронизировано из YouGile. Добавлено: ${added}, обновлено: ${updated}`,
       });
-    } catch {}
+    } catch (e: unknown) {
+      console.error('YouGile: не удалось записать журнал синхронизации контактов:', errorMessage(e));
+    }
   }
 }

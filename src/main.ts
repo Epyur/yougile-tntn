@@ -1,5 +1,6 @@
-import { App, Plugin, Notice, Modal, Setting, WorkspaceLeaf } from 'obsidian';
+import { App, Plugin, Notice, Modal, Setting, WorkspaceLeaf, ViewCreator } from 'obsidian';
 import { YouGileSettings, DEFAULT_SETTINGS } from './types/settings';
+import { errorMessage } from './utils/errors';
 import { YouGileClient } from './api/client';
 import { YouGileSettingTab } from './ui/settings-tab';
 import { TASKS_VIEW_TYPE, TasksView } from './ui/tasks-view';
@@ -23,6 +24,16 @@ import { SyncLogger, SyncLogModal } from './services/sync-logger';
 const PASSWORD_SECRET_ID = 'yougile-password';
 
 const CHANGELOG: Record<string, string[]> = {
+  '0.9.0': [
+    'Рефакторинг по .rules: полностью устранён тип any в исходниках (~50 мест) — вместо точечных приведений введены типы LpiTaskDescription, LPI_COMPARE_FIELDS, SqlValue и хелперы getLpiField/setLpiField',
+    'Рефакторинг по .rules: все 25 небезопасных catch переведены на catch (e: unknown); добавлен единый хелпер errorMessage() в src/utils/errors.ts вместо ~30 копий проверки instanceof Error',
+    'Надёжность: 8 мест, где ошибка молча проглатывалась (чтение и запись БД LPI, кэша задач, загрузка схемы SQLite), теперь логируют причину в консоль',
+    'Надёжность: восстановлен потерянный try-catch в safeRegisterView — без него перезапуск плагина через updater падал с ошибкой «Attempting to register an existing view type»',
+    'Надёжность: журнал синхронизации в письмах и контактах больше не подключается через рантайм-require с проглатыванием ошибок — обычный импорт и await',
+    'Надёжность: ~60 незавершённых промисов (открытие вьюх, синхронизация, сохранение настроек и БД) помечены void или await — ошибки больше не теряются молча',
+    'API-клиент: устранено дублирование фильтрации задач по проекту (новый приватный getProjectColumnIds)',
+    'Типы: исправлено 10 ошибок типизации (tsc 46 → 36) — сигнатуры onClose в трёх вьюхах, типы графиков ApexCharts на дашборде, проверка TFile при открытии CSV, поле updatedAt в YouGileTaskFull',
+  ],
   '0.8.8': [
     'Презентации: новый WYSIWYG-редактор содержания (кнопка «✏️ Содержание») — правка заголовков, текстов, маркированных списков (добавление/удаление пунктов), карточек и таблиц (строки/столбцы); добавление, удаление и перемещение слайдов; смена макета с сохранением совместимых полей; живое превью обновляется в реальном времени',
     'Презентации: единая сборка HTML вынесена в buildPresentationHtml() — просмотр, экспорт и редактор используют общий код',
@@ -420,48 +431,48 @@ export default class YouGilePlugin extends Plugin {
     }
 
     this.addRibbonIcon('list-todo', 'YouGile', () => {
-      this.activateView();
+      void this.activateView();
     });
 
     if (this.settings.moduleCalendarEnabled) {
       this.addRibbonIcon('calendar', 'Расписание мероприятий', () => {
-        this.activateScheduleView();
+        void this.activateScheduleView();
       });
     }
 
     if (this.settings.moduleDocumentsEnabled) {
       this.addRibbonIcon('file-text', 'Документы', () => {
-        this.activateDocumentsView();
+        void this.activateDocumentsView();
       });
     }
 
     if (this.settings.moduleEmailsEnabled) {
       this.addRibbonIcon('mail', 'Письма', () => {
-        this.activateEmailsView();
+        void this.activateEmailsView();
       });
     }
 
     if (this.settings.moduleDashboardEnabled) {
       this.addRibbonIcon('bar-chart', 'Дашборд', () => {
-        this.activateDashboardView();
+        void this.activateDashboardView();
       });
     }
     this.addRibbonIcon('lightbulb', 'Предложения', () => {
-      this.activateSuggestionsView();
+      void this.activateSuggestionsView();
     });
     if (this.settings.moduleContactsEnabled) {
       this.addRibbonIcon('user', 'Контакты', () => {
-        this.activateContactsView();
+        void this.activateContactsView();
       });
     }
     if (this.settings.moduleLpiEnabled) {
       this.addRibbonIcon('flame', 'Лаборатория пожарных испытаний', () => {
-        this.activateLpiView();
+        void this.activateLpiView();
       });
     }
     if (this.settings.modulePresentationsEnabled) {
       this.addRibbonIcon('presentation', 'Презентации', () => {
-        this.activatePresentationsView();
+        void this.activatePresentationsView();
       });
     }
 
@@ -472,8 +483,16 @@ export default class YouGilePlugin extends Plugin {
     registerCommands(this);
   }
 
-  private safeRegisterView(type: string, viewCreator: (leaf: WorkspaceLeaf) => any): void {
-    this.registerView(type as any, viewCreator as any);
+  /**
+   * Обёртка над `registerView()`: при перезапуске плагина через updater типы вьюх
+   * не очищаются из реестра Obsidian, и повторная регистрация бросает исключение.
+   */
+  private safeRegisterView(type: string, viewCreator: ViewCreator): void {
+    try {
+      this.registerView(type, viewCreator);
+    } catch (e: unknown) {
+      console.warn(`YouGile: view-тип «${type}» уже зарегистрирован:`, errorMessage(e));
+    }
   }
 
   onunload(): void {
@@ -541,7 +560,8 @@ export default class YouGilePlugin extends Plugin {
     }
     try {
       return this.app.secretStorage?.getSecret(secretName) ?? null;
-    } catch {
+    } catch (e: unknown) {
+      console.error(`YouGile: не удалось прочитать секрет «${secretName}»:`, errorMessage(e));
       return null;
     }
   }
@@ -549,8 +569,8 @@ export default class YouGilePlugin extends Plugin {
   saveSecret(secretName: string, value: string): void {
     try {
       this.app.secretStorage?.setSecret(secretName, value);
-    } catch {
-      console.error('YouGile: Failed to save secret', secretName);
+    } catch (e: unknown) {
+      console.error(`YouGile: не удалось сохранить секрет «${secretName}»:`, errorMessage(e));
     }
   }
 

@@ -98,30 +98,24 @@ export class YouGileClient {
     return allTasks;
   }
 
-  async getTasksByProject(projectId: string): Promise<YouGileTask[]> {
+  /** Собирает id колонок, принадлежащих указанному проекту. */
+  private async getProjectColumnIds(projectId: string): Promise<Set<string>> {
     const boards = await this.getBoards();
-    const projectBoardIds = new Set(boards.filter((b: any) => b.projectId === projectId).map((b: any) => b.id));
+    const projectBoardIds = new Set(boards.filter(b => b.projectId === projectId).map(b => b.id));
     const allCols = await this.getColumns();
-    const projectColumnIds = new Set(allCols.filter((c: any) => projectBoardIds.has(c.boardId)).map((c: any) => c.id));
+    return new Set(allCols.filter(c => projectBoardIds.has(c.boardId)).map(c => c.id));
+  }
+
+  async getTasksByProject(projectId: string): Promise<YouGileTask[]> {
+    const projectColumnIds = await this.getProjectColumnIds(projectId);
     const all = await this.getTasks();
-    return all.filter(t => {
-      const col = (t as any).columnId;
-      if (!col) return false;
-      return projectColumnIds.has(col);
-    });
+    return all.filter(t => (t.columnId ? projectColumnIds.has(t.columnId) : false));
   }
 
   async getTasksExcludingProject(projectId: string): Promise<YouGileTask[]> {
-    const boards = await this.getBoards();
-    const projectBoardIds = new Set(boards.filter((b: any) => b.projectId === projectId).map((b: any) => b.id));
-    const allCols = await this.getColumns();
-    const projectColumnIds = new Set(allCols.filter((c: any) => projectBoardIds.has(c.boardId)).map((c: any) => c.id));
+    const projectColumnIds = await this.getProjectColumnIds(projectId);
     const all = await this.getTasks();
-    return all.filter(t => {
-      const col = (t as any).columnId;
-      if (!col) return true;
-      return !projectColumnIds.has(col);
-    });
+    return all.filter(t => (t.columnId ? !projectColumnIds.has(t.columnId) : true));
   }
 
   async createTask(payload: CreateTaskPayload): Promise<{ id: string }> {
@@ -129,7 +123,7 @@ export class YouGileClient {
   }
 
   async getTaskById(id: string): Promise<YouGileTaskFull> {
-    return this.request<YouGileTask>('GET', `/tasks/${encodeURIComponent(id)}`);
+    return this.request<YouGileTaskFull>('GET', `/tasks/${encodeURIComponent(id)}`);
   }
 
   async getProjects(): Promise<YouGileProject[]> {

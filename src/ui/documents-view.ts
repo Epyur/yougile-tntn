@@ -227,7 +227,7 @@ export class DocumentsView extends ItemView {
             this.selectedColumnIds.delete(col.id);
           }
           this.plugin.settings.docsSelectedColumnIds = Array.from(this.selectedColumnIds).join(',');
-          this.plugin.saveSettings();
+          void this.plugin.saveSettings();
           this.renderView();
         });
       }
@@ -444,7 +444,7 @@ export class DocumentsView extends ItemView {
         try {
           await this.plugin.client.updateTask(doc.taskId, { completed: false });
           new Notice('Документ возобновлён');
-          this.syncAndRender();
+          void this.syncAndRender();
         } catch (e: unknown) {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -455,7 +455,7 @@ export class DocumentsView extends ItemView {
         try {
           await this.plugin.client.updateTask(doc.taskId, { completed: true });
           new Notice('Документ завершён');
-          this.syncAndRender();
+          void this.syncAndRender();
         } catch (e: unknown) {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -559,7 +559,7 @@ export class DocumentsView extends ItemView {
         };
         await this.plugin.client.createTask(payload);
         new Notice('Документ создан');
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -573,7 +573,7 @@ export class DocumentsView extends ItemView {
             },
           });
           new Notice('Нет соединения. Документ будет создан позже.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText('✅ Создать');
@@ -674,7 +674,7 @@ export class DocumentsView extends ItemView {
         };
         await this.plugin.client.createTask(payload);
         new Notice('Связанный документ создан');
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({
@@ -688,7 +688,7 @@ export class DocumentsView extends ItemView {
             },
           });
           new Notice('Нет соединения. Связанный документ будет создан позже.');
-          this.syncAndRender();
+          void this.syncAndRender();
         } else {
           new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
           submitBtn.setText('✅ Создать');

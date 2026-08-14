@@ -1,5 +1,6 @@
 import { Modal, App } from 'obsidian';
 import { LpiSchemaService, type SchemaDb, type TableDef, type ColumnDef, type ForeignKeyDef } from '../services/lpi-schema-service';
+import { errorMessage } from '../utils/errors';
 
 export class LpiSchemaModal extends Modal {
   private schemaService: LpiSchemaService;
@@ -27,8 +28,8 @@ export class LpiSchemaModal extends Modal {
       this.schema = await this.schemaService.loadSchema(this.dbPath);
       loading.remove();
       this.render();
-    } catch (e: any) {
-      loading.textContent = 'Ошибка загрузки схемы: ' + e.message;
+    } catch (e: unknown) {
+      loading.textContent = 'Ошибка загрузки схемы: ' + errorMessage(e);
       loading.style.color = 'var(--text-error)';
     }
   }

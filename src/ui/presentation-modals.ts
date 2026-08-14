@@ -3,6 +3,7 @@ import type YouGilePlugin from '../main';
 import type { PresentationQuestionaire, PresentationTemplate } from '../types/presentations';
 import type { CachedTask } from '../types/cache';
 import { getVaultResourceUrl } from '../services/presentation-generator';
+import { errorMessage } from '../utils/errors';
 
 const AUDIENCE_OPTIONS = ['Руководители', 'Эксперты', 'Инженеры', 'Смешанная', 'Другое'];
 const PURPOSE_OPTIONS = [
@@ -160,8 +161,8 @@ export class QuestionnaireModal extends Modal {
           illRows.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, path, description: '', uri });
           saveIllToQ();
           renderIll();
-        } catch (err) {
-          new Notice(`Ошибка: ${err instanceof Error ? err.message : String(err)}`);
+        } catch (err: unknown) {
+          new Notice(`Ошибка: ${errorMessage(err)}`);
         }
       }
       illFile.value = '';
@@ -269,8 +270,8 @@ export class NewTemplateModal extends Modal {
         try {
           await this.plugin.presentationTemplates.createTemplateFromExample(example, name, this.model);
           this.close();
-        } catch (e) {
-          new Notice(`Ошибка: ${e instanceof Error ? e.message : String(e)}`);
+        } catch (e: unknown) {
+          new Notice(`Ошибка: ${errorMessage(e)}`);
           b.setDisabled(false).setButtonText('Создать шаблон');
         }
       }))
@@ -396,9 +397,10 @@ export class BrainstormModal extends Modal {
       if (this.round >= this.maxRounds) {
         this.skipBtnEl.setText('⏭ Сгенерировать сейчас');
       }
-    } catch (e) {
-      this.appendMessage('assistant', '⚠️ Ошибка: ' + (e instanceof Error ? e.message : String(e)));
-      new Notice('Ошибка мозгового штурма: ' + (e instanceof Error ? e.message : String(e)));
+    } catch (e: unknown) {
+      const msg = errorMessage(e);
+      this.appendMessage('assistant', '⚠️ Ошибка: ' + msg);
+      new Notice('Ошибка мозгового штурма: ' + msg);
     } finally {
       this.setBusy(false);
     }
@@ -540,8 +542,8 @@ export class ImageUploadModal extends Modal {
           const uri = await import('../services/presentation-generator').then(m =>
             m.saveImageToVault(this.plugin.app, file, m.PRESENTATION_PICS_DIR));
           addToPool(file.name, uri);
-        } catch (err) {
-          new Notice(`Ошибка: ${err instanceof Error ? err.message : String(err)}`);
+        } catch (err: unknown) {
+          new Notice(`Ошибка: ${errorMessage(err)}`);
         }
       }
       fileInput.value = '';

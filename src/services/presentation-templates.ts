@@ -1,5 +1,6 @@
-import { App, Notice } from 'obsidian';
+import { App, Notice, TFile } from 'obsidian';
 import type YouGilePlugin from '../main';
+import { errorMessage } from '../utils/errors';
 import type { PresentationTemplate, PresentationTemplateLayouts } from '../types/presentations';
 
 const TEMPLATES_DIR = 'yourbase/presentation_templates';
@@ -207,14 +208,14 @@ export class PresentationTemplatesService {
           await adapter.write(path, JSON.stringify(t, null, 2));
         }
       }
-    } catch (e) {
-      console.error('YouGile: presentation templates seed error', e);
+    } catch (e: unknown) {
+      console.error('YouGile: presentation templates seed error', errorMessage(e));
     }
     await this.loadCustomTemplates();
   }
 
   async loadCustomTemplates(): Promise<void> {
-    const adapter = this.app.vault.adapter as any;
+    const adapter = this.app.vault.adapter;
     this.customTemplates = [];
     this.templateMtimes.clear();
     try {
@@ -227,16 +228,16 @@ export class PresentationTemplatesService {
           if (tpl && tpl.id && tpl.name) {
             this.customTemplates.push(tpl);
             const tf = this.app.vault.getAbstractFileByPath(file);
-            if (tf && 'stat' in tf) {
-              this.templateMtimes.set(tpl.id, (tf as any).stat.mtime);
+            if (tf instanceof TFile) {
+              this.templateMtimes.set(tpl.id, tf.stat.mtime);
             }
           }
-        } catch {
-          // skip broken template
+        } catch (e: unknown) {
+          console.warn(`YouGile: пропущен повреждённый шаблон презентации ${file}:`, errorMessage(e));
         }
       }
     } catch {
-      // folder not present
+      // папка шаблонов ещё не создана — не ошибка
     }
   }
 
@@ -294,8 +295,8 @@ export class PresentationTemplatesService {
       await this.app.vault.adapter.write(`${TEMPLATES_DIR}/${safeId}.json`, JSON.stringify(spec, null, 2));
       await this.loadCustomTemplates();
       new Notice(`Презентации: шаблон «${spec.name}» создан`);
-    } catch (e) {
-      new Notice(`Ошибка сохранения шаблона: ${e instanceof Error ? e.message : String(e)}`);
+    } catch (e: unknown) {
+      new Notice(`Ошибка сохранения шаблона: ${errorMessage(e)}`);
       throw e;
     }
     return spec;

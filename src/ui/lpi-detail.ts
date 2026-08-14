@@ -3,10 +3,20 @@ import type { LpiItem } from '../types/lpi';
 import type { FieldSectionDef, SubquerySectionDef } from '../types/lpi-config';
 import type { LpiView } from './lpi-view';
 import { LpiConfigEditorModal } from './lpi-modals';
+import { getLpiField, setLpiField } from './lpi-utils';
+import { errorMessage } from '../utils/errors';
+
+/** Описание редактируемого поля в деталях заявки. */
+interface EditFieldDef {
+  key: string;
+  label: string;
+  type: 'text' | 'date' | 'select' | 'textarea';
+  options?: string[];
+}
 
 export class LpiDetail {
   private view: LpiView;
-  private editFieldsConfig = [
+  private editFieldsConfig: EditFieldDef[] = [
     { key: 'protocol_date', label: 'Дата протокола', type: 'date' },
     { key: 'product_name', label: 'Название материала', type: 'text' },
     { key: 'customer_name', label: 'Заказчик', type: 'text' },
@@ -71,7 +81,7 @@ export class LpiDetail {
         await this.view.sync.syncItemToYougile(item);
         await this.view.saveData();
         new Notice(`Заявка №${item.application_external_id} отправлена в YouGile`);
-      } catch (e: any) { new Notice('Ошибка: ' + e.message); }
+      } catch (e: unknown) { new Notice('Ошибка: ' + errorMessage(e)); }
       sendBtn.disabled = false; sendBtn.textContent = '📤 Отправить в YouGile';
     });
 
@@ -93,11 +103,11 @@ export class LpiDetail {
       meta.createEl('h4', { text: section.title, cls: 'mailer-mt-8' });
       for (const f of section.fields) {
         if (f.visibleIf) {
-          const targetVal = (item as any)[f.visibleIf.field];
+          const targetVal = getLpiField(item, f.visibleIf.field);
           if (f.visibleIf.notNull && (targetVal === null || targetVal === undefined || targetVal === '')) continue;
           if (f.visibleIf.equals !== undefined && String(targetVal) !== f.visibleIf.equals) continue;
         }
-        const raw = (item as any)[f.field];
+        const raw = getLpiField(item, f.field);
         const isMissing = raw === null || raw === undefined || raw === '';
         let display = isMissing ? '—' : String(raw);
         if (f.format && !isMissing && f.field !== 'protocol_date') display = f.format.replace('{value}', display);
@@ -138,7 +148,7 @@ export class LpiDetail {
       if (!fs.existsSync(dbPath)) return;
       let query = section.query;
       for (const key of section.dependsOn) {
-        const val = (item as any)[key];
+        const val = getLpiField(item, key);
         if (val !== null && val !== undefined) query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(val));
       }
       try {
@@ -163,7 +173,9 @@ export class LpiDetail {
             tr.createEl('td', { text: display }).style.cssText = 'padding:2px 6px;border-bottom:1px solid var(--background-modifier-border)';
           }
         }
-      } catch {}
+      } catch (e: unknown) {
+        console.error(`LPI: не удалось выполнить подзапрос секции «${section.title}»:`, errorMessage(e));
+      }
     };
 
     for (const section of this.view.viewConfig.detailSections) {
@@ -191,9 +203,9 @@ export class LpiDetail {
 
     editBtn.addEventListener('click', () => toggleEdit(true));
 
-    cancelEditBtn.addEventListener('click', async () => {
+    cancelEditBtn.addEventListener('click', () => {
       // Reset values
-      this.render(container, item);
+      void this.render(container, item);
     });
 
     saveBtn.addEventListener('click', async () => {
@@ -202,14 +214,14 @@ export class LpiDetail {
         const inp = inputs[ef.key];
         if (!inp) continue;
         let newVal = inp.value.trim();
-        const oldVal = String((item as any)[ef.key] ?? '');
+        const oldVal = String(getLpiField(item, ef.key) ?? '');
         if (ef.type === 'date' && newVal) {
           // Convert YYYY-MM-DD → DD.MM.YYYY for storage
           const m = newVal.match(/(\d{4})-(\d{2})-(\d{2})/);
           if (m) newVal = `${m[3]}.${m[2]}.${m[1]}`;
         }
         if (newVal !== oldVal) {
-          (item as any)[ef.key] = newVal || null;
+          setLpiField(item, ef.key, newVal || null);
           changedKeys.push(ef.label);
         }
       }
@@ -221,12 +233,12 @@ export class LpiDetail {
         await this.view.sync.syncItemToYougile(item);
         await this.view.saveData();
         new Notice(`Заявка №${item.application_external_id}: изменено ${changedKeys.length} полей`);
-      } catch (e: any) { new Notice('Ошибка сохранения: ' + e.message); }
-      this.render(container, item);
+      } catch (e: unknown) { new Notice('Ошибка сохранения: ' + errorMessage(e)); }
+      void this.render(container, item);
     });
   }
 
-  private createInput(ef: { key: string; label: string; type: string; options?: string[] }, value: string, readOnly: boolean): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
+  private createInput(ef: EditFieldDef, value: string, readOnly: boolean): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
     const style = 'flex:1;font-size:var(--font-smaller);padding:3px 6px;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:4px';
     if (ef.type === 'select') {
       const sel = document.createElement('select');
@@ -283,7 +295,9 @@ export class LpiDetail {
     tableSel.createEl('option', { text: '— Выберите таблицу —', value: '' });
     this.view.schemaService.loadSchema(dbPath).then(schema => {
       for (const table of schema.tables) tableSel.createEl('option', { text: table.name, value: table.name });
-    }).catch(() => {});
+    }).catch((e: unknown) => {
+      console.error('LPI: не удалось загрузить список таблиц:', errorMessage(e));
+    });
 
     const autoBtn = tableSelRow.createEl('button', { text: '🔄 Авто', cls: 'mailer-yougile-refresh-btn' });
     autoBtn.style.fontSize = '11px';
@@ -307,7 +321,9 @@ export class LpiDetail {
         else if (otherFks.length > 0) query = `SELECT\n  ${cols}\nFROM ${tableName}\nWHERE (\n  ${otherFks.map(fk => `${fk.from} = '{{${fk.from}}}'`).join('\n  OR ')}\n)\nLIMIT 50`;
         else query = `SELECT\n  ${cols}\nFROM ${tableName}\nLIMIT 100`;
         sqlInput.value = query;
-      }).catch(() => {});
+      }).catch((e: unknown) => {
+        console.error('LPI: не удалось сгенерировать запрос:', errorMessage(e));
+      });
     });
 
     const runBtn = qContainer.createEl('button', { text: '▶ Выполнить', cls: 'mailer-yougile-refresh-btn', attr: { style: 'margin-top:6px' } });
@@ -317,7 +333,7 @@ export class LpiDetail {
     runBtn.addEventListener('click', async () => {
       let query = sqlInput.value;
       for (const key of ['aggregate_id', 'application_id', 'application_external_id', 'product_name']) {
-        const val = (item as any)[key];
+        const val = getLpiField(item, key);
         if (val !== null && val !== undefined) query = query.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(val));
       }
       resultDiv.empty();
@@ -345,7 +361,7 @@ export class LpiDetail {
           };
           this.view.viewConfig.detailSections.push(newSection);
         };
-      } catch (e: any) { resultDiv.textContent = 'Ошибка: ' + e.message; saveSectionBtn.style.display = 'none'; }
+      } catch (e: unknown) { resultDiv.textContent = 'Ошибка: ' + errorMessage(e); saveSectionBtn.style.display = 'none'; }
       runBtn.textContent = '▶ Выполнить'; runBtn.disabled = false;
     });
     saveSectionBtn.style.display = 'none';

@@ -1,24 +1,27 @@
 declare module 'sql.js' {
-  interface SqlJsStatic {
+  /** Значение, которое SQLite может вернуть в ячейке результата. */
+  export type SqlValue = number | string | Uint8Array | null;
+
+  export interface SqlJsStatic {
     Database: new (data?: ArrayLike<number> | Buffer | null) => Database;
   }
-  interface Database {
-    run(sql: string, params?: any[]): Database;
+  export interface Database {
+    run(sql: string, params?: SqlValue[]): Database;
     exec(sql: string): QueryExecResult[];
     prepare(sql: string): Statement;
     close(): void;
   }
-  interface QueryExecResult {
+  export interface QueryExecResult {
     columns: string[];
-    values: any[][];
+    values: SqlValue[][];
   }
-  interface Statement {
-    bind(params?: any[]): boolean;
+  export interface Statement {
+    bind(params?: SqlValue[]): boolean;
     step(): boolean;
-    getAsObject(params?: any[]): Record<string, any>;
+    getAsObject(params?: SqlValue[]): Record<string, SqlValue>;
     free(): boolean;
   }
-  interface InitSqlJsOptions {
+  export interface InitSqlJsOptions {
     locateFile?: (file: string) => string;
     wasmBinary?: ArrayBuffer;
   }

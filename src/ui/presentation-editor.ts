@@ -2,6 +2,7 @@ import { Modal, Notice } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { PresentationGeneration, PresentationItem, PresentationSlide } from '../types/presentations';
 import { buildPresentationHtml, PRESENTATION_RENDER_VERSION } from '../services/presentation-generator';
+import { errorMessage } from '../utils/errors';
 
 const LAYOUT_LABELS: Record<PresentationSlide['layout'], string> = {
   title: 'Титульный',
@@ -452,8 +453,8 @@ export class PresentationEditorModal extends Modal {
       new Notice('Презентации: содержание обновлено');
       this.onSaved();
       this.close();
-    } catch (e) {
-      new Notice(`Ошибка сохранения: ${e instanceof Error ? e.message : String(e)}`);
+    } catch (e: unknown) {
+      new Notice(`Ошибка сохранения: ${errorMessage(e)}`);
     }
   }
 }

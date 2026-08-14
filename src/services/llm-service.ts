@@ -7,6 +7,7 @@ import type {
   PresentationSlide,
 } from '../types/presentations';
 import { normalizeIllustrationPath } from './presentation-generator';
+import { errorMessage } from '../utils/errors';
 
 export interface LLMResponse {
   choices?: Array<{ message?: { content?: string } }>;
@@ -232,7 +233,8 @@ ${illList ? `\n## ДОСТУПНЫЕ ИЛЛЮСТРАЦИИ (путь — опи
     let parsed: unknown;
     try {
       parsed = this.extractJsonBlock(text);
-    } catch (firstErr) {
+    } catch (firstErr: unknown) {
+      console.warn('LLM: первый ответ не JSON, повторный запрос:', errorMessage(firstErr));
       const retry = await this.complete(system, 'Предыдущий ответ не был валидным JSON. Верни ТОЛЬКО JSON по той же схеме.', model);
       parsed = this.extractJsonBlock(retry);
     }
@@ -346,7 +348,8 @@ ${transcript || '—'}
     let parsed: unknown;
     try {
       parsed = this.extractJsonBlock(text);
-    } catch (firstErr) {
+    } catch (firstErr: unknown) {
+      console.warn('LLM: первый ответ (TemplateSpec) не JSON, повторный запрос:', errorMessage(firstErr));
       const retry = await this.complete(templateRules, 'Предыдущий ответ не был валидным JSON. Верни ТОЛЬКО JSON TemplateSpec без пояснений.', model);
       parsed = this.extractJsonBlock(retry);
     }

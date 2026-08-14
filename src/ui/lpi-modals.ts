@@ -1,9 +1,12 @@
 import { App, Modal, Notice } from 'obsidian';
-import type { LpiItem } from '../types/lpi';
-import { DEFAULT_CONFIG } from '../types/lpi-config';
+import type { LpiItem, LpiTaskDescription } from '../types/lpi';
+import { LPI_COMPARE_FIELDS } from '../types/lpi';
+import type { YouGileTask } from '../types/yougile';
+import { DEFAULT_CONFIG, type LpiViewConfig } from '../types/lpi-config';
 import type { LpiView } from './lpi-view';
 import type YouGilePlugin from '../main';
-import { isCompleted } from './lpi-utils';
+import { isCompleted, parseLpiDescription, isLpiTaskDescription, setLpiField } from './lpi-utils';
+import { errorMessage } from '../utils/errors';
 
 const CONFIG_PATH = 'yourbase/lpi_view_config.json';
 
@@ -214,21 +217,19 @@ export class YougileSyncModal extends Modal {
 
     contentEl.createEl('p', { text: 'Загрузка задач из YouGile...' });
 
-    const tasks: any[] = await this.plugin.client.getTasks();
-    const lpiTasks = tasks.filter((t: any) => {
-      try {
-        const desc = JSON.parse(t.description || '{}');
-        return desc.type === 'lpi_completed' || desc.type === 'lpi_data';
-      } catch { return false; }
-    });
+    const tasks = await this.plugin.client.getTasks();
+    const lpiTasks: { task: YouGileTask; desc: LpiTaskDescription }[] = [];
+    for (const t of tasks) {
+      const desc = parseLpiDescription(t.description);
+      if (isLpiTaskDescription(desc)) lpiTasks.push({ task: t, desc });
+    }
 
     const items: LpiItem[] = this.view.items;
 
-    const matchingDiffs: { item: LpiItem; task: any; yougileDesc: Record<string, any>; diffs: { label: string; local: string; yougile: string }[] }[] = [];
-    const imported: any[] = [];
+    const matchingDiffs: { item: LpiItem; task: YouGileTask; yougileDesc: LpiTaskDescription; diffs: { label: string; local: string; yougile: string }[] }[] = [];
+    const imported: { task: YouGileTask; desc: LpiTaskDescription }[] = [];
 
-    for (const task of lpiTasks) {
-      const desc = JSON.parse(task.description || '{}');
+    for (const { task, desc } of lpiTasks) {
       const extId = desc.application_external_id || '';
       let localItem = items.find(i => i.taskId === task.id);
       if (!localItem && extId) localItem = items.find(i => i.application_external_id === extId);
@@ -245,14 +246,8 @@ export class YougileSyncModal extends Modal {
       }
 
       const diffs: { label: string; local: string; yougile: string }[] = [];
-      const compareFields: { key: string; label: string }[] = [
-        { key: 'protocol_date', label: 'Дата протокола' },
-        { key: 'agg_gen_group_complience', label: 'Оценка соответствия' },
-        { key: 'agg_gen_group', label: 'Результат испытания' },
-        { key: 'product_name', label: 'Материал' },
-      ];
-      for (const { key, label } of compareFields) {
-        const lv = String((localItem as any)[key] ?? '');
+      for (const { key, label } of LPI_COMPARE_FIELDS) {
+        const lv = String(localItem[key] ?? '');
         const rawYv = desc[key];
         const yv = String(rawYv ?? '');
         if (lv !== yv) {
@@ -261,7 +256,8 @@ export class YougileSyncModal extends Modal {
         }
       }
       const lc = isCompleted(localItem) ? 'Завершена' : 'Активна';
-      const yc = isCompleted({ ...localItem, ...desc } as any) ? 'Завершена' : 'Активна';
+      const merged: LpiItem = { ...localItem, protocol_date: desc.protocol_date ?? localItem.protocol_date };
+      const yc = isCompleted(merged) ? 'Завершена' : 'Активна';
       if (lc !== yc) diffs.push({ label: 'Статус', local: lc, yougile: yc });
 
       if (diffs.length > 0) {
@@ -274,7 +270,7 @@ export class YougileSyncModal extends Modal {
 
     let autoImported = 0;
     for (const imp of imported) {
-      const newItem: LpiItem = { ...imp.desc, taskId: imp.task.id } as any;
+      const newItem = { ...imp.desc, taskId: imp.task.id } as unknown as LpiItem;
       if (imp.task.completed && imp.desc.protocol_date) {
         newItem.protocol_date = imp.desc.protocol_date;
       }
@@ -395,25 +391,27 @@ export class YougileSyncModal extends Modal {
       applyAllBtn.disabled = true;
       applyAllBtn.setText('⏳ Применение...');
       let count = 0;
+      const client = this.plugin.client;
       for (let idx = 0; idx < matchingDiffs.length; idx++) {
         const md = matchingDiffs[idx];
         const choice = this.choices.get(idx) || 'local';
         try {
+          if (!client) throw new Error('Нет подключения к YouGile');
           const fullJson = this.view.buildFullJson(md.item);
           if (choice === 'local') {
-            await this.plugin.client!.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
+            await client.updateTask(md.task.id, { description: JSON.stringify(fullJson) });
             if (isCompleted(md.item) && !md.task.completed) {
-              await this.plugin.client!.updateTask(md.task.id, { completed: true });
+              await client.updateTask(md.task.id, { completed: true });
             }
             if (!md.item.taskId) md.item.taskId = md.task.id;
           } else {
             console.log(`YouGile sync apply yougile: extId=${md.item.application_external_id}, before protocol_date=${md.item.protocol_date}, yougile protocol_date=${md.yougileDesc.protocol_date}`);
             // Copy fields from YouGile description to local item
-            for (const key of Object.keys(md.yougileDesc)) {
+            for (const [key, yv] of Object.entries(md.yougileDesc)) {
               if (key === 'type' || key === 'aggregate_id') continue;
-              const yv = md.yougileDesc[key];
-              if (yv !== undefined) {
-                (md.item as any)[key] = yv;
+              if (yv === undefined) continue;
+              if (yv === null || typeof yv === 'string' || typeof yv === 'number') {
+                setLpiField(md.item, key, yv);
               }
             }
             if (md.task.completed && !md.item.protocol_date) {
@@ -423,8 +421,8 @@ export class YougileSyncModal extends Modal {
             console.log(`YouGile sync apply yougile: after protocol_date=${md.item.protocol_date}, completed=${md.task.completed}`);
           }
           count++;
-        } catch (e: any) {
-          new Notice(`Ошибка по №${md.item.application_external_id}: ${e.message}`);
+        } catch (e: unknown) {
+          new Notice(`Ошибка по №${md.item.application_external_id}: ${errorMessage(e)}`);
         }
       }
       console.log(`YouGile sync applied: ${count} items, sample item after: extId=${matchingDiffs[0]?.item.application_external_id}, protocol_date=${matchingDiffs[0]?.item.protocol_date}`);
@@ -473,14 +471,14 @@ export class LpiConfigEditorModal extends Modal {
     const saveBtn = btnRow.createEl('button', { text: '💾 Сохранить', cls: 'mailer-yougile-refresh-btn' });
     saveBtn.addEventListener('click', async () => {
       try {
-        const parsed = JSON.parse(textarea.value);
+        const parsed = JSON.parse(textarea.value) as LpiViewConfig;
         this.view.viewConfig = parsed;
         const adapter = this.view.app.vault.adapter;
         await adapter.write(CONFIG_PATH, JSON.stringify(parsed, null, 2));
         new Notice('Конфиг сохранён');
         this.close();
-      } catch (e: any) {
-        new Notice('Ошибка в JSON: ' + e.message);
+      } catch (e: unknown) {
+        new Notice('Ошибка в JSON: ' + errorMessage(e));
       }
     });
 

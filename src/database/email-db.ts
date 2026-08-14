@@ -1,6 +1,8 @@
 import { App } from 'obsidian';
 import type { EmailDbData, MailItem, MailDirection } from '../types/emails';
 import type { CachedTask } from '../types/cache';
+import { SyncLogger } from '../services/sync-logger';
+import { errorMessage } from '../utils/errors';
 
 const DB_PATH = 'yourbase/mailer_data.json';
 
@@ -29,11 +31,12 @@ export class EmailDatabase {
     }
   }
 
+  /** Пишет БД писем на диск. Никогда не отклоняет промис — ошибки логируются. */
   private async save(): Promise<void> {
     try {
       await this.app.vault.adapter.write(DB_PATH, JSON.stringify(this.data, null, 2));
-    } catch {
-      console.error('YouGile: failed to save email db');
+    } catch (e: unknown) {
+      console.error('YouGile: failed to save email db:', errorMessage(e));
     }
   }
 
@@ -56,20 +59,20 @@ export class EmailDatabase {
     } else {
       this.data.emails.push(email);
     }
-    this.save();
+    void this.save();
   }
 
   updateEmail(id: number, updates: Partial<MailItem>): void {
     const idx = this.data.emails.findIndex(e => e.id === id);
     if (idx !== -1) {
       this.data.emails[idx] = { ...this.data.emails[idx], ...updates };
-      this.save();
+      void this.save();
     }
   }
 
   deleteEmail(id: number): void {
     this.data.emails = this.data.emails.filter(e => e.id !== id);
-    this.save();
+    void this.save();
   }
 
   getDirections(): MailDirection[] {
@@ -88,7 +91,7 @@ export class EmailDatabase {
     } else {
       this.data.directions.push(dir);
     }
-    this.save();
+    void this.save();
   }
 
   async syncFromTasks(tasks: CachedTask[]): Promise<void> {
@@ -157,26 +160,25 @@ export class EmailDatabase {
     }
     if (changed) {
       await this.save();
-      this.logSync(syncedCount);
+      await this.logSync(syncedCount);
     }
   }
 
-  private logSync(count: number): void {
-    if (!this.app) return;
+  private async logSync(count: number): Promise<void> {
     try {
-      const { SyncLogger } = require('../services/sync-logger');
       const logger = new SyncLogger(this.app);
-      logger.init().then(() => {
-        logger.log({
-          module: 'emails',
-          direction: 'from-yougile',
-          action: 'sync-complete',
-          itemId: '',
-          status: 'success',
-          details: `Синхронизировано писем из YouGile: ${count}`,
-        });
+      await logger.init();
+      await logger.log({
+        module: 'emails',
+        direction: 'from-yougile',
+        action: 'sync-complete',
+        itemId: '',
+        status: 'success',
+        details: `Синхронизировано писем из YouGile: ${count}`,
       });
-    } catch {}
+    } catch (e: unknown) {
+      console.error('YouGile: не удалось записать журнал синхронизации писем:', errorMessage(e));
+    }
   }
 
   private hashTaskId(id: string): number {

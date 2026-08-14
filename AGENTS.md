@@ -6,13 +6,14 @@
 
 - `npm run dev` — esbuild watch-режим; `npm run build` — production-сборка. Обе пишут `main.js` в корень репозитория, который является **живой папкой установленного плагина** в хранилище `C:\Obsidian\mailers`.
 - **В `package.json` нет тестов, линтера и typecheck-скрипта.** Единственная проверка типов — `npx tsc --noEmit`. Никогда не запускайте `tsc` без `--noEmit`: в `tsconfig.json` задан `outDir: "./"`, и скомпилированный JS будет выброшен в корень репозитория.
-- **`npm run build` не проверяет типы** (esbuild срезает их). На данный момент `npx tsc --noEmit` даёт ~48 известных ошибок (в осн. `presentation-generator.ts`, `emails-view.ts`, `dashboard-view.ts`, сигнатуры `onClose` ItemView, нет типов у `qrcode`). Не исправляйте весь задел — просто не добавляйте новых ошибок.
+- **`npm run build` не проверяет типы** (esbuild срезает их). На данный момент `npx tsc --noEmit` даёт **36** известных ошибок (`presentation-generator.ts` — 23, `emails-view.ts` — 6, `documents-view.ts` — 3, `tasks-view.ts` — 2, `commands.ts` и `llm-service.ts` — по 1). Не исправляйте весь задел — просто не добавляйте новых ошибок.
 - Сборка автоматически копирует `node_modules/sql.js/dist/sql-wasm.wasm` в корень — файл обязателен для модуля LPI в рантайме.
 - `main.js` **закоммичен** в git (вопреки `.rules/obsidian-plugin-rules.md`): после изменений пересоберите его и включите в коммит.
 - **`.rules/obsidian-plugin-rules.md` устарел и местами противоречит коду** — ориентируйтесь на этот файл и на код:
-  - он запрещает инлайн-стили `element.style.*`, но чекбоксы намеренно используют их (см. «Ключевые решения»)
+  - он запрещает инлайн-стили `element.style.*`, но чекбоксы намеренно используют их (см. «Ключевые решения»); инлайн-стили остаются в ~18 файлах и рефакторингу по `.rules` не подвергались (высокий риск визуальных регрессий без тестов)
   - он утверждает, что собранные `main.js`/`manifest.json`/`styles.css` не хранятся в репозитории — на деле `main.js` закоммичен
   - рекомендует нейминг `views/*.view.ts`, в коде — `ui/*-view.ts`
+- **Соблюдаемые правила `.rules`**: в `src/` нет `any`, все `catch` типизированы как `unknown` и используют `errorMessage()` из `src/utils/errors.ts`, промисы либо `await`, либо помечены `void`, вместо `fetch`/`setTimeout` — `requestUrl`/`window.setTimeout`. Не откатывайте это при правках.
 - `yougile-api.json` / `yougile-api-pretty.json` — дампы ответов YouGile API, удобно сверять схемы при правке `api/client.ts`. `instruction.md` — пользовательская инструкция (на неё ссылается README).
 
 ## Статус модулей
@@ -62,8 +63,10 @@ src/
 │   ├── lpi-config.ts              # LpiViewConfig + DEFAULT_CONFIG
 │   ├── presentations.ts           # Презентации: TemplateSpec, слайды, анкета, черновики
 │   ├── settings.ts                # YouGileSettings + DEFAULT_SETTINGS
-│   ├── sql.js.d.ts                # Type declarations for sql.js
+│   ├── sql.js.d.ts                # Type declarations for sql.js (SqlValue, Database, Statement)
 │   └── yougile.ts                 # YouGileTask, CreateTaskPayload, …
+├── utils/
+│   └── errors.ts                  # errorMessage(e: unknown) — извлечение сообщения в catch
 ├── ui/
 │   ├── assignee-selector.ts       # Переиспользуемый компонент выбора пользователей
 │   ├── contacts-view.ts           # Контакты (таблица, create/edit, детали, QR-код)
@@ -184,8 +187,18 @@ src/
 - Добавлять описание всех изменений (на русском языке) в массив `CHANGELOG` в `src/main.ts` под новой версией
 - Если пользователь называет номер сборки, который уже был использован ранее (уже есть в CHANGELOG или в git-тегах), необходимо указать на это и предложить следующий свободный номер
 
-### Текущая версия: 0.8.8 (релиз)
-- **Презентации**: WYSIWYG-редактор содержания (кнопка «✏️ Содержание») — правка текстов, списков, карточек, таблиц; добавление/удаление/перемещение слайдов; смена макета; живое превью. Единая сборка HTML — `buildPresentationHtml()` в `presentation-generator.ts` (`src/ui/presentation-editor.ts`, `src/ui/presentations-view.ts`).
+### Текущая версия: 0.9.0 (релиз)
+- **Рефакторинг по `.rules`** (без изменения поведения):
+  - **`any` устранён полностью** (~50 мест). Введены типы: `LpiTaskDescription`, `LPI_COMPARE_FIELDS`/`LpiComparableField` (`src/types/lpi.ts`), экспортируемые `SqlValue`/`Database`/`SqlJsStatic` (`src/types/sql.js.d.ts`), хелперы `parseLpiDescription()`, `isLpiTaskDescription()`, `getLpiField()`/`setLpiField()` (`src/ui/lpi-utils.ts`).
+  - **`catch (e: unknown)` везде** (25 мест) + единый `errorMessage()` в `src/utils/errors.ts` вместо ~30 копий `e instanceof Error ? … : String(e)`.
+  - **Плавающие промисы** (~60 мест) помечены `void` или `await`: `activate*View()`, `syncAndRender()`, `saveSettings()`, `save()` в трёх БД, `detail.render()`.
+  - **`logSync()`** в `email-db.ts`/`contact-db.ts` переведён с рантайм-`require('../services/sync-logger')` + проглатывания ошибок на обычный импорт с `await`.
+  - **Восстановлен `try-catch` в `safeRegisterView()`** (`src/main.ts`) — был потерян, из-за чего перезапуск через updater падал с «Attempting to register an existing view type»; тип — `ViewCreator` вместо `any`.
+  - **`getProjectColumnIds()`** (`src/api/client.ts`) — устранено дублирование фильтрации задач по проекту.
+  - **Исправлено 10 ошибок типов (tsc 46 → 36)**: `onClose(): Promise<void>` в `contacts-view`/`dashboard-view`/`suggestions-view`, `ApexOptions`/`XAxisAnnotations` вместо `Partial<ApexCharts>`, guard `instanceof TFile`, `updatedAt` в `YouGileTaskFull`.
+  - **Не тронуто**: инлайн-стили (~500 `.style.*` + ~130 `cssText` в 18 файлах) — высокий риск визуальных регрессий без тестов; для чекбоксов это намеренное решение (см. «Ключевые решения»).
+
+- **Презентации (0.8.8)**: WYSIWYG-редактор содержания (кнопка «✏️ Содержание») — правка текстов, списков, карточек, таблиц; добавление/удаление/перемещение слайдов; смена макета; живое превью. Единая сборка HTML — `buildPresentationHtml()` в `presentation-generator.ts` (`src/ui/presentation-editor.ts`, `src/ui/presentations-view.ts`).
 - **Презентации**: предупреждение о потере ручных правок при перегенерации.
 - **Типы**: добавлен `src/types/qrcode.d.ts` — устранены 2 ошибки типов qrcode (tsc 48 → 46).
 
@@ -194,7 +207,7 @@ src/
 
 - **LPI дашборд**: исправлена группировка графика «Завершение заявок по месяцам» — дата протокола нормализуется в месяц (YYYY-MM) через хелпер `toMonthKey()` (поддерживает ISO и ДД.ММ.ГГГГ), вместо ошибочной группировки по дням.
 - **LLM: до 5 моделей** — в настройках блок «Письма → AI помощник» теперь позволяет задать до 5 моделей (одни API-ключ и URL) и модель по умолчанию; селекторы выбора модели добавлены в чат AI по письмам и во вьюху «Презентации» (генерация, мозговой штурм, извлечение шаблона). Разрешение модели — `LLMService.resolveModel()`: явный выбор → `llmDefaultModel` → первая из `llmModels` → legacy `llmModel` → дефолт. Миграция старого поля `llmModel` в `llmModels` — в `loadSettings()`.
-- **⚠️ Требует проверки**: 0.8.4 (дата завершения `completeAt`) — после синка убедиться, что все завершённые задачи получили `completeAt` в `yourbase/yougile_cache.json` и повторные синки больше не перезапрашивают одни и те же задачи. Для задач, завершённых через плагин до фикса, дата ≈ момент до-простановки (исходную дату API не хранил).
+- **✅ Проверено**: 0.8.4 (дата завершения `completeAt`) — в `yourbase/yougile_cache.json` все завершённые задачи имеют `completeAt` (111 из 111 завершённых, всего 375 задач), повторные синки одни и те же задачи не перезапрашивают. Для задач, завершённых через плагин до фикса, дата ≈ момент до-простановки (исходную дату API не хранил).
 - **Презентации (0.8.3)**: фоновые изображения применяются ко всем типам слайдов (контентные bullets/cards/table, финальный), в «Изображениях» исправлена нумерация селектов (`bg:title` + `bg:1..bg:N-1`); индикатор генерации — элемент сразу появляется в списке со статусом `generating` (мигающий маркер), при ошибке — `error` с кнопкой перегенерации; «зависшие» генерации старше 10 мин помечаются ошибкой при `onOpen`.
 
 ### Коммиты

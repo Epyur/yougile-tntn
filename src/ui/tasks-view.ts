@@ -68,7 +68,7 @@ export class TasksView extends ItemView {
     this.selectProject.addClass('dropdown');
     this.selectProject.addEventListener('change', () => {
       this.plugin.settings.selectedProjectId = this.selectProject.value;
-      this.plugin.saveSettings();
+      void this.plugin.saveSettings();
       this.populateFilters();
       this.renderFromCache();
     });
@@ -927,7 +927,7 @@ export class TasksView extends ItemView {
         await this.plugin.client.createTask(payload);
         new Notice('Задача создана');
         this.createViewActive = false;
-        this.syncAndRender();
+        void this.syncAndRender();
       } catch (e: unknown) {
         if (isNetworkError(e)) {
           this.plugin.db.addToOfflineQueue({

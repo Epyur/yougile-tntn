@@ -1,7 +1,9 @@
-import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, WorkspaceLeaf, TFile } from 'obsidian';
 import type YouGilePlugin from '../main';
 import type { CachedTask } from '../types/cache';
 import ApexCharts from 'apexcharts';
+import type { ApexOptions, XAxisAnnotations } from 'apexcharts';
+import { errorMessage } from '../utils/errors';
 
 export const DASHBOARD_VIEW_TYPE = 'yougile-dashboard-view';
 
@@ -35,7 +37,7 @@ export class DashboardView extends ItemView {
     this.renderView();
   }
 
-  onClose(): void {
+  async onClose(): Promise<void> {
     this.cancelRender();
     this.destroyCharts();
   }
@@ -373,11 +375,10 @@ export class DashboardView extends ItemView {
         }
       }
     }
-    const deadlineAnnotations = [...deadlineDates].map(d => ({
+    const deadlineAnnotations: XAxisAnnotations[] = [...deadlineDates].map(d => ({
       x: d,
       strokeDashArray: 4,
       borderColor: '#e74c3c',
-      label: { show: false },
     }));
 
     const c3 = this.chartBox(grid, 'Динамика озадачивания');
@@ -399,7 +400,7 @@ export class DashboardView extends ItemView {
     this.renderTimeoutId = window.setTimeout(() => {
       this.renderTimeoutId = null;
       try {
-        const chartOpts: Partial<ApexCharts> = {
+        const chartOpts: ApexOptions = {
           chart: { type: 'donut', height: 240, foreColor: textColor, toolbar: { show: true, tools: { download: true, selection: false, zoom: false, zoomin: false, zoomout: false, pan: false, reset: false } } },
           labels: colLabels,
           series: colValues,
@@ -468,6 +469,10 @@ export class DashboardView extends ItemView {
   private async exportSingleChart(chart: ApexCharts, name: string): Promise<void> {
     try {
       const result = await chart.dataURI({ scale: 5 });
+      if (!('imgURI' in result)) {
+        new Notice('❌ График вернул неподдерживаемый формат изображения');
+        return;
+      }
       const pngData = result.imgURI;
       const img = new Image();
       img.onload = async () => {
@@ -488,8 +493,7 @@ export class DashboardView extends ItemView {
       };
       img.src = pngData;
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      new Notice(`❌ Ошибка экспорта: ${msg}`);
+      new Notice(`❌ Ошибка экспорта: ${errorMessage(e)}`);
     }
   }
 
@@ -549,7 +553,7 @@ export class DashboardView extends ItemView {
     await adapter.writeBinary(filePath, data.buffer as ArrayBuffer);
     new Notice(`✅ CSV экспорт: ${filePath}`);
     const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
-    if (file) {
+    if (file instanceof TFile) {
       await this.plugin.app.workspace.getLeaf().openFile(file);
     }
   }
@@ -560,7 +564,7 @@ export class DashboardView extends ItemView {
       return;
     }
     await this.plugin.db.sync();
-    this.plugin.emailDb.syncFromTasks(this.plugin.db.getTasks());
+    await this.plugin.emailDb.syncFromTasks(this.plugin.db.getTasks());
     this.renderView();
   }
 }
