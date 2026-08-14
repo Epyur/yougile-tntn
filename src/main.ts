@@ -24,6 +24,11 @@ import { SyncLogger, SyncLogModal } from './services/sync-logger';
 const PASSWORD_SECRET_ID = 'yougile-password';
 
 const CHANGELOG: Record<string, string[]> = {
+  '0.9.1': [
+    'Задачи: в деталях задачи добавлена кнопка «🌐 Открыть в YouGile» — открывает задачу на сайте YouGile по рабочей схеме ссылки',
+    'Задачи: ссылка формируется как https://ru.yougile.com/team/{последний сегмент companyId}/#{idTaskProject} (например #TD-389) — предыдущий формат /task/{id} не работал',
+    'Задачи: если номер задачи (idTaskProject) недоступен, используется id задачи как фолбэк в hash-части ссылки',
+  ],
   '0.9.0': [
     'Рефакторинг по .rules: полностью устранён тип any в исходниках (~50 мест) — вместо точечных приведений введены типы LpiTaskDescription, LPI_COMPARE_FIELDS, SqlValue и хелперы getLpiField/setLpiField',
     'Рефакторинг по .rules: все 25 небезопасных catch переведены на catch (e: unknown); добавлен единый хелпер errorMessage() в src/utils/errors.ts вместо ~30 копий проверки instanceof Error',

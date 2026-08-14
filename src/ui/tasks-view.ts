@@ -514,6 +514,18 @@ export class TasksView extends ItemView {
     if (task.idTaskCommon) meta.createEl('div', { text: `Общий ID: ${task.idTaskCommon}` });
     if (task.type) meta.createEl('div', { text: `Тип: ${task.type}` });
 
+    const linkRow = container.createDiv({ cls: 'mailer-flex-row' });
+    linkRow.style.gap = '8px';
+    linkRow.style.marginBottom = '8px';
+    const webBtn = linkRow.createEl('button', { text: '🌐 Открыть в YouGile', cls: 'mailer-yougile-refresh-btn' });
+    webBtn.addEventListener('click', () => {
+      const companyId = this.plugin.settings.companyId;
+      const teamPart = companyId ? companyId.split('-').pop() : '';
+      const number = task.idTaskProject || task.id;
+      const url = `https://ru.yougile.com/team/${teamPart}/#${number}`;
+      window.open(url, '_blank');
+    });
+
     if (task.description) {
       container.createEl('h4', { text: 'Описание' });
       container.createDiv({ text: stripHtml(task.description) });
